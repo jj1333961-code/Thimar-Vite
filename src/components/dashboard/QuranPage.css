@@ -1,0 +1,140 @@
+@font-face {
+  font-family: "QuranUthmani";
+  src: url("/fonts/quran-uthmani.woff2")
+    format("woff2");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "QuranBasmalah";
+  src: url("/fonts/quran-basmalah.woff2")
+    format("woff2");
+  font-display: swap;
+}
+
+.quran-viewer {
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 2px 1px 4px;
+  box-sizing: border-box;
+  overflow: visible;
+  background: #fff;
+}
+
+.quran-page {
+  width: min(100%, 680px);
+  max-width: 100%;
+  /* الارتفاع يُحسب في القرآنPage.tsx بحسب المساحة المتاحة فعلًا داخل شريط المصحف. */
+  min-height: 0;
+  height: auto;
+  box-sizing: border-box;
+  background: #fff;
+  border: 1.5px solid #e8dfc7;
+  border-radius: 20px;
+  padding: 1.2% 0.4%;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  position: relative;
+  color: #171717;
+  --quran-font: 26px;
+}
+
+.quran-viewer .quran-surah-title {
+  width: 100%;
+  text-align: center;
+  font-family: "QuranUthmani", serif;
+  font-size: clamp(22px, 4.8vw, 32px);
+  font-weight: bold;
+  color: #111;
+  margin: 0 0 6px;
+}
+
+.quran-viewer .quran-basmalah {
+  width: 100%;
+  text-align: center;
+  font-family: "QuranBasmalah", "QuranUthmani", serif;
+  font-size: clamp(22px, 4.8vw, 32px);
+  line-height: 1.7;
+  margin: 0 auto 6px;
+  color: #111;
+}
+
+.quran-lines {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  /* مسافة متساوية بين كل سطر وآخر داخل الصفحة. */
+  justify-content: space-evenly;
+  gap: clamp(6px, 1.4vh, 16px);
+}
+
+.quran-line {
+  width: 100%;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  text-align: right;
+  white-space: nowrap;
+  min-height: 0;
+  line-height: 1.9;
+  overflow: visible;
+}
+
+/* أثناء القياس نُلغي التوزيع حتى نقرأ العرض الطبيعي للسطر. */
+.quran-page--measuring .quran-line {
+  justify-content: flex-start !important;
+}
+
+.quran-viewer .quran-word {
+  font-family: "QuranUthmani", serif;
+  font-size: var(--quran-font, 26px) !important;
+  line-height: 1.9;
+  white-space: nowrap;
+  color: #111;
+}
+
+.quran-viewer .quran-ayah-marker {
+  font-family: "QuranUthmani", serif;
+  font-size: calc(var(--quran-font, 26px) * 0.88);
+  color: #a88942;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+[data-theme="dark"] .quran-viewer,
+[data-theme="dark"] .quran-page {
+  background: #1f231f;
+  color: #efe7d8;
+  border-color: #343a34;
+}
+[data-theme="dark"] .quran-viewer .quran-surah-title {
+  color: #9fd4c4;
+}
+[data-theme="dark"] .quran-viewer .quran-basmalah {
+  color: #ffffff;
+}
+[data-theme="dark"] .quran-viewer .quran-word { color: #efe7d8; }
+[data-theme="dark"] .quran-viewer .quran-ayah-marker { color: #d4a017; }
+
+@media (max-width: 480px) {
+  .quran-viewer {
+    padding: 1px 0 2px;
+  }
+
+  .quran-page {
+    width: 100%;
+    border-radius: 14px;
+    padding: 1.4% 0.35%;
+    min-height: 0;
+  }
+
+  .quran-lines {
+    gap: clamp(5px, 1.1vh, 12px);
+  }
+}

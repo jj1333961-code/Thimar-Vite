@@ -1,0 +1,21 @@
+# Respan Gateway — طبقة توجيه محلية بين التطبيق ومزوّد الذكاء الاصطناعي.
+# التطبيق يتصل بالبوابة عبر AI_API_BASE (vite.config.ts ← /api/ai/chat).
+# التشغيل: npm run gateway   |   فحص الإعداد: .venv/bin/respan-gateway check
+# المرجع: https://github.com/respanai/respan-gateway
+listen = "127.0.0.1:8087"
+log    = "off"
+ui     = true
+
+# متصفح التطبيق على منفذ Vite يمكنه الاتصال بالبوابة مباشرة عند الحاجة.
+[cors]
+origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+
+# أي نقطة نهاية متوافقة مع OpenAI. المفتاح يبقى في .env ولا يُكتب هنا.
+[providers.zai]
+formats  = ["openai-chat"]
+base_url = "https://api.z.ai/api/paas/v4"
+key      = "env:AI_API_KEY"
+
+# نماذج glm-* التي يطلبها التطبيق تُوجَّه إلى المزوّد أعلاه بنفس اسمها.
+[routes."glm-*"]
+to = "zai/{model}"

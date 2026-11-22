@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "releases": [
+    {
+      "versionName": "1.11.1",
+      "versionCode": 23,
+      "releaseDate": "2026-11-22",
+      "shortDescription": {
+        "ar": "محرك تعرّف تلاوة قرآني (ASR Small) مضمّن للعمل دون اتصال — لا حاجة لتنزيل نموذج.",
+        "en": "Bundled Quran ASR Small engine for offline recitation recognition — no model download required."
+      },
+      "releaseNotes": {
+        "ar": {
+          "features": [
+            "محرك ASR Small (ONNX) مضمّن داخل التطبيق للعمل دون اتصال.",
+            "تعرّف تلاوة لسورة الفاتحة (آيات 1–7) دون اتصال."
+          ],
+          "improvements": [
+            "تحسين أداء واجهة المصحف (تصيير الصفحات، التمرير).",
+            "تحسين كاش الأصول (Service Worker) لتسريع التحميل."
+          ],
+          "bugFixes": [
+            "إصلاحات استقرار في تشغيل الصوت (HLS/Cache)."
+          ],
+          "securityUpdates": []
+        },
+        "en": {
+          "features": [
+            "Bundled ASR Small (ONNX) engine for offline recitation recognition.",
+            "Offline recitation recognition for Surah Al-Fatiha (verses 1–7)."
+          ],
+          "improvements": [
+            "Improved Mushaf UI performance (page rendering, scrolling).",
+            "Improved asset caching (Service Worker) for faster load."
+          ],
+          "bugFixes": [
+            "Stability fixes for audio playback (HLS/Cache)."
+          ],
+          "securityUpdates": []
+        }
+      }
+    }
+  ]
+}

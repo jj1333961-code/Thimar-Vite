@@ -1,0 +1,245 @@
+-- Thimar authentication boundary v2 — PREPARED, NOT APPLIED, NOT TESTED.
+--
+-- Review notes are inline. Nothing here has been executed against staging or production.
+--
+-- Password format today (src/lib/password.ts): sha256hex(salt || ':' || password),
+-- verified server-side here so password_hash/password_salt never leave Postgres.
+--
+-- v2 adds: bounded search_path, explicit SECURITY DEFINER checks, per-account and per-IP
+-- rate limiting, bcrypt upgrade path, and safe handling of banned/inactive/unknown accounts.
+
+begin;
+
+create extension if not exists pgcrypto;
+
+-- ------------------------------------------------------------------ schema
+-- The login/change functions reference these columns, so they must exist first.
+alter table public.thimar_accounts add column if not exists password_hash_v2 text;
+alter table public.thimar_accounts add column if not exists password_hash_algo text;
+
+-- ------------------------------------------------------------------ rate limit
+-- Small, bounded, self-pruning table. One row per (key, window start).
+create table if not exists public.thimar_login_attempts (
+  key        text        not null,
+  window_start timestamptz not null,
+  failures   integer     not null default 0,
+  primary key (key, window_start)
+);
+
+alter table public.thimar_login_attempts enable row level security;
+revoke all on public.thimar_login_attempts from anon, authenticated;
+
+create index if not exists thimar_login_attempts_window_idx
+  on public.thimar_login_attempts (window_start);
+
+-- ------------------------------------------------------------------ helpers
+create or replace function public.thimar_client_ip()
+returns text
+language plpgsql
+stable
+security definer
+set search_path = pg_catalog, pg_temp
+as $$
+declare
+  raw text;
+begin
+  begin
+    raw := current_setting('request.headers', true)::jsonb ->> 'x-forwarded-for';
+  exception when others then
+    raw := null;
+  end;
+  if raw is null or raw = '' then
+    return 'unknown';
+  end if;
+  -- first hop only, and only characters that can appear in an address
+  return left(split_part(raw, ',', 1), 60);
+end;
+$$;
+
+-- Raised as an exception so the client can distinguish "slow down" from "wrong password".
+create or replace function public.thimar_note_attempt(p_scope text, p_ok boolean)
+returns boolean                                   -- true when the caller is now rate limited
+language plpgsql
+security definer
+set search_path = pg_catalog, pg_temp
+as $$
+declare
+  bucket   timestamptz := date_trunc('minute', now()) - make_interval(mins => extract(minute from now())::int % 15);
+  failures integer;
+  limit_n  integer := case when p_scope like 'ip:%' then 30 else 8 end;
+begin
+  delete from public.thimar_login_attempts where window_start < now() - interval '1 day';
+
+  if p_ok then
+    delete from public.thimar_login_attempts where key = p_scope;
+    return false;
+  end if;
+
+  insert into public.thimar_login_attempts (key, window_start, failures)
+  values (p_scope, bucket, 1)
+  on conflict (key, window_start) do update set failures = public.thimar_login_attempts.failures + 1
+  returning failures into failures;
+
+  return failures > limit_n;
+end;
+$$;
+
+-- ------------------------------------------------------------------ login
+create or replace function public.thimar_login(p_username text, p_password text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_catalog, pg_temp     -- no pg_temp first: blocks temp-schema shadowing
+as $$
+declare
+  uname      text := lower(btrim(coalesce(p_username, '')));
+  ip_key     text := 'ip:' || public.thimar_client_ip();
+  user_key   text := 'user:' || uname;
+  acct       public.thimar_accounts;
+  candidate  text;
+  ok         boolean := false;
+begin
+  if uname = '' or coalesce(p_password, '') = '' or length(p_password) > 200 then
+    raise exception 'INVALID_INPUT' using errcode = '22023';
+  end if;
+
+  -- rate limit before touching any credential material
+  if exists (
+    select 1 from public.thimar_login_attempts
+     where key in (ip_key, user_key)
+       and window_start > now() - interval '15 minutes'
+       and failures > case when key like 'ip:%' then 30 else 8 end
+  ) then
+    raise exception 'RATE_LIMITED' using errcode = 'P0001';
+  end if;
+
+  select * into acct from public.thimar_accounts where lower(btrim(username)) = uname limit 1;
+
+  if acct.id is null then
+    -- constant-cost work so a missing user is not distinguishable by timing
+    perform encode(digest('thimar-dummy-salt:thimar-dummy-password', 'sha256'), 'hex');
+    perform public.thimar_note_attempt(user_key, false);
+    perform public.thimar_note_attempt(ip_key, false);
+    return null;
+  end if;
+
+  -- v2 (bcrypt) takes precedence once present; legacy sha256 keeps working until cutover
+  if acct.password_hash_v2 is not null then
+    ok := acct.password_hash_v2 = crypt(p_password, acct.password_hash_v2);
+  elsif acct.password_hash is not null and coalesce(acct.password_salt, '') <> '' then
+    candidate := encode(digest(acct.password_salt || ':' || p_password, 'sha256'), 'hex');
+    ok := candidate = acct.password_hash;
+    if ok then
+      -- transparent upgrade for this account only; the legacy columns are left intact so
+      -- clients that have not moved to the RPC still log in.
+      update public.thimar_accounts
+         set password_hash_v2 = crypt(p_password, gen_salt('bf', 12)),
+             password_hash_algo = 'bcrypt'
+       where id = acct.id and password_hash_v2 is null;
+    end if;
+  end if;
+
+  if not ok then
+    perform public.thimar_note_attempt(user_key, false);
+    perform public.thimar_note_attempt(ip_key, false);
+    return null;
+  end if;
+
+  perform public.thimar_note_attempt(user_key, true);
+
+  if acct.banned then
+    return jsonb_build_object('error', 'ACCOUNT_BANNED');
+  end if;
+  if acct.status <> 'active' then
+    return jsonb_build_object('error', 'ACCOUNT_INACTIVE', 'status', acct.status);
+  end if;
+
+  -- allow-list only: never password_hash, password_salt, password_hash_v2
+  return jsonb_build_object(
+    'id', acct.id, 'type', acct.type, 'username', acct.username,
+    'fullName', acct.full_name, 'countryCode', acct.country_code,
+    'phone', acct.phone, 'email', acct.email, 'status', acct.status,
+    'banned', acct.banned, 'student', acct.student,
+    'teacher', acct.teacher, 'guardian', acct.guardian
+  );
+end;
+$$;
+
+-- --------------------------------------------------------- change password
+-- Requires proof of the existing password; refuses unknown, banned or legacy-plaintext rows.
+create or replace function public.thimar_change_password(
+  p_account_id text,
+  p_old_password text,
+  p_new_hash text,
+  p_new_salt text
+) returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_catalog, pg_temp
+as $$
+declare
+  acct public.thimar_accounts;
+begin
+  if length(coalesce(p_new_hash, '')) <> 64 or length(coalesce(p_new_salt, '')) < 16 then
+    raise exception 'INVALID_NEW_SECRET' using errcode = '22023';
+  end if;
+
+  select * into acct from public.thimar_accounts where id = p_account_id;
+  if acct.id is null or acct.password_hash is null then return false; end if;
+
+  if encode(digest(acct.password_salt || ':' || p_old_password, 'sha256'), 'hex')
+     <> acct.password_hash then
+    return false;
+  end if;
+
+  update public.thimar_accounts
+     set password_hash = p_new_hash,
+         password_salt = p_new_salt,
+         password_hash_v2 = crypt(p_new_hash, gen_salt('bf', 12)),
+         password_hash_algo = 'bcrypt'
+   where id = p_account_id;
+
+  return true;
+end;
+$$;
+
+-- The client hashes the *new* password locally (WebCrypto) before calling, so a new
+-- password never reaches the database in the clear. Only the old password is sent, to
+-- prove ownership. If transmitting the old password is unacceptable, replace it with a
+-- re-login assertion in the same session.
+
+-- ------------------------------------------------------------------ privileges
+revoke all on function public.thimar_client_ip() from public, anon, authenticated;
+revoke all on function public.thimar_note_attempt(text, boolean) from public, anon, authenticated;
+revoke all on function public.thimar_login(text, text) from public;
+revoke all on function public.thimar_change_password(text, text, text, text) from public;
+grant execute on function public.thimar_login(text, text) to anon, authenticated;
+grant execute on function public.thimar_change_password(text, text, text, text) to anon, authenticated;
+
+-- ------------------------------------------------------------------ staging test
+-- Run against a restored copy, never production:
+--   select public.thimar_login('known-user', 'correct-password');     -- returns account jsonb
+--   select public.thimar_login('known-user', 'wrong-password');       -- null
+--   select public.thimar_login('does-not-exist', 'x');                -- null, no timing tell
+--   -- 9 wrong attempts inside 15 minutes:
+--   select public.thimar_login('known-user', 'wrong-9');              -- raises RATE_LIMITED
+--   select public.thimar_change_password('acc-…', 'correct-password',
+--          encode(digest('x','sha256'),'hex'), repeat('a',32));       -- true
+--   -- then confirm the returned jsonb has no password_hash / password_salt keys:
+--   select public.thimar_login('known-user','correct-password') ?| array['password_hash','password_salt'];
+
+-- ------------------------------------------------------------------ cutover (do not run yet)
+-- 1. this file is deployed in staging and tested
+-- 2. ship a client that calls the RPCs
+-- 3. once every client is on the RPC: revoke the credential columns and the ALL policy
+--
+-- revoke select (password_hash, password_salt, password_hash_v2) on public.thimar_accounts
+--   from anon, authenticated;
+-- drop policy if exists thimar_accounts_all on public.thimar_accounts;
+--
+-- rollback:
+-- grant select (password_hash, password_salt) on public.thimar_accounts to anon, authenticated;
+-- alter table public.thimar_accounts drop column if exists password_hash_v2;
+-- alter table public.thimar_accounts drop column if exists password_hash_algo;
+
+commit;

@@ -1,0 +1,16 @@
+<resources>
+  <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+    <item name="android:windowBackground">#FAF7F1</item>
+    <item name="android:statusBarColor">#2F5C4A</item>
+    <item name="android:navigationBarColor">#FAF7F1</item>
+  </style>
+  <!-- شاشة وقت الصلاة: ملء الشاشة بلا أشرطة وبلا خلفية فاتحة. -->
+  <style name="AdhanScreenTheme" parent="android:Theme.Material.NoActionBar">
+    <item name="android:windowBackground">#000000</item>
+    <item name="android:windowFullscreen">true</item>
+    <item name="android:windowContentOverlay">@null</item>
+    <item name="android:backgroundDimEnabled">false</item>
+    <item name="android:statusBarColor">#000000</item>
+    <item name="android:navigationBarColor">#000000</item>
+  </style>
+</resources>

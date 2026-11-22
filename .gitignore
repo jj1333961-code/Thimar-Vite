@@ -1,0 +1,55 @@
+/freebuff-sites-build/
+.env
+.env.*
+!.env.example
+*.local
+
+# Python environment for the Respan Gateway (requirements.txt)
+.venv/
+__pycache__/
+*.pyc
+
+# Node / build outputs (regenerated: npm ci && npm run build)
+node_modules/
+dist/
+sites-build/
+downloads-site/
+
+# أسرار مؤقتة لا تُرفع
+.push-secret.tmp
+/artifacts/*
+!/artifacts/*.md
+
+# أصول أندرويد المضمَّنة: تُبنى من dist/ ومن scripts/fetch-offline-assets.sh
+packaging/android/app/src/main/assets/www/
+packaging/android/app/src/main/assets/offline/
+
+# مخرجات بناء أندرويد وiOS
+packaging/android/app/build/
+packaging/android/.gradle/
+packaging/android/build/
+packaging/android/local.properties
+packaging/android/app/release/
+*.apk
+*.aab
+
+# هوية توقيع التطبيق: لا تُرفع أبدًا (كلمة المرور داخل SIGNING.txt)
+packaging/android/SIGNING.txt
+packaging/android/*.jks
+packaging/android/*.keystore
+*.p12
+*.mobileprovision
+
+# المصحف الكامل (218MB) يُنشر كأصل إصدار على GitHub، لا داخل شجرة Git.
+public/quran/mushaf.pdf
+
+# نسخ iOS المبنية وأرشيفات المصدر
+ios/App/App/public/
+ios/App/Pods/
+ios/App/DerivedData/
+ios/App/build/
+*.zip
+
+# نظام التشغيل والمحرر
+.DS_Store
+Thumbs.db

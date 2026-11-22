@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "84380965867",
+    "project_id": "thimar-5adc4",
+    "storage_bucket": "thimar-5adc4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:84380965867:android:62c138b28a175a867c57ae",
+        "android_client_info": {
+          "package_name": "app.thimar.quran"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBgTu2M7i4FxcRTR7RFuzTIHJ2lbcOf09E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

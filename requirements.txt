@@ -1,0 +1,3 @@
+# Respan Gateway — طبقة توجيه الذكاء الاصطناعي المحلية (انظر gateway.toml).
+# تثبيت من wheels فقط: pip install --only-binary=:all: -r requirements.txt
+respan-gateway==0.3.0

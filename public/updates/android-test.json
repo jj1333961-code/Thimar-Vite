@@ -1,0 +1,16 @@
+{
+  "platform": "android",
+  "packageName": "app.thimar.quran",
+  "versionName": "1.9.6-test",
+  "versionCode": 19,
+  "minSupportedVersionCode": 1,
+  "available": true,
+  "downloadUrl": "https://site-27eda170a9dc4a1eabef14e0829d6ec1.freebuff.page/thimar-1.9.6-test.apk",
+  "fileName": "thimar-1.9.6-test.apk",
+  "fileSize": 2421673,
+  "sha256": "837076bcc7b636beb62e0242acd1e8c1813020e6043a686741c7fa6ed3fb1d5a",
+  "versionHistory": [
+    { "versionName": "1.9.5", "versionCode": 18 },
+    { "versionName": "1.9.6-test", "versionCode": 19 }
+  ]
+}

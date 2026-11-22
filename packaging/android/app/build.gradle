@@ -1,0 +1,98 @@
+plugins {
+  id 'com.android.application'
+  id 'com.google.gms.google-services'
+}
+
+/* إعدادات Supabase العامة (المفتاح العام anon ليس سرًا — يُستخدم في واجهة الويب أيضًا). */
+def supabaseUrl = System.getenv('THIMAR_SUPABASE_URL') ?: 'https://jbsvmpiwdwowizzfzlqr.supabase.co'
+def supabaseAnonKey = System.getenv('THIMAR_SUPABASE_ANON_KEY') ?: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impic3ZtcGl3ZHdvd2l6emZ6bHFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0NDU2NzksImV4cCI6MjEwMjAyMTY3OX0.CPq3jBruh47_ZS8i_W7FKs_dRWynrQi2znSTzHMJEQk'
+
+android {
+  namespace 'app.thimar.quran'
+  compileSdk 34
+
+  defaultConfig {
+    applicationId 'app.thimar.quran'
+    minSdk 23
+    targetSdk 34
+            versionCode 25
+        versionName "1.11.3"
+
+    buildConfigField "String", "SUPABASE_URL", "\"${supabaseUrl}\""
+    buildConfigField "String", "SUPABASE_ANON_KEY", "\"${supabaseAnonKey}\""
+  }
+
+  buildFeatures {
+    buildConfig true
+  }
+
+  signingConfigs {
+    release {
+      storeFile file(System.getenv('THIMAR_KEYSTORE') ?: '')
+      storePassword System.getenv('THIMAR_KEYSTORE_PASSWORD') ?: (System.getenv('THIMAR_STORE_PASS') ?: '')
+      keyAlias System.getenv('THIMAR_KEY_ALIAS') ?: ''
+      keyPassword System.getenv('THIMAR_KEY_PASSWORD') ?: (System.getenv('THIMAR_KEY_PASS') ?: '')
+    }
+  }
+
+  buildTypes {
+    release {
+      minifyEnabled false
+      signingConfig signingConfigs.release
+    }
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+}
+
+// Fail fast if signing credentials are missing.
+tasks.register('verifySigningConfig') {
+  doLast {
+    if (!System.getenv('THIMAR_KEYSTORE') || !(System.getenv('THIMAR_KEYSTORE_PASSWORD') ?: System.getenv('THIMAR_STORE_PASS'))
+        || !System.getenv('THIMAR_KEY_ALIAS') || !(System.getenv('THIMAR_KEY_PASSWORD') ?: System.getenv('THIMAR_KEY_PASS'))) {
+      throw new GradleException('Missing THIMAR_KEYSTORE/THIMAR_KEYSTORE_PASSWORD/THIMAR_KEY_ALIAS/THIMAR_KEY_PASSWORD')
+    }
+    if (!file(System.getenv('THIMAR_KEYSTORE')).exists()) {
+      throw new GradleException('Keystore file not found: ' + System.getenv('THIMAR_KEYSTORE'))
+    }
+  }
+}
+/*
+ * Quran ASR Small إلزامي داخل الحزمة: أي نقص أو بصمة خاطئة توقف البناء،
+ * وأي حزمة ناتجة (APK/AAB) تُفحص فعليًا بعد التجميع.
+ */
+tasks.register('verifyQuranAsrAssets', Exec) {
+  workingDir rootProject.projectDir
+  commandLine 'bash', '../../scripts/verify-quran-asr-assets.sh'
+  outputs.upToDateWhen { false }
+}
+
+[
+  verifyQuranAsrDebugPackage  : layout.buildDirectory.file('outputs/apk/debug/app-debug.apk'),
+  verifyQuranAsrReleasePackage: layout.buildDirectory.file('outputs/apk/release/app-release.apk'),
+  verifyQuranAsrBundlePackage : layout.buildDirectory.file('outputs/bundle/release/app-release.aab'),
+].each { taskName, packageFile ->
+  tasks.register(taskName, Exec) {
+    workingDir rootProject.projectDir
+    commandLine 'bash', '../../scripts/verify-package-assets.sh', packageFile.get().asFile.absolutePath
+  }
+}
+
+afterEvaluate {
+  tasks.named('preBuild').configure { dependsOn('verifyQuranAsrAssets') }
+  tasks.named('assembleDebug').configure { finalizedBy('verifyQuranAsrDebugPackage') }
+  tasks.named('assembleRelease').configure {
+    dependsOn('verifySigningConfig')
+    finalizedBy('verifyQuranAsrReleasePackage')
+  }
+  tasks.named('bundleRelease').configure { finalizedBy('verifyQuranAsrBundlePackage') }
+}
+
+dependencies {
+  implementation platform('com.google.firebase:firebase-bom:33.5.1')
+  implementation 'com.google.firebase:firebase-messaging'
+  implementation 'androidx.core:core:1.13.1'
+}
