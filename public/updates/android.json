@@ -1,14 +1,14 @@
 {
   "platform": "android",
   "packageName": "app.thimar.quran",
-  "versionName": "1.11.1",
-  "versionCode": 23,
+  "versionName": "1.11.3",
+  "versionCode": 25,
   "minSupportedVersionCode": 1,
   "available": true,
-  "downloadUrl": "https://thimar.freebuff.page/assets/large/thimar-1.11.1-release.apk",
-  "fileName": "thimar-1.11.1-release.apk",
-  "fileSize": 121512906,
-  "sha256": "be2716067b97c759f0b88751495675c72792d89832bfe841669af5f1f925c6b6",
+  "downloadUrl": "https://thimar.freebuff.page/assets/large/thimar-1.11.3-release.apk",
+  "fileName": "thimar-1.11.3-release.apk",
+  "fileSize": 282336037,
+  "sha256": "daf7c57c7b2229c12313e5b06ef8618f1168736df33942466fe32bc0333c279d",
   "versionHistory": [
     {
       "versionName": "1.9.5",
@@ -29,34 +29,30 @@
     {
       "versionName": "1.11.1",
       "versionCode": 23
+    },
+    {
+      "versionName": "1.11.3",
+      "versionCode": 25
     }
   ],
   "releaseDate": "2026-11-22",
   "publishedAt": "2026-11-22",
   "releaseNotes": {
     "ar": {
-      "shortDescription": "إصدار جديد يتضمن محرك Quran ASR Small للتعرف على التلاوة دون اتصال.",
-      "releaseDate": "2026-11-22",
-      "features": [
-        "تضمين محرك Quran ASR Small للتعرف على التلاوة (بدون تحميل نموذج)"
-      ],
-      "improvements": [
-        "التحقق الإلزامي من SHA-256 والأصول المضمّنة أثناء البناء"
-      ],
+      "features": [],
+      "improvements": [],
       "bugFixes": [],
       "securityUpdates": []
     },
     "en": {
-      "shortDescription": "New release bundling the Quran ASR Small engine for offline recitation recognition.",
-      "releaseDate": "2026-11-22",
-      "features": [
-        "Bundled Quran ASR Small engine for offline recitation recognition (no model download required)"
-      ],
-      "improvements": [
-        "Mandatory SHA-256 and package-asset verification during build"
-      ],
+      "features": [],
+      "improvements": [],
       "bugFixes": [],
       "securityUpdates": []
     }
+  },
+  "shortDescription": {
+    "ar": "تحديث 1.11.3 — تلاوة دون اتصال وشاشة الصلاة.",
+    "en": "Update 1.11.3 — offline recitation and prayer screen."
   }
 }
