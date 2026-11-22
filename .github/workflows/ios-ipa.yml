@@ -1,0 +1,35 @@
+name: iOS Unsigned IPA (Personal Team signing later)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync ios
+      - name: Build unsigned archive
+        run: |
+          xcodebuild -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/Thimar.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            archive
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p Payload
+          cp -R build/Thimar.xcarchive/Products/Applications/App.app Payload/
+          zip -r Thimar-unsigned.ipa Payload
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Thimar-unsigned-ipa
+          path: Thimar-unsigned.ipa

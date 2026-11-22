@@ -1,0 +1,116 @@
+name: Android update release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packaging/android/app/build.gradle'
+      - '.github/workflows/android-update-notification.yml'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Upload the APK and send update notifications (true) or build+verify only (false)'
+        type: choice
+        options: ['false', 'true']
+        default: 'false'
+      previous_apk:
+        description: 'Previous APK filename to delete from R2 (optional)'
+        required: false
+        default: ''
+      approved:
+        description: 'Explicit release approval (must be true to publish)'
+        type: choice
+        options: ['false', 'true']
+        default: 'false'
+
+concurrency:
+  group: thimar-android-update-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: ${{ !contains(github.event.head_commit.message, '[skip release]') }}
+    runs-on: ubuntu-latest
+    outputs:
+      apk_name: ${{ steps.meta.outputs.apk_name }}
+      version_code: ${{ steps.meta.outputs.version_code }}
+      version_name: ${{ steps.meta.outputs.version_name }}
+      sha256: ${{ steps.meta.outputs.sha256 }}
+      file_size: ${{ steps.meta.outputs.file_size }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Decode keystore
+        env:
+          THIMAR_KEYSTORE_BASE64: ${{ secrets.THIMAR_KEYSTORE_BASE64 }}
+        run: |
+          if [[ -z "$THIMAR_KEYSTORE_BASE64" ]]; then
+            echo "THIMAR_KEYSTORE_BASE64 secret is required" >&2
+            exit 1
+          fi
+          echo "$THIMAR_KEYSTORE_BASE64" | base64 --decode > /tmp/thimar-release.jks
+          echo "THIMAR_KEYSTORE=/tmp/thimar-release.jks" >> $GITHUB_ENV
+          echo "Keystore decoded (size: $(wc -c < /tmp/thimar-release.jks) bytes)"
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install web dependencies
+        run: npm ci
+      - name: Build web application
+        run: npm run build
+      - name: Fetch offline Tilawa assets
+        run: bash scripts/fetch-offline-assets.sh
+      - name: Bundle assets into Android app
+        run: bash scripts/bundle-android-assets.sh
+      - name: Build release APK
+        working-directory: packaging/android
+        env:
+          THIMAR_KEYSTORE: /tmp/thimar-release.jks
+          THIMAR_KEYSTORE_PASSWORD: ${{ secrets.THIMAR_KEYSTORE_PASSWORD }}
+          THIMAR_KEY_ALIAS: ${{ secrets.THIMAR_KEY_ALIAS }}
+          THIMAR_KEY_PASSWORD: ${{ secrets.THIMAR_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleRelease --no-daemon --stacktrace
+      - name: Verify APK
+        id: meta
+        working-directory: packaging/android
+        run: |
+          APK_PATH="app/build/outputs/apk/release/app-release.apk"
+          if [[ ! -f "$APK_PATH" ]]; then
+            echo "APK not found at $APK_PATH" >&2
+            exit 1
+          fi
+          SHA256=$(sha256sum "$APK_PATH" | cut -d' ' -f1)
+          SIZE=$(stat -c%s "$APK_PATH")
+          VERSION_CODE=$(grep -oP 'versionCode\s+\K[0-9]+' app/build.gradle | head -1)
+          VERSION_NAME=$(grep -oP 'versionName\s+"\K[^"]+' app/build.gradle | head -1)
+          echo "apk_name=thimar-${VERSION_NAME}-release.apk" >> $GITHUB_OUTPUT
+          echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
+          echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+          echo "file_size=$SIZE" >> $GITHUB_OUTPUT
+          cp "$APK_PATH" "/tmp/thimar-${VERSION_NAME}-release.apk"
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: thimar-apk
+          path: /tmp/thimar-*.apk
+
+  publish:
+    needs: build
+    environment: production
+    if: ${{ (github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip release]')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true' && github.event.inputs.approved == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'Release publishing is intentionally gated; use the documented approval workflow.'
