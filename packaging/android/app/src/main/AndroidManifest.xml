@@ -13,6 +13,7 @@
   <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
   <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
   <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+  <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
   <uses-feature android:name="android.hardware.camera" android:required="false" />
   <application
     android:allowBackup="false"
@@ -72,6 +73,15 @@
       </intent-filter>
     </receiver>
     <receiver android:name=".AdhanAlarmReceiver" android:exported="false" />
+    <provider
+      android:name="androidx.core.content.FileProvider"
+      android:authorities="app.thimar.quran.fileprovider"
+      android:exported="false"
+      android:grantUriPermissions="true">
+      <meta-data
+        android:name="android.support.FILE_PROVIDER_PATHS"
+        android:resource="@xml/fileprovider_paths" />
+    </provider>
     <meta-data
       android:name="com.google.firebase.messaging.default_notification_channel_id"
       android:value="thimar_notifications" />
