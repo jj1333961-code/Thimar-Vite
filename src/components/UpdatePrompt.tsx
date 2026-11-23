@@ -216,7 +216,7 @@ export default function UpdatePrompt() {
           window.open(meta.url, "_blank", "noopener,noreferrer");
           setStatus("تم فتح رابط تطبيق iOS.");
         } else {
-          const response = await fetch(`${METADATA_URL}?_=${Date.now()}`, { cache: "no-store" });
+          const response = await fetch(METADATA_URL, { cache: "no-store" });
           if (!response.ok) throw new Error(`Android metadata HTTP ${response.status}`);
           const meta = (await response.json()) as AndroidMetadata;
           if (!meta.available || !meta.downloadUrl) {
