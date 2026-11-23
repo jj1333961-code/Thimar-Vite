@@ -36,9 +36,11 @@ export type RpcAccountRow = {
 };
 
 export type RpcLoginResult =
-  | { status: "ok"; account: RpcAccountRow }
+  | { status: "ok"; account: RpcAccountRow; sessionToken: string; sessionExpiresAt: number }
   | { status: "error"; message: string }
   | { status: "unavailable" };
+
+export const CALL_SESSION_KEY = "thimar.call.session.v1";
 
 const RATE_LIMITED_MESSAGE = "محاولات كثيرة. انتظر ربع ساعة ثم أعد المحاولة.";
 const GENERIC_ERROR = "اسم المستخدم أو كلمة المرور غير صحيحة.";
@@ -70,15 +72,16 @@ export async function loginViaRpc(username: string, password: string): Promise<R
       return { status: "error", message: GENERIC_ERROR };
     }
     if (!data) return { status: "error", message: GENERIC_ERROR };
-    const row = data as RpcAccountRow & { error?: string };
+    const row = data as RpcAccountRow & { error?: string; sessionToken?: string; sessionExpiresAt?: number };
     if (row.error === "ACCOUNT_BANNED") {
       return { status: "error", message: "تم حظر حسابك من قبل المسؤول." };
     }
     if (row.error === "ACCOUNT_INACTIVE") {
       return { status: "error", message: "حسابك غير مفعّل بعد." };
     }
-    if (!row.id || !row.username) return { status: "error", message: GENERIC_ERROR };
-    return { status: "ok", account: row };
+    if (!row.id || !row.username || !row.sessionToken || !row.sessionExpiresAt) return { status: "error", message: "تعذر إنشاء جلسة آمنة. حدّث التطبيق أو تواصل مع المسؤول." };
+    try { localStorage.setItem(CALL_SESSION_KEY, JSON.stringify({ token: row.sessionToken, expiresAt: row.sessionExpiresAt, accountId: row.id })); } catch {}
+    return { status: "ok", account: row, sessionToken: row.sessionToken, sessionExpiresAt: row.sessionExpiresAt };
   } catch {
     return { status: "unavailable" };
   }
