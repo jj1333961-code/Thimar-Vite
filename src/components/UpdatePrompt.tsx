@@ -4,7 +4,7 @@ import { getInstalledVersionCode } from "../lib/nativePush";
 const METADATA_URL = (import.meta as any).env?.VITE_UPDATE_METADATA_URL || "/updates/android.json";
 const IOS_METADATA_URL = (import.meta as any).env?.VITE_IOS_UPDATE_METADATA_URL || "/updates/ios.json";
 
-type Platform = "ios" | "android" | "electron" | "pwa" | "web";
+type Platform = "ios" | "android" | "electron" | "web";
 
 type AndroidMetadata = {
   platform?: string;
@@ -164,7 +164,7 @@ export default function UpdatePrompt() {
             }
             setBusy(false);
             return;
-          } catch (nativeError) {
+          } catch {
             // If incremental resource verification fails, fall back to the complete APK.
             // The APK contains the matching app resources and avoids a mixed-version install.
             setStatus("تعذّر التحديث الجزئي؛ سيتم تنزيل حزمة التطبيق الكاملة بدلًا منه…");
