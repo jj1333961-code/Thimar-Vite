@@ -106,7 +106,10 @@ Deno.serve(async (request) => {
       if (JSON.stringify(signal).length > 131072) {
         return new Response(JSON.stringify({ error: "SIGNAL_TOO_LARGE" }), { status: 413, headers });
       }
-      if (["rejected", "cancelled", "busy", "unavailable", "missed", "ended", "failed"].includes(call.state)) {
+      const terminalCall = ["rejected", "cancelled", "busy", "unavailable", "missed", "ended", "failed"].includes(call.state);
+      // A decline/hangup signal is intentionally sent after the state transition
+      // so the other device can close its local WebRTC peer immediately.
+      if (terminalCall && signal.kind !== "decline" && signal.kind !== "hangup") {
         return new Response(JSON.stringify({ error: "CALL_ALREADY_ENDED" }), { status: 409, headers });
       }
       const recipientId = isCaller ? call.callee_id : call.caller_id;
