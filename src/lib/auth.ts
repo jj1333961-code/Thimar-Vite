@@ -73,6 +73,8 @@ export function accountTypeLabel(type: AccountType): string {
 // Supabase integration
 import { cloud, pushAccount, removeAccountFromCloud } from "./cloud";
 import { authorizeDevice } from "./nativePush";
+import { clearRememberedDevice, getRememberedAccountId, rememberThisDevice } from "./rememberedDevice";
+export { rememberThisDevice } from "./rememberedDevice";
 import { hashPassword, newPasswordSalt, verifyPassword } from "./password";
 import {
   changePasswordViaRpc,
@@ -321,6 +323,7 @@ export async function login(username: string, password: string, remember = false
       if (account.banned) return { status: "error", message: "تم حظر حسابك من قبل المسؤول." };
       if (account.status === "rejected") return { status: "error", message: "تم رفض حسابك من قبل المسؤول." };
       if (remember) rememberThisDevice(account.id);
+      else clearRememberedDevice();
       const nativeDeviceId = (window as any)?.ThimarNative?.deviceId?.();
       if (typeof nativeDeviceId === "string" && nativeDeviceId) {
         void authorizeDevice(account.id, password);
@@ -352,6 +355,7 @@ export async function login(username: string, password: string, remember = false
   if (account.banned) return { status: "error", message: "تم حظر حسابك من قبل المسؤول." };
   if (account.status === "rejected") return { status: "error", message: "تم رفض حسابك من قبل المسؤول." };
   if (remember) rememberThisDevice(account.id);
+      else clearRememberedDevice();
   const nativeDeviceId = (window as any)?.ThimarNative?.deviceId?.();
   if (typeof nativeDeviceId === "string" && nativeDeviceId) {
     void authorizeDevice(account.id, password);
@@ -393,21 +397,11 @@ export async function registerAccount(data: any): Promise<{ ok: true; account: A
   return { ok: true, account: newAccount };
 }
 
-export function rememberThisDevice(accountId: string): void {
-  try {
-    localStorage.setItem("thimar_remembered", accountId);
-  } catch {}
-}
-
 export function restoreRememberedAccount(): Account | null {
-  try {
-    const id = localStorage.getItem("thimar_remembered");
-    if (id) {
-      const accounts = loadAccounts();
-      return accounts.find((a) => a.id === id) || null;
-    }
-  } catch {}
-  return null;
+  const id = getRememberedAccountId();
+  if (!id) return null;
+  const accounts = loadAccounts();
+  return accounts.find((a) => a.id === id) || null;
 }
 
 /** يحذف الحساب نهائيًا من هذا الجهاز (مع بياناته المحلية). */
@@ -427,9 +421,7 @@ export function deleteAccount(accountId: string): boolean {
 }
 
 export function signOut(): void {
-  try {
-    localStorage.removeItem("thimar_remembered");
-  } catch {}
+  clearRememberedDevice();
   /* إلغاء ربط جهاز هذا الحساب بإشعارات FCM (إن كنا داخل تطبيق أندرويد). */
   try {
     window.dispatchEvent(new Event("thimar:signout"));
