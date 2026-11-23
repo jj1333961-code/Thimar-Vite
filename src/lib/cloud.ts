@@ -22,8 +22,27 @@ export const SUPABASE_ANON_KEY =
   import.meta.env.VITE_SUPABASE_ANON_KEY ||
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impic3ZtcGl3ZHdvd2l6emZ6bHFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0NDU2NzksImV4cCI6MjEwMjAyMTY3OX0.CPq3jBruh47_ZS8i_W7FKs_dRWynrQi2znSTzHMJEQk";
 
+const sessionAwareFetch: typeof fetch = (input, init = {}) => {
+  const inheritedHeaders = typeof Request !== "undefined" && input instanceof Request ? input.headers : undefined;
+  const headers = new Headers(init.headers ?? inheritedHeaders);
+  try {
+    const stored = JSON.parse(localStorage.getItem("thimar.call.session.v1") || "null");
+    const valid =
+      typeof stored?.token === "string"
+      && /^[a-f0-9]{64}$/i.test(stored.token)
+      && typeof stored?.expiresAt === "number"
+      && stored.expiresAt * 1000 > Date.now();
+    if (valid) headers.set("x-thimar-session", stored.token);
+    else headers.delete("x-thimar-session");
+  } catch {
+    headers.delete("x-thimar-session");
+  }
+  return fetch(input, { ...init, headers });
+};
+
 export const cloud = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
+  global: { fetch: sessionAwareFetch },
 });
 
 export const CLOUD_EVENT = "thimar:cloud";
