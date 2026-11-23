@@ -159,7 +159,7 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
 
   const handleSignal = async (signal: CallSignal) => {
     const channel = channelRef.current;
-    if (!channel) return;
+    if (!channel || signal.callId !== callId || signal.from !== peerId) return;
     try {
       if (signal.kind === "offer") {
         offerRef.current = signal.sdp;
