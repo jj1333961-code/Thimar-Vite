@@ -1,15 +1,26 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 Deno.serve(async (request) => {
-  const headers = { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" };
+  const headers = { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
   if (request.method === "OPTIONS") return new Response("ok", { headers });
+  if (request.method !== "POST") return new Response(JSON.stringify({ error: "METHOD_NOT_ALLOWED" }), { status: 405, headers });
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabase = createClient(supabaseUrl, serviceKey);
+    const authorization = request.headers.get("Authorization") ?? "";
+    const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+    if (!/^[a-f0-9]{64}$/i.test(token)) return new Response(JSON.stringify({ error: "AUTH_REQUIRED" }), { status: 401, headers });
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+    const tokenHash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    const { data: session, error: sessionError } = await supabase.from("thimar_call_sessions").select("account_id").eq("token_hash", tokenHash).is("revoked_at", null).gt("expires_at", new Date().toISOString()).maybeSingle();
+    if (sessionError || !session) return new Response(JSON.stringify({ error: "INVALID_SESSION" }), { status: 401, headers });
+    const { data: account, error: accountError } = await supabase.from("thimar_accounts").select("id,status,banned").eq("id", session.account_id).maybeSingle();
+    if (accountError || !account || account.banned || account.status !== "active") return new Response(JSON.stringify({ error: "ACCOUNT_UNAVAILABLE" }), { status: 403, headers });
     const body = await request.json().catch(() => ({}));
     const action = String(body.action ?? "");
     const callerId = String(body.callerId ?? "").trim();
+    if (!callerId || callerId !== session.account_id) return new Response(JSON.stringify({ error: "CALLER_IDENTITY_MISMATCH" }), { status: 403, headers });
 
     if (action === "create") {
       const calleeId = String(body.calleeId ?? "").trim();
