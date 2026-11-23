@@ -31,7 +31,7 @@ returns text
 language plpgsql
 stable
 security definer
-set search_path = pg_catalog, public
+set search_path = pg_catalog, extensions, public
 as $
 declare
   raw_token text;
@@ -61,7 +61,7 @@ returns text
 language sql
 stable
 security definer
-set search_path = pg_catalog, public
+set search_path = pg_catalog, extensions, public
 as $
   select a.type
     from public.thimar_accounts a
@@ -152,7 +152,7 @@ create or replace function public.thimar_login(p_username text, p_password text)
 returns jsonb
 language plpgsql
 security definer
-set search_path = public, pg_catalog, pg_temp     -- no pg_temp first: blocks temp-schema shadowing
+set search_path = public, extensions, pg_catalog, pg_temp     -- no pg_temp first: blocks temp-schema shadowing
 as $$
 declare
   uname      text := lower(btrim(coalesce(p_username, '')));
@@ -247,7 +247,7 @@ create or replace function public.thimar_change_password(
 ) returns boolean
 language plpgsql
 security definer
-set search_path = public, pg_catalog, pg_temp
+set search_path = public, extensions, pg_catalog, pg_temp
 as $$
 declare
   acct public.thimar_accounts;
