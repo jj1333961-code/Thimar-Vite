@@ -19,6 +19,11 @@ Deno.serve(async (request) => {
     if (accountError || !account || account.banned || account.status !== "active") return new Response(JSON.stringify({ error: "ACCOUNT_UNAVAILABLE" }), { status: 403, headers });
     const body = await request.json().catch(() => ({}));
     const action = String(body.action ?? "");
+    if (action === "logout") {
+      const { error: revokeError } = await supabase.from("thimar_call_sessions").update({ revoked_at: new Date().toISOString() }).eq("token_hash", tokenHash).eq("account_id", session.account_id).is("revoked_at", null);
+      if (revokeError) return new Response(JSON.stringify({ error: "SESSION_REVOKE_FAILED" }), { status: 500, headers });
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers });
+    }
     const callerId = String(body.callerId ?? "").trim();
     if (!callerId || callerId !== session.account_id) return new Response(JSON.stringify({ error: "CALLER_IDENTITY_MISMATCH" }), { status: 403, headers });
 
