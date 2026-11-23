@@ -49,3 +49,18 @@ test("remember-this-device is explicit opt-in and survives only when selected", 
     assert.equal(getRememberedAccountId(), null);
   });
 });
+
+test("application wiring respects the user's explicit choice", async () => {
+  const [app, login, register, auth] = await Promise.all([
+    readFile(new URL("../src/App.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/components/LoginPage.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/components/RegisterPage.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/lib/auth.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.equal(app.includes("rememberThisDevice("), false);
+  assert.equal(register.includes("rememberThisDevice("), false);
+  assert.equal(login.includes("const [remember, setRemember] = useState(false)"), true);
+  assert.equal(auth.split("if (remember) {").length - 1, 2);
+  assert.equal(auth.split("clearRememberedDevice();").length - 1, 3);
+});
