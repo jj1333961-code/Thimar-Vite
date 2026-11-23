@@ -2,3 +2,7 @@
 # The function validates the application's opaque session token itself.
 # Supabase JWT verification is disabled only for this endpoint.
 verify_jwt = false
+
+[functions.thimar-turn]
+# The function validates Thimar's opaque app session itself.
+verify_jwt = false
