@@ -15,7 +15,7 @@ type AndroidMetadata = {
   versionName?: string;
   versionCode?: number;
   available?: boolean;
-  downloadUrl?: string;
+  downloadUrl: string;
   fileName?: string;
   fileSize?: number;
   sha256?: string;

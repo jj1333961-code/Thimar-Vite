@@ -28,6 +28,12 @@ jobs:
         run: npm ci
       - name: Test remembered-device opt-in
         run: npm run test:remember-device
+      - name: Test Quran resource cache refresh and offline fallback
+        run: npm run test:offline-cache
+      - name: Test offline package and integrity checks
+        run: npm run test:offline-integrity
+      - name: Test release metadata and targeting
+        run: npm run test:release-targeting
       - name: TypeScript validation
         run: npm run typecheck
       - name: Production Vite build

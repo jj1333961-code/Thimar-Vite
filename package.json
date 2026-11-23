@@ -10,7 +10,10 @@
     "gateway": "python3 scripts/gateway.py",
     "gateway:smoke": "python3 scripts/gateway_smoke.py",
     "test:remember-device": "node --test scripts/test-remember-device.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:offline-cache": "node --test tests/offline-cache.test.mjs",
+    "test:offline-integrity": "node --test tests/offline-package.test.mjs tests/offline-packages.test.mjs tests/tilawa-integrity.test.mjs",
+    "test:release-targeting": "node --test tests/release-targeting.test.mjs tests/metadata-display.test.mjs"
   },
   "dependencies": {
     "@capacitor/cli": "^8.6.2",
