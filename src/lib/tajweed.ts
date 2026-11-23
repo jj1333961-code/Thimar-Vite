@@ -22,7 +22,7 @@ export function tajweedText(encoded: string): string {
   return encoded.replace(/[\u0001][a-z_]+[\u0002]([\s\S]*?)[\u0003]/g, "$1");
 }
 
-const base = import.meta.env.BASE_URL || "/";
+const base = import.meta.env?.BASE_URL || "/";
 
 let tajweedPromise: Promise<TajweedData> | null = null;
 let pagesPromise: Promise<PageMap> | null = null;
