@@ -135,7 +135,7 @@ export default function UpdatePrompt() {
       if (platform === "ios") {
         let url = "";
         try {
-          const response = await fetch(IOS_METADATA_URL, { cache: "no-store" });
+          const response = await fetch(IOS_UPDATE_METADATA_URL, { cache: "no-store" });
           if (response.ok) {
             const meta = (await response.json()) as IOSMetadata;
             if (meta.available && meta.url) url = meta.url;
@@ -205,7 +205,7 @@ export default function UpdatePrompt() {
         // This action downloads the native app; it never upgrades the browser/PWA shell.
         const ua = (navigator.userAgent || "").toLowerCase();
         if (/iphone|ipad|ipod/.test(ua)) {
-          const response = await fetch(IOS_METADATA_URL, { cache: "no-store" });
+          const response = await fetch(IOS_UPDATE_METADATA_URL, { cache: "no-store" });
           if (!response.ok) throw new Error(`iOS metadata HTTP ${response.status}`);
           const meta = (await response.json()) as IOSMetadata;
           if (!meta.available || !meta.url) {
