@@ -27,7 +27,12 @@ const sessionAwareFetch: typeof fetch = (input, init = {}) => {
   const headers = new Headers(init.headers ?? inheritedHeaders);
   try {
     const stored = JSON.parse(localStorage.getItem("thimar.call.session.v1") || "null");
-    if (stored?.token) headers.set("x-thimar-session", String(stored.token));
+    const valid =
+      typeof stored?.token === "string"
+      && /^[a-f0-9]{64}$/i.test(stored.token)
+      && typeof stored?.expiresAt === "number"
+      && stored.expiresAt * 1000 > Date.now();
+    if (valid) headers.set("x-thimar-session", stored.token);
     else headers.delete("x-thimar-session");
   } catch {
     headers.delete("x-thimar-session");
