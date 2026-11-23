@@ -12,6 +12,18 @@ begin;
 
 create extension if not exists pgcrypto;
 
+-- Opaque 12-hour application sessions. Store only SHA-256 token digests.
+create table if not exists public.thimar_call_sessions (
+  token_hash text primary key,
+  account_id text not null references public.thimar_accounts(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  revoked_at timestamptz
+);
+create index if not exists thimar_call_sessions_account_idx on public.thimar_call_sessions(account_id, expires_at);
+alter table public.thimar_call_sessions enable row level security;
+revoke all on public.thimar_call_sessions from public, anon, authenticated;
+
 -- ------------------------------------------------------------------ schema
 -- The login/change functions reference these columns, so they must exist first.
 alter table public.thimar_accounts add column if not exists password_hash_v2 text;
@@ -98,6 +110,8 @@ declare
   acct       public.thimar_accounts;
   candidate  text;
   ok         boolean := false;
+  session_token text := encode(gen_random_bytes(32), 'hex');
+  session_expires timestamptz := now() + interval '12 hours';
 begin
   if uname = '' or coalesce(p_password, '') = '' or length(p_password) > 200 then
     raise exception 'INVALID_INPUT' using errcode = '22023';
@@ -154,8 +168,15 @@ begin
     return jsonb_build_object('error', 'ACCOUNT_INACTIVE', 'status', acct.status);
   end if;
 
+  -- Issue a session only after password and account status checks succeed.
+  delete from public.thimar_call_sessions where expires_at < now() or revoked_at is not null;
+  insert into public.thimar_call_sessions(token_hash, account_id, expires_at)
+  values (encode(digest(session_token, 'sha256'), 'hex'), acct.id, session_expires);
+
   -- allow-list only: never password_hash, password_salt, password_hash_v2
   return jsonb_build_object(
+    'sessionToken', session_token,
+    'sessionExpiresAt', extract(epoch from session_expires)::bigint,
     'id', acct.id, 'type', acct.type, 'username', acct.username,
     'fullName', acct.full_name, 'countryCode', acct.country_code,
     'phone', acct.phone, 'email', acct.email, 'status', acct.status,
