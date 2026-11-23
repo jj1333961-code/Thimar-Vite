@@ -24,6 +24,57 @@ create index if not exists thimar_call_sessions_account_idx on public.thimar_cal
 alter table public.thimar_call_sessions enable row level security;
 revoke all on public.thimar_call_sessions from public, anon, authenticated;
 
+-- Resolve the custom application session from a trusted PostgREST request header.
+-- This lets RLS identify app accounts without treating an opaque token as a Supabase JWT.
+create or replace function public.thimar_session_account_id()
+returns text
+language plpgsql
+stable
+security definer
+set search_path = pg_catalog, public
+as $
+declare
+  raw_token text;
+  account_key text;
+begin
+  begin
+    raw_token := current_setting('request.headers', true)::jsonb ->> 'x-thimar-session';
+  exception when others then
+    return null;
+  end;
+  if raw_token is null or length(raw_token) <> 64 then return null; end if;
+  select s.account_id into account_key
+    from public.thimar_call_sessions s
+    join public.thimar_accounts a on a.id = s.account_id
+   where s.token_hash = encode(digest(raw_token, 'sha256'), 'hex')
+     and s.expires_at > now()
+     and s.revoked_at is null
+     and a.status = 'active'
+     and coalesce(a.banned, false) = false
+   limit 1;
+  return account_key;
+end;
+$;
+
+create or replace function public.thimar_session_role()
+returns text
+language sql
+stable
+security definer
+set search_path = pg_catalog, public
+as $
+  select a.type
+    from public.thimar_accounts a
+   where a.id = public.thimar_session_account_id()
+   limit 1
+$;
+
+revoke all on function public.thimar_session_account_id() from public;
+revoke all on function public.thimar_session_role() from public;
+grant execute on function public.thimar_session_account_id() to anon, authenticated;
+grant execute on function public.thimar_session_role() to anon, authenticated;
+
+
 -- ------------------------------------------------------------------ schema
 -- The login/change functions reference these columns, so they must exist first.
 alter table public.thimar_accounts add column if not exists password_hash_v2 text;
