@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "gateway": "python3 scripts/gateway.py",
     "gateway:smoke": "python3 scripts/gateway_smoke.py",
-    "test:remember-device": "node --experimental-strip-types --test scripts/test-remember-device.mjs"
+    "test:remember-device": "node --test scripts/test-remember-device.mjs"
   },
   "dependencies": {
     "@capacitor/cli": "^8.6.2",
