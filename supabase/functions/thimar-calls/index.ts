@@ -27,6 +27,22 @@ Deno.serve(async (request) => {
     const callerId = String(body.callerId ?? "").trim();
     if (!callerId || callerId !== session.account_id) return new Response(JSON.stringify({ error: "CALLER_IDENTITY_MISMATCH" }), { status: 403, headers });
 
+    if (action === "signal:poll-inbox") {
+      const afterId = Math.max(0, Number(body.afterId) || 0);
+      const recentSince = new Date(Date.now() - 120_000).toISOString();
+      const { data: signals, error } = await supabase
+        .from("thimar_call_signals")
+        .select("id,payload,created_at")
+        .eq("recipient_id", callerId)
+        .eq("kind", "invite")
+        .gt("id", afterId)
+        .gte("created_at", recentSince)
+        .order("id", { ascending: true })
+        .limit(50);
+      if (error) return new Response(JSON.stringify({ error: "SIGNAL_POLL_FAILED" }), { status: 500, headers });
+      return new Response(JSON.stringify({ signals: signals ?? [] }), { status: 200, headers });
+    }
+
     if (action === "create") {
       const calleeId = String(body.calleeId ?? "").trim();
       const mode = body.mode === "video" ? "video" : "audio";
@@ -71,6 +87,57 @@ Deno.serve(async (request) => {
     const isCaller = call.caller_id === callerId;
     const isCallee = call.callee_id === callerId;
     if (!isCaller && !isCallee) return new Response(JSON.stringify({ error: "FORBIDDEN" }), { status: 403, headers });
+
+    if (action === "signal:send") {
+      const signal = body.signal;
+      const allowedKinds = ["invite", "accept", "decline", "offer", "answer", "ice", "hangup"];
+      if (!signal || typeof signal !== "object" || !allowedKinds.includes(String(signal.kind))) {
+        return new Response(JSON.stringify({ error: "INVALID_SIGNAL" }), { status: 400, headers });
+      }
+      if (String(signal.callId ?? "") !== callId || String(signal.from ?? "") !== callerId) {
+        return new Response(JSON.stringify({ error: "SIGNAL_IDENTITY_MISMATCH" }), { status: 403, headers });
+      }
+      if ((signal.kind === "invite" || signal.kind === "offer") && !isCaller) {
+        return new Response(JSON.stringify({ error: "SIGNAL_ROLE_FORBIDDEN" }), { status: 403, headers });
+      }
+      if ((signal.kind === "accept" || signal.kind === "decline" || signal.kind === "answer") && !isCallee) {
+        return new Response(JSON.stringify({ error: "SIGNAL_ROLE_FORBIDDEN" }), { status: 403, headers });
+      }
+      if (JSON.stringify(signal).length > 131072) {
+        return new Response(JSON.stringify({ error: "SIGNAL_TOO_LARGE" }), { status: 413, headers });
+      }
+      if (["rejected", "cancelled", "busy", "unavailable", "missed", "ended", "failed"].includes(call.state)) {
+        return new Response(JSON.stringify({ error: "CALL_ALREADY_ENDED" }), { status: 409, headers });
+      }
+      const recipientId = isCaller ? call.callee_id : call.caller_id;
+      const { data: inserted, error } = await supabase
+        .from("thimar_call_signals")
+        .insert({
+          call_id: callId,
+          sender_id: callerId,
+          recipient_id: recipientId,
+          kind: signal.kind,
+          payload: signal,
+        })
+        .select("id")
+        .single();
+      if (error || !inserted) return new Response(JSON.stringify({ error: "SIGNAL_SEND_FAILED" }), { status: 500, headers });
+      return new Response(JSON.stringify({ ok: true, id: inserted.id }), { status: 200, headers });
+    }
+
+    if (action === "signal:poll") {
+      const afterId = Math.max(0, Number(body.afterId) || 0);
+      const { data: signals, error } = await supabase
+        .from("thimar_call_signals")
+        .select("id,payload,created_at")
+        .eq("call_id", callId)
+        .eq("recipient_id", callerId)
+        .gt("id", afterId)
+        .order("id", { ascending: true })
+        .limit(100);
+      if (error) return new Response(JSON.stringify({ error: "SIGNAL_POLL_FAILED" }), { status: 500, headers });
+      return new Response(JSON.stringify({ signals: signals ?? [] }), { status: 200, headers });
+    }
 
     const TERMINAL = ["rejected", "cancelled", "busy", "unavailable", "missed", "ended", "failed"];
     const expired = new Date(call.expires_at).getTime() < Date.now() && !TERMINAL.includes(call.state);
