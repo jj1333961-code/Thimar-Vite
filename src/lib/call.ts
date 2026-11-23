@@ -126,7 +126,7 @@ export function createChannel(
         afterId: lastId,
       });
       if (result?.error) {
-        if (result.error === "AUTH_REQUIRED" || result.error === "INVALID_SESSION" || result.error === "ACCOUNT_UNAVAILABLE") {
+        if (["AUTH_REQUIRED", "INVALID_SESSION", "ACCOUNT_UNAVAILABLE"].includes(String(result.error))) {
           statusCallback?.("CHANNEL_ERROR");
           if (timer) clearInterval(timer);
           timer = null;
@@ -147,7 +147,7 @@ export function createChannel(
     }
   };
 
-  return {
+  const channel: SignalChannel = {
     send: async (message) => {
       if (message?.type !== "broadcast" || message?.event !== "signal") {
         throw new Error("UNSUPPORTED_SIGNAL_TRANSPORT");
@@ -170,7 +170,7 @@ export function createChannel(
       } else {
         statusCallback?.("SUBSCRIBED");
       }
-      return thisChannel;
+      return channel;
     },
     unsubscribe: async () => {
       active = false;
@@ -178,12 +178,8 @@ export function createChannel(
       timer = null;
       statusCallback = undefined;
     },
-  } as SignalChannel;
-
-  // The channel is returned above; this identifier keeps the subscribe method chainable.
-  function thisChannel(): never {
-    throw new Error("unreachable");
-  }
+  };
+  return channel;
 }
 
 export async function sendSignal(channel: SignalChannel, signal: CallSignal): Promise<void> {
