@@ -101,9 +101,13 @@ export default function MessagesPage({
   /* استقبال المكالمات الواردة عبر قناة المستخدم الخاصة. */
   useEffect(() => {
     const channel = createChannel(userChannelName(account.id), account.id, (signal: CallSignal) => {
-      if (signal.kind === "invite") {
+      if (signal.kind !== "invite") return;
+      // Broadcast messages are not proof of an incoming call; confirm server-side participants.
+      void callServer("get", { callerId: account.id, callId: signal.callId }).then((result) => {
+        const call = result?.call;
+        if (!call || call.callee_id !== account.id || call.caller_id !== signal.from || call.state !== "ringing" || call.mode !== signal.mode) return;
         setIncomingCall({ callId: signal.callId, fromName: signal.fromName, from: signal.from, mode: signal.mode });
-      }
+      });
     });
     void subscribeChannel(channel);
     return () => { try { channel.unsubscribe(); } catch { /* ignore */ } };
