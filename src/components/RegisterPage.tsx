@@ -7,7 +7,6 @@ import {
   accountTypeLabel,
   loadAccounts,
   registerAccount,
-  rememberThisDevice,
   type Account,
   type AccountType,
   type StudentProfile,
@@ -274,7 +273,6 @@ export default function RegisterPage({
   }
 
   function enterAccount(account: Account) {
-    if (account.type !== "teacher") rememberThisDevice(account.id);
     onComplete(account);
   }
 

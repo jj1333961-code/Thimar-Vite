@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "gateway": "python3 scripts/gateway.py",
-    "gateway:smoke": "python3 scripts/gateway_smoke.py"
+    "gateway:smoke": "python3 scripts/gateway_smoke.py",
+    "test:remember-device": "node --test scripts/test-remember-device.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@capacitor/cli": "^8.6.2",
