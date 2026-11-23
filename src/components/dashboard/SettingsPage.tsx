@@ -732,29 +732,49 @@ export default function SettingsPage({
           setUpdateStatus("latest");
           setUpdateMessage(isArabic ? "أنت تستخدم أحدث إصدار من تطبيق ثمار." : "You are using the latest version of Thimar.");
         }
-      } else if (platform === "pwa" && "serviceWorker" in navigator) {
-        const registration = await navigator.serviceWorker.getRegistration();
-        if (registration) {
-          await registration.update();
-          if (registration.waiting) {
+      } else if (platform === "web") {
+        // Browser/PWA sessions are served from the live website and are not app upgrades.
+        // The Updates screen in a browser offers the native app installer instead.
+        const ua = (navigator.userAgent || "").toLowerCase();
+        if (/iphone|ipad|ipod/.test(ua)) {
+          const response = await fetch("/updates/ios.json", { cache: "no-store" });
+          if (!response.ok) throw new Error(`iOS metadata HTTP ${response.status}`);
+          const metadata = await response.json();
+          if (metadata?.available && metadata.url) {
             setUpdateStatus("available");
-            setUpdateVersion("PWA");
-            setUpdateMessage(isArabic ? "يتوفر تحديث جديد لثمار" : "A new update is available for Thimar");
+            setUpdateVersion("iOS");
+            setUpdateMessage(isArabic ? "يتوفر رابط تنزيل تطبيق iOS. المتصفح نفسه لا يحتاج إلى تحديث." : "An iOS app link is available. The browser itself does not need an update.");
           } else {
             setUpdateStatus("latest");
-            setUpdateMessage(isArabic ? "أنت تستخدم أحدث إصدار من تطبيق ثمار." : "You are using the latest version of Thimar.");
+            setUpdateMessage(isArabic ? "تطبيق iOS غير متاح للتنزيل حاليًا. المتصفح يعمل بأحدث نسخة من الموقع." : "The iOS app is not available for download yet. The website is already up to date.");
           }
         } else {
-          setUpdateStatus("latest");
-          setUpdateMessage(isArabic ? "أنت تستخدم أحدث إصدار من تطبيق ثمار." : "You are using the latest version of Thimar.");
+          const response = await fetch(`/updates/android.json?_=${Date.now()}`, { cache: "no-store" });
+          if (!response.ok) throw new Error(`Android metadata HTTP ${response.status}`);
+          const metadata = await response.json();
+          if (metadata?.available && metadata.downloadUrl && metadata.versionCode) {
+            setUpdateStatus("available");
+            setUpdateVersion(String(metadata.versionName ?? metadata.versionCode));
+            setUpdateReleaseNotes(metadata.releaseNotes ?? null);
+            setUpdateFileSize(typeof metadata.fileSize === "number" ? metadata.fileSize : null);
+            setUpdateMessage(isArabic ? "هذا متصفح ويب ولا يحتاج إلى تحديث. يمكنك تنزيل تطبيق ثمار وتثبيته من هنا." : "This browser is already up to date. You can download and install the Thimar Android app here.");
+          } else {
+            setUpdateStatus("latest");
+            setUpdateMessage(isArabic ? "المتصفح يعمل بأحدث نسخة من الموقع، ولا يتوفر ملف تطبيق للتنزيل حاليًا." : "The website is up to date and no app installer is currently available.");
+          }
         }
       } else {
         setUpdateStatus("latest");
         setUpdateMessage(isArabic ? "أنت تستخدم أحدث إصدار من تطبيق ثمار." : "You are using the latest version of Thimar.");
       }
-    } catch {
+    } catch (error) {
       setUpdateStatus("error");
-      setUpdateMessage(isArabic ? "تعذر التحقق من وجود تحديث. تحقق من اتصال الإنترنت وحاول مرة أخرى." : "Could not check for updates. Check your internet connection and try again.");
+      const detail = error instanceof Error ? error.message : "network error";
+      setUpdateMessage(
+        isArabic
+          ? `تعذّر الوصول إلى بيانات التحديث (${detail}). تحقق من الاتصال وحاول مرة أخرى.`
+          : `Could not reach update metadata (${detail}). Check the connection and try again.`,
+      );
     } finally {
       setUpdateChecking(false);
     }
@@ -1234,7 +1254,9 @@ export default function SettingsPage({
                   className="primary-button"
                   onClick={() => (window as any).__thimarStartUpdateDownload?.()}
                 >
-                  {settings.language === "en" ? "Update Now" : "تحديث الآن"}
+                  {settings.language === "en"
+                    ? (platform === "web" ? "Download the app" : "Update Now")
+                    : (platform === "web" ? "تحميل التطبيق" : "تحديث الآن")}
                 </button>
               </div>
             ) : null}
