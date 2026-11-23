@@ -31,7 +31,7 @@ returns text
 language plpgsql
 stable
 security definer
-set search_path = pg_catalog, extensions, public
+set search_path = pg_catalog, extensions, public, pg_temp
 as $
 declare
   raw_token text;
@@ -61,7 +61,7 @@ returns text
 language sql
 stable
 security definer
-set search_path = pg_catalog, extensions, public
+set search_path = pg_catalog, extensions, public, pg_temp
 as $
   select a.type
     from public.thimar_accounts a
