@@ -223,7 +223,7 @@ begin
       -- transparent upgrade for this account only; the legacy columns are left intact so
       -- clients that have not moved to the RPC still log in.
       update public.thimar_accounts
-         set password_hash_v2 = crypt(p_password, gen_salt('bf', 12)),
+         set password_hash_v2 = crypt(candidate, gen_salt('bf', 12)),
              password_hash_algo = 'bcrypt'
        where id = acct.id and password_hash_v2 is null;
     end if;
