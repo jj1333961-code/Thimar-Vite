@@ -188,9 +188,12 @@ begin
     return null;
   end if;
 
-  -- v2 (bcrypt) takes precedence once present; legacy sha256 keeps working until cutover
+  -- v2 stores bcrypt(legacy SHA-256 candidate), not bcrypt(plaintext): the client
+  -- sends a salted SHA-256 candidate for password changes, so use the same format
+  -- for both the transparent upgrade and later logins.
   if acct.password_hash_v2 is not null then
-    ok := acct.password_hash_v2 = crypt(p_password, acct.password_hash_v2);
+    candidate := encode(digest(acct.password_salt || ':' || p_password, 'sha256'), 'hex');
+    ok := acct.password_hash_v2 = crypt(candidate, acct.password_hash_v2);
   elsif acct.password_hash is not null and coalesce(acct.password_salt, '') <> '' then
     candidate := encode(digest(acct.password_salt || ':' || p_password, 'sha256'), 'hex');
     ok := candidate = acct.password_hash;
