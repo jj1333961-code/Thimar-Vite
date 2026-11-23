@@ -107,7 +107,7 @@ async function meteredTurnServers() {
 
 Deno.serve(async (request: Request) => {
   const origin = request.headers.get("Origin") ?? undefined;
-  if (request.method === "OPTIONS") return response(204, {}, origin);
+  if (request.method === "OPTIONS") return response(200, {}, origin);
   if (request.method !== "GET") return response(405, { error: "METHOD_NOT_ALLOWED" }, origin);
   if (origin && !ALLOWED_ORIGINS.has(origin)) return response(403, { error: "ORIGIN_NOT_ALLOWED" });
 
