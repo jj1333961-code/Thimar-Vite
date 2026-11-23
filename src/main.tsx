@@ -7,7 +7,6 @@ import { pullCloud } from "./lib/cloud";
 import "./styles.css";
 import "./styles-v2.css";
 import "./styles-v3.css";
-import "./thimar-polish.css";
 
 // يجعل التطبيق قابلًا للتثبيت ويعمل واجهته دون اتصال في النسخة المنشورة.
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
@@ -15,7 +14,9 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
     navigator.serviceWorker
       .register("/sw.js", { updateViaCache: "none" })
       .then((registration) => {
+        // تصريح الإشعارات في الخلفية والفحص الدوري (حيث يدعمه النظام).
         void enableBackgroundNotifications();
+        // تحديث تلقائي: يفحص نسخة جديدة عند العودة للتطبيق وكل 30 دقيقة.
         const check = () => registration.update().catch(() => undefined);
         window.setInterval(check, 30 * 60 * 1000);
         document.addEventListener("visibilitychange", () => {
@@ -27,6 +28,7 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
 
   window.addEventListener("load", register);
 
+  // عامل الخدمة يوقظ التطبيق لسحب الرسائل الجديدة عند الفحص في الخلفية.
   navigator.serviceWorker.addEventListener("message", (event: MessageEvent) => {
     if ((event.data as { type?: string } | null)?.type === "thimar-background-check") {
       void pullCloud();
@@ -34,6 +36,7 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
     }
   });
 
+  // عند تثبيت نسخة جديدة نعيد التحميل مرة واحدة لتظهر التحديثات تلقائيًا.
   let reloaded = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (reloaded) return;
@@ -49,6 +52,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   </React.StrictMode>,
 );
 
+// بعد أول رسم: يجهّز محرك التسميع المحلي في الخلفية من الملفات المضمَّنة.
+// الاستيراد الديناميكي يبقي onnxruntime-web خارج حزمة الإقلاع الأولي.
 const warmTilawa = () => {
   void import("./lib/tilawaRecitation")
     .then((module) => module.scheduleTilawaPreload())

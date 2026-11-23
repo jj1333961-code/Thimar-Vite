@@ -30,6 +30,9 @@ async function cacheAsset(url: string, validate: (response: Response) => Promise
   }
   const cache = await caches.open(MUSHAF_PAGE_CACHE);
   await cache.put(url, response.clone());
+  // تُقرأ بعض ملفات المصحف عبر fetch مباشر؛ احفظها أيضًا في cache عامل الخدمة.
+  const shellCache = await caches.open("thimar-shell-v39");
+  await shellCache.put(url, response.clone());
   const length = Number(response.headers.get("content-length") || 0);
   return Number.isFinite(length) ? length : 0;
 }

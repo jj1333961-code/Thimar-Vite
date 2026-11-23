@@ -1,5 +1,5 @@
 /* ثمار — عامل الخدمة: يشغّل التطبيق والمصحف والتحفة والأذكار والأحاديث دون إنترنت. */
-const VERSION = "v38";
+const VERSION = "v39";
 const SHELL_CACHE = `thimar-shell-${VERSION}`;
 const DATA_CACHE = "thimar-data-v1";
 const RUNTIME_CACHE = "thimar-runtime-v1";
