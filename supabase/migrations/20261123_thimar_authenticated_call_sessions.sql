@@ -179,6 +179,7 @@ declare
   acct       public.thimar_accounts;
   candidate  text;
   ok         boolean := false;
+  limited    boolean := false;
   session_token text := encode(gen_random_bytes(32), 'hex');
   session_expires timestamptz := now() + interval '12 hours';
 begin
@@ -200,9 +201,12 @@ begin
 
   if acct.id is null then
     -- constant-cost work so a missing user is not distinguishable by timing
-    perform encode(digest('thimar-dummy-salt:thimar-dummy-password', 'sha256'), 'hex');
-    perform public.thimar_note_attempt(user_key, false);
-    perform public.thimar_note_attempt(ip_key, false);
+    perform crypt('thimar-dummy-password', gen_salt('bf', 12));
+    limited := public.thimar_note_attempt(user_key, false);
+    limited := public.thimar_note_attempt(ip_key, false) OR limited;
+    if limited then
+      raise exception 'RATE_LIMITED' using errcode = 'P0001';
+    end if;
     return null;
   end if;
 
@@ -226,12 +230,16 @@ begin
   end if;
 
   if not ok then
-    perform public.thimar_note_attempt(user_key, false);
-    perform public.thimar_note_attempt(ip_key, false);
+    limited := public.thimar_note_attempt(user_key, false);
+    limited := public.thimar_note_attempt(ip_key, false) OR limited;
+    if limited then
+      raise exception 'RATE_LIMITED' using errcode = 'P0001';
+    end if;
     return null;
   end if;
 
   perform public.thimar_note_attempt(user_key, true);
+  perform public.thimar_note_attempt(ip_key, true);
 
   if acct.banned then
     return jsonb_build_object('error', 'ACCOUNT_BANNED');
