@@ -1,13 +1,17 @@
 import { useEffect, useState } from "react";
 import { getInstalledVersionCode } from "../lib/nativePush";
 
-const METADATA_URL = (import.meta as any).env?.VITE_UPDATE_METADATA_URL || "/updates/android.json";
-const IOS_METADATA_URL = (import.meta as any).env?.VITE_IOS_UPDATE_METADATA_URL || "/updates/ios.json";
+export const ANDROID_UPDATE_METADATA_URL =
+  (import.meta as any).env?.VITE_UPDATE_METADATA_URL || "/updates/android.json";
+export const IOS_UPDATE_METADATA_URL =
+  (import.meta as any).env?.VITE_IOS_UPDATE_METADATA_URL || "/updates/ios.json";
+const METADATA_URL = ANDROID_UPDATE_METADATA_URL;
 
-type Platform = "ios" | "android" | "electron" | "pwa" | "web";
+type Platform = "ios" | "android" | "electron" | "web";
 
 type AndroidMetadata = {
   platform?: string;
+  packageName?: string;
   versionName?: string;
   versionCode?: number;
   available?: boolean;
@@ -23,14 +27,60 @@ type IOSMetadata = {
   url?: string;
 };
 
+/** Reject incomplete, stale, or off-site APK metadata before starting a native update. */
+function isValidAndroidRelease(meta: AndroidMetadata | null | undefined): meta is AndroidMetadata {
+  if (!meta || meta.available !== true || meta.packageName !== "app.thimar.quran") return false;
+  if (!Number.isSafeInteger(meta.versionCode) || Number(meta.versionCode) < 1) return false;
+  if (typeof meta.versionName !== "string" || !meta.versionName.trim()) return false;
+  if (typeof meta.fileName !== "string" || !/^[a-zA-Z0-9._-]+\\.apk$/i.test(meta.fileName)) return false;
+  if (!Number.isSafeInteger(meta.fileSize) || Number(meta.fileSize) < 1024 * 1024) return false;
+  if (typeof meta.sha256 !== "string" || !/^[a-f0-9]{64}$/i.test(meta.sha256)) return false;
+  if (typeof meta.downloadUrl !== "string") return false;
+  try {
+    const url = new URL(meta.downloadUrl);
+    return url.protocol === "https:"
+      && url.hostname === "thimar.freebuff.page"
+      && url.pathname.startsWith("/assets/large/")
+      && url.pathname.split("/").pop() === meta.fileName;
+  } catch {
+    return false;
+  }
+}
+
 export function detectPlatform(): Platform {
   const ua = (typeof navigator !== "undefined" ? navigator.userAgent : "").toLowerCase();
-  const w = window as any;
-  if (w?.electron || w?.electronAPI) return "electron";
-  if (/iphone|ipad|ipod/.test(ua)) return "ios";
-  if (/android/.test(ua)) return "android";
-  if ("serviceWorker" in navigator) return "pwa";
-  return "web";
+  const w = typeof window !== "undefined" ? (window as any) : {};
+  if (w.electron || w.electronAPI) return "electron";
+
+  // User-agent identifies the operating system, not an installed native app.
+  // Only the native bridge marks this runtime as an updatable Android/iOS app.
+  const nativeBridge = w.ThimarNative;
+  let updaterBridge = w.ThimarUpdater;
+  if (typeof updaterBridge === "function") {
+    try {
+      updaterBridge = updaterBridge();
+    } catch {
+      updaterBridge = null;
+    }
+  }
+  const hasNativeBridge = Boolean(
+    nativeBridge ||
+    (updaterBridge &&
+      (typeof updaterBridge.downloadUpdate === "function" ||
+        typeof updaterBridge.getInstalledVersionCode === "function")),
+  );
+  if (!hasNativeBridge) return "web";
+
+  let nativePlatform = "";
+  try {
+    if (typeof nativeBridge?.platform === "function") {
+      nativePlatform = String(nativeBridge.platform()).toLowerCase();
+    }
+  } catch {
+    // A broken optional bridge must not prevent the website from opening.
+  }
+  if (nativePlatform.includes("ios") || /iphone|ipad|ipod/.test(ua)) return "ios";
+  return "android";
 }
 
 export default function UpdatePrompt() {
@@ -63,7 +113,7 @@ export default function UpdatePrompt() {
           const response = await fetch(METADATA_URL, { cache: "no-store" });
           if (!response.ok) return;
           const meta = (await response.json()) as AndroidMetadata;
-          if (!meta?.available || !meta.versionCode) return;
+          if (!isValidAndroidRelease(meta)) return;
           const latest = Number(meta.versionCode);
           const current = installed ?? null;
           if (current !== null && latest > current) {
@@ -106,7 +156,7 @@ export default function UpdatePrompt() {
       if (platform === "ios") {
         let url = "";
         try {
-          const response = await fetch(IOS_METADATA_URL, { cache: "no-store" });
+          const response = await fetch(IOS_UPDATE_METADATA_URL, { cache: "no-store" });
           if (response.ok) {
             const meta = (await response.json()) as IOSMetadata;
             if (meta.available && meta.url) url = meta.url;
@@ -122,10 +172,6 @@ export default function UpdatePrompt() {
         window.open(url, "_blank", "noopener,noreferrer");
         setStatus("تم فتح متجر التطبيقات/تست فلايت. أكمل التحديث من النظام.");
       } else if (platform === "android") {
-        const rawUpdater = (window as any).ThimarUpdater || (window as any).ThimarNative;
-        const nativeUpdater = rawUpdater && (rawUpdater.downloadUpdate || rawUpdater.getInstalledVersionCode)
-          ? rawUpdater
-          : (typeof rawUpdater === "function" ? (() => { try { return rawUpdater(); } catch { return null; } })() : rawUpdater);
         let metadata: AndroidMetadata | null = null;
         try {
           const response = await fetch(METADATA_URL, { cache: "no-store" });
@@ -140,14 +186,10 @@ export default function UpdatePrompt() {
         } catch {
           metadata = null;
         }
-        if (nativeUpdater?.downloadUpdate) {
-          setStatus("جارٍ بدء التحديث الأصلي…");
-          nativeUpdater.downloadUpdate(METADATA_URL);
-          setBusy(false);
-          return;
-        }
-        if (!metadata?.available || !metadata.downloadUrl) {
-          setStatus("رابط تحديث Android غير مُعدّ. أعد المحاولة لاحقًا.");
+        // Download the complete APK, not a separate/incremental resource patch.
+        // Its bundled assets always belong to the same release as the installed binary.
+        if (!isValidAndroidRelease(metadata)) {
+          setStatus("بيانات التحديث أو رابط ملف APK غير مكتملة أو غير موثوقة. لم يبدأ التنزيل.");
           setBusy(false);
           return;
         }
@@ -163,7 +205,7 @@ export default function UpdatePrompt() {
           return;
         }
         setStatus("جارٍ تنزيل APK…");
-        window.location.href = metadata.downloadUrl;
+        window.location.assign(metadata.downloadUrl);
         setBusy(false);
         return;
       } else if (platform === "electron") {
@@ -179,15 +221,33 @@ export default function UpdatePrompt() {
           setBusy(false);
           return;
         }
-      } else if (platform === "pwa" && "serviceWorker" in navigator) {
-        const reg = await navigator.serviceWorker.getRegistration();
-        if (reg) {
-          await reg.update();
-          if (reg.waiting) {
-            reg.waiting.postMessage({ type: "SKIP_WAITING" });
+      } else if (platform === "web") {
+        // A browser is already served from the latest website release.
+        // This action downloads the native app; it never upgrades the browser/PWA shell.
+        const ua = (navigator.userAgent || "").toLowerCase();
+        if (/iphone|ipad|ipod/.test(ua)) {
+          const response = await fetch(IOS_UPDATE_METADATA_URL, { cache: "no-store" });
+          if (!response.ok) throw new Error(`iOS metadata HTTP ${response.status}`);
+          const meta = (await response.json()) as IOSMetadata;
+          if (!meta.available || !meta.url) {
+            setStatus("تطبيق iOS غير متاح للتنزيل حاليًا.");
+            setBusy(false);
+            return;
           }
+          window.open(meta.url, "_blank", "noopener,noreferrer");
+          setStatus("تم فتح رابط تطبيق iOS.");
+        } else {
+          const response = await fetch(METADATA_URL, { cache: "no-store" });
+          if (!response.ok) throw new Error(`Android metadata HTTP ${response.status}`);
+          const meta = (await response.json()) as AndroidMetadata;
+          if (!meta.available || !meta.downloadUrl) {
+            setStatus("ملف تنزيل تطبيق Android غير متاح حاليًا.");
+            setBusy(false);
+            return;
+          }
+          setStatus("جارٍ تنزيل تطبيق ثمار. لا يحتاج المتصفح إلى تحديث.");
+          window.location.href = meta.downloadUrl;
         }
-        setStatus("تم تحديث Service Worker. سيتم تطبيق الإصدار الجديد.");
       } else {
         setStatus("التحديث غير متاح على هذه المنصة.");
         setBusy(false);
