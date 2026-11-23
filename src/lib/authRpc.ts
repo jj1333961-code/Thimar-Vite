@@ -14,7 +14,7 @@ export const AUTH_RPC_FLAG = "thimar.auth.rpc";
 
 export function rpcAuthEnabled(): boolean {
   try {
-    return localStorage.getItem(AUTH_RPC_FLAG) === "1";
+    return localStorage.getItem(AUTH_RPC_FLAG) !== "0";
   } catch {
     return false;
   }
