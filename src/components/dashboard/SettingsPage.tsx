@@ -1255,8 +1255,8 @@ export default function SettingsPage({
                   onClick={() => (window as any).__thimarStartUpdateDownload?.()}
                 >
                   {settings.language === "en"
-                    ? (platform === "web" ? "Download the app" : "Update Now")
-                    : (platform === "web" ? "تحميل التطبيق" : "تحديث الآن")}
+                    ? (detectPlatform() === "web" ? "Download the app" : "Update Now")
+                    : (detectPlatform() === "web" ? "تحميل التطبيق" : "تحديث الآن")}
                 </button>
               </div>
             ) : null}
