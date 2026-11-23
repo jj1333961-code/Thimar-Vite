@@ -5,7 +5,7 @@ import FeedbackPage from "./components/FeedbackPage";
 import LoginPage from "./components/LoginPage";
 import { PendingScreen } from "./components/Portal";
 import RegisterPage from "./components/RegisterPage";
-import { rememberThisDevice, restoreRememberedAccount, signOut, type Account } from "./lib/auth";
+import { restoreRememberedAccount, signOut, type Account } from "./lib/auth";
 import { celebrate, celebrateOnce } from "./lib/celebrate";
 import { pullCloud, startCloudSync } from "./lib/cloud";
 import { requestAppPermissions } from "./lib/notify";
@@ -76,7 +76,6 @@ export default function App() {
             setView("pending");
             return;
           }
-          rememberThisDevice(created.id);
           setAccount(created);
           setView("app");
           // احتفال إنشاء الحساب الجديد.
@@ -90,8 +89,6 @@ export default function App() {
     content = (
       <LoginPage
         onLoggedIn={(logged) => {
-          // نُبقي الجلسة محفوظة ليعمل الدخول التالي دون إنترنت ولو لم يُحدَّد الخيار.
-          rememberThisDevice(logged.id);
           setAccount(logged);
           setView("app");
           // أول دخول لهذا الحساب: احتفال ترحيبي.
