@@ -97,7 +97,6 @@ export async function downloadMushafPages(
   const baseReady = await preloadHafsMushaf();
   if (!baseReady || shouldStop()) return 0;
 
-  const cache = await caches.open(MUSHAF_PAGE_CACHE);
   let completedPages = 0;
 
   const fixedAssets = [
