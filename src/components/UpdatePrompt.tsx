@@ -32,7 +32,7 @@ function isValidAndroidRelease(meta: AndroidMetadata | null | undefined): meta i
   if (!meta || meta.available !== true || meta.packageName !== "app.thimar.quran") return false;
   if (!Number.isSafeInteger(meta.versionCode) || Number(meta.versionCode) < 1) return false;
   if (typeof meta.versionName !== "string" || !meta.versionName.trim()) return false;
-  if (typeof meta.fileName !== "string" || !/^[a-zA-Z0-9._-]+\\.apk$/i.test(meta.fileName)) return false;
+  if (typeof meta.fileName !== "string" || !/^[a-zA-Z0-9._-]+\.apk$/i.test(meta.fileName)) return false;
   if (!Number.isSafeInteger(meta.fileSize) || Number(meta.fileSize) < 1024 * 1024) return false;
   if (typeof meta.sha256 !== "string" || !/^[a-f0-9]{64}$/i.test(meta.sha256)) return false;
   if (typeof meta.downloadUrl !== "string") return false;
