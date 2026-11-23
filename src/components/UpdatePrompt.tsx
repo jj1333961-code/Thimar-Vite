@@ -25,12 +25,27 @@ type IOSMetadata = {
 
 export function detectPlatform(): Platform {
   const ua = (typeof navigator !== "undefined" ? navigator.userAgent : "").toLowerCase();
-  const w = window as any;
-  if (w?.electron || w?.electronAPI) return "electron";
-  if (/iphone|ipad|ipod/.test(ua)) return "ios";
-  if (/android/.test(ua)) return "android";
-  if ("serviceWorker" in navigator) return "pwa";
-  return "web";
+  const w = typeof window !== "undefined" ? (window as any) : {};
+  if (w.electron || w.electronAPI) return "electron";
+
+  // User-agent identifies the operating system, not an installed native app.
+  // Only the native bridge marks this runtime as an updatable Android/iOS app.
+  const nativeBridge = w.ThimarNative;
+  const updaterBridge = w.ThimarUpdater;
+  const hasNativeBridge = Boolean(
+    nativeBridge ||
+    (updaterBridge &&
+      (typeof updaterBridge.downloadUpdate === "function" ||
+        typeof updaterBridge.getInstalledVersionCode === "function")),
+  );
+  if (!hasNativeBridge) return "web";
+
+  const nativePlatform =
+    typeof nativeBridge?.platform === "function"
+      ? String(nativeBridge.platform()).toLowerCase()
+      : "";
+  if (nativePlatform.includes("ios") || /iphone|ipad|ipod/.test(ua)) return "ios";
+  return "android";
 }
 
 export default function UpdatePrompt() {
@@ -142,9 +157,18 @@ export default function UpdatePrompt() {
         }
         if (nativeUpdater?.downloadUpdate) {
           setStatus("جارٍ بدء التحديث الأصلي…");
-          nativeUpdater.downloadUpdate(METADATA_URL);
-          setBusy(false);
-          return;
+          try {
+            const result = await Promise.resolve(nativeUpdater.downloadUpdate(METADATA_URL));
+            if (result === false || result?.success === false || result?.error) {
+              throw new Error(String(result?.error || "native updater failed"));
+            }
+            setBusy(false);
+            return;
+          } catch (nativeError) {
+            // If incremental resource verification fails, fall back to the complete APK.
+            // The APK contains the matching app resources and avoids a mixed-version install.
+            setStatus("تعذّر التحديث الجزئي؛ سيتم تنزيل حزمة التطبيق الكاملة بدلًا منه…");
+          }
         }
         if (!metadata?.available || !metadata.downloadUrl) {
           setStatus("رابط تحديث Android غير مُعدّ. أعد المحاولة لاحقًا.");
@@ -179,15 +203,33 @@ export default function UpdatePrompt() {
           setBusy(false);
           return;
         }
-      } else if (platform === "pwa" && "serviceWorker" in navigator) {
-        const reg = await navigator.serviceWorker.getRegistration();
-        if (reg) {
-          await reg.update();
-          if (reg.waiting) {
-            reg.waiting.postMessage({ type: "SKIP_WAITING" });
+      } else if (platform === "web") {
+        // A browser is already served from the latest website release.
+        // This action downloads the native app; it never upgrades the browser/PWA shell.
+        const ua = (navigator.userAgent || "").toLowerCase();
+        if (/iphone|ipad|ipod/.test(ua)) {
+          const response = await fetch(IOS_METADATA_URL, { cache: "no-store" });
+          if (!response.ok) throw new Error(`iOS metadata HTTP ${response.status}`);
+          const meta = (await response.json()) as IOSMetadata;
+          if (!meta.available || !meta.url) {
+            setStatus("تطبيق iOS غير متاح للتنزيل حاليًا.");
+            setBusy(false);
+            return;
           }
+          window.open(meta.url, "_blank", "noopener,noreferrer");
+          setStatus("تم فتح رابط تطبيق iOS.");
+        } else {
+          const response = await fetch(`${METADATA_URL}?_=${Date.now()}`, { cache: "no-store" });
+          if (!response.ok) throw new Error(`Android metadata HTTP ${response.status}`);
+          const meta = (await response.json()) as AndroidMetadata;
+          if (!meta.available || !meta.downloadUrl) {
+            setStatus("ملف تنزيل تطبيق Android غير متاح حاليًا.");
+            setBusy(false);
+            return;
+          }
+          setStatus("جارٍ تنزيل تطبيق ثمار. لا يحتاج المتصفح إلى تحديث.");
+          window.location.href = meta.downloadUrl;
         }
-        setStatus("تم تحديث Service Worker. سيتم تطبيق الإصدار الجديد.");
       } else {
         setStatus("التحديث غير متاح على هذه المنصة.");
         setBusy(false);
