@@ -48,7 +48,7 @@ import {
 } from "../../lib/ai";
 import { Icon, EmptyState, SectionCard } from "./ui";
 import { loadTilawa, checkTilawaReadiness, type TilawaReadinessState } from "../../lib/tilawaRecitation";
-import { detectPlatform } from "../UpdatePrompt";
+import { detectPlatform, ANDROID_UPDATE_METADATA_URL, IOS_UPDATE_METADATA_URL } from "../UpdatePrompt";
 import { getInstalledVersionCode } from "../../lib/nativePush";
 
 const QURAN_AUDIO_CACHE = "thimar-audio-v1";
@@ -679,7 +679,7 @@ export default function SettingsPage({
     try {
       const platform = detectPlatform();
       if (platform === "android") {
-        const response = await fetch("/updates/android.json", { cache: "no-store" });
+        const response = await fetch(ANDROID_UPDATE_METADATA_URL, { cache: "no-store" });
         if (!response.ok) throw new Error("metadata");
         const metadata = await response.json();
         if (!metadata?.available || !metadata.downloadUrl || !metadata.versionCode || !metadata.sha256) throw new Error("invalid");
@@ -721,7 +721,7 @@ export default function SettingsPage({
           setUpdateMessage(isArabic ? "الإصدار المثبت أحدث من الإصدار المنشور." : "The installed version is newer than the published release.");
         }
       } else if (platform === "ios") {
-        const response = await fetch("/updates/ios.json", { cache: "no-store" });
+        const response = await fetch(IOS_UPDATE_METADATA_URL, { cache: "no-store" });
         if (!response.ok) throw new Error("metadata");
         const metadata = await response.json();
         if (metadata?.available && metadata.url) {
@@ -737,7 +737,7 @@ export default function SettingsPage({
         // The Updates screen in a browser offers the native app installer instead.
         const ua = (navigator.userAgent || "").toLowerCase();
         if (/iphone|ipad|ipod/.test(ua)) {
-          const response = await fetch("/updates/ios.json", { cache: "no-store" });
+          const response = await fetch(IOS_UPDATE_METADATA_URL, { cache: "no-store" });
           if (!response.ok) throw new Error(`iOS metadata HTTP ${response.status}`);
           const metadata = await response.json();
           if (metadata?.available && metadata.url) {
@@ -749,7 +749,7 @@ export default function SettingsPage({
             setUpdateMessage(isArabic ? "تطبيق iOS غير متاح للتنزيل حاليًا. المتصفح يعمل بأحدث نسخة من الموقع." : "The iOS app is not available for download yet. The website is already up to date.");
           }
         } else {
-          const response = await fetch(`/updates/android.json?_=${Date.now()}`, { cache: "no-store" });
+          const response = await fetch(ANDROID_UPDATE_METADATA_URL, { cache: "no-store" });
           if (!response.ok) throw new Error(`Android metadata HTTP ${response.status}`);
           const metadata = await response.json();
           if (metadata?.available && metadata.downloadUrl && metadata.versionCode) {
