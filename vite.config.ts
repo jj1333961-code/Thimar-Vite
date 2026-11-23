@@ -1,9 +1,9 @@
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { resolve as resolvePath } from "node:path";
+import { pathToFileURL } from "node:url";
 import { APIError, NaceClient, choice, noul, score, type Questions } from "nace-sdk";
-// @ts-expect-error — وحدة مشتركة مكتوبة بـ JavaScript للـWorker والمعاينة المحلية.
-import { resolveTafsir } from "./freebuff-sites-build/tafsir.mjs";
 import type { NaceQuestion, NaceState } from "./src/lib/nace";
 
 const allowedHosts = (process.env.VITE_ALLOWED_HOSTS ?? "")
@@ -276,6 +276,27 @@ function naceProxyPlugin(config: { apiKey: string; model: string }): Plugin {
       });
     },
   };
+}
+
+/**
+ * وحدة اختيار مقاطع التفسير قد تُولَّد محليًا في بيئة Freebuff فقط.
+ * تحميلها اختياري حتى لا يفشل بناء الموقع/التطبيق عندما لا توجد الوحدة المولّدة.
+ */
+async function resolveTafsir(input: {
+  key: string;
+  book: "quran" | "tuhfa";
+  surahName: string;
+  from: number;
+  to: number;
+}): Promise<unknown | null> {
+  try {
+    const generatedPath = resolvePath(process.cwd(), "freebuff-sites-build/tafsir.mjs");
+    const generated = await import(pathToFileURL(generatedPath).href);
+    if (typeof generated.resolveTafsir !== "function") return null;
+    return await generated.resolveTafsir(input);
+  } catch {
+    return null;
+  }
 }
 
 function tafsirProxyPlugin(apiKey: string): Plugin {
