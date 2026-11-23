@@ -10,6 +10,7 @@ import GamesPage from "./dashboard/GamesPage";
 import OnlineChallenge from "./dashboard/OnlineChallenge";
 import SettingsPage from "./dashboard/SettingsPage";
 import RecitationCoach from "./dashboard/RecitationCoach";
+import AdminDiagnostics from "./dashboard/AdminDiagnostics";
 import FatwaPage from "./dashboard/FatwaPage";
 import AdhkarPage from "./dashboard/AdhkarPage";
 import TasbihPage from "./dashboard/TasbihPage";
@@ -145,7 +146,8 @@ export default function Dashboard({ account, onLogout }: { account: ReturnType<t
                 { id: "notifications", label: t(L, "nav.notifications"), icon: "bell" as const, badge: 0 },
                 { id: "path", label: t(L, "nav.path"), icon: "book" as const },
         { id: "challenge", label: t(L, "nav.challenge"), icon: "chart" as const },
-      { id: "settings", label: t(L, "nav.settings"), icon: "settings" as const },
+        { id: "diagnostics", label: "مختبر الاختبار", icon: "settings" as const },
+        { id: "settings", label: t(L, "nav.settings"), icon: "settings" as const },
 
       ];
     }
@@ -382,6 +384,8 @@ export default function Dashboard({ account, onLogout }: { account: ReturnType<t
         return <TasbihPage />;
       case "coach":
         return <RecitationCoach />;
+      case "diagnostics":
+        return account.type === "admin" ? <AdminDiagnostics /> : null;
       case "settings":
         return (
           <SettingsPage
