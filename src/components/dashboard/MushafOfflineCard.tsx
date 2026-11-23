@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon, SectionCard } from "./ui";
+
+const AUTO_DOWNLOAD_KEY = "thimar.mushaf.autoDownload";
 import {
   deleteMushafPages,
   downloadMushafPages,
@@ -42,12 +44,25 @@ export default function MushafOfflineCard() {
         () => stopRef.current,
       );
       setDone(finished);
-      setMessage(finished >= MUSHAF_TOTAL_PAGES ? "تم تحميل المصحف كاملًا — يعمل الآن دون إنترنت." : "توقف التحميل.");
+      const complete = finished >= MUSHAF_TOTAL_PAGES;
+      setMessage(complete ? "تم تحميل المصحف كاملًا — يعمل الآن دون إنترنت." : "توقف التحميل.");
+      try {
+        if (complete) localStorage.setItem(AUTO_DOWNLOAD_KEY, "done");
+        else localStorage.removeItem(AUTO_DOWNLOAD_KEY);
+      } catch {
+        /* ignore — download status remains available in Cache Storage */
+      }
     } catch {
       setMessage("تعذّر إكمال التحميل، حاول مرة أخرى.");
+      try {
+        localStorage.removeItem(AUTO_DOWNLOAD_KEY);
+      } catch {
+        /* ignore */
+      }
+    } finally {
+      setBusy(false);
+      refresh();
     }
-    setBusy(false);
-    refresh();
   };
 
   const remove = async () => {
@@ -64,14 +79,15 @@ export default function MushafOfflineCard() {
     autoStarted.current = true;
     let key = "";
     try {
-      key = localStorage.getItem("thimar.mushaf.autoDownload") ?? "";
+      key = localStorage.getItem(AUTO_DOWNLOAD_KEY) ?? "";
     } catch {
       key = "";
     }
-    if (key === "done" || key === "running") return;
+    // "running" قد تكون بقايا جلسة أُغلقت أو تعطلت؛ اسمح بمحاولة جديدة بدل قفل التحميل للأبد.
+    if (key === "done") return;
     if (cached >= MUSHAF_TOTAL_PAGES) {
       try {
-        localStorage.setItem("thimar.mushaf.autoDownload", "done");
+        localStorage.setItem(AUTO_DOWNLOAD_KEY, "done");
       } catch {
         /* ignore */
       }
@@ -79,7 +95,7 @@ export default function MushafOfflineCard() {
     }
     if (typeof navigator !== "undefined" && !navigator.onLine) return;
     try {
-      localStorage.setItem("thimar.mushaf.autoDownload", "running");
+      localStorage.setItem(AUTO_DOWNLOAD_KEY, "running");
     } catch {
       /* ignore */
     }
