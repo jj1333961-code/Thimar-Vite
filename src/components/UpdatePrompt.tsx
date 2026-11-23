@@ -11,6 +11,7 @@ type Platform = "ios" | "android" | "electron" | "web";
 
 type AndroidMetadata = {
   platform?: string;
+  packageName?: string;
   versionName?: string;
   versionCode?: number;
   available?: boolean;
@@ -25,6 +26,26 @@ type IOSMetadata = {
   available?: boolean;
   url?: string;
 };
+
+/** Reject incomplete, stale, or off-site APK metadata before starting a native update. */
+function isValidAndroidRelease(meta: AndroidMetadata | null | undefined): meta is AndroidMetadata {
+  if (!meta || meta.available !== true || meta.packageName !== "app.thimar.quran") return false;
+  if (!Number.isSafeInteger(meta.versionCode) || Number(meta.versionCode) < 1) return false;
+  if (typeof meta.versionName !== "string" || !meta.versionName.trim()) return false;
+  if (typeof meta.fileName !== "string" || !/^[a-zA-Z0-9._-]+\\.apk$/i.test(meta.fileName)) return false;
+  if (!Number.isSafeInteger(meta.fileSize) || Number(meta.fileSize) < 1024 * 1024) return false;
+  if (typeof meta.sha256 !== "string" || !/^[a-f0-9]{64}$/i.test(meta.sha256)) return false;
+  if (typeof meta.downloadUrl !== "string") return false;
+  try {
+    const url = new URL(meta.downloadUrl);
+    return url.protocol === "https:"
+      && url.hostname === "thimar.freebuff.page"
+      && url.pathname.startsWith("/assets/large/")
+      && url.pathname.split("/").pop() === meta.fileName;
+  } catch {
+    return false;
+  }
+}
 
 export function detectPlatform(): Platform {
   const ua = (typeof navigator !== "undefined" ? navigator.userAgent : "").toLowerCase();
@@ -92,7 +113,7 @@ export default function UpdatePrompt() {
           const response = await fetch(METADATA_URL, { cache: "no-store" });
           if (!response.ok) return;
           const meta = (await response.json()) as AndroidMetadata;
-          if (!meta?.available || !meta.versionCode) return;
+          if (!isValidAndroidRelease(meta)) return;
           const latest = Number(meta.versionCode);
           const current = installed ?? null;
           if (current !== null && latest > current) {
@@ -167,8 +188,8 @@ export default function UpdatePrompt() {
         }
         // Download the complete APK, not a separate/incremental resource patch.
         // Its bundled assets always belong to the same release as the installed binary.
-        if (!metadata?.available || !metadata.downloadUrl) {
-          setStatus("رابط تحديث Android غير مُعدّ. أعد المحاولة لاحقًا.");
+        if (!isValidAndroidRelease(metadata)) {
+          setStatus("بيانات التحديث أو رابط ملف APK غير مكتملة أو غير موثوقة. لم يبدأ التنزيل.");
           setBusy(false);
           return;
         }
@@ -184,7 +205,7 @@ export default function UpdatePrompt() {
           return;
         }
         setStatus("جارٍ تنزيل APK…");
-        window.location.href = metadata.downloadUrl;
+        window.location.assign(metadata.downloadUrl);
         setBusy(false);
         return;
       } else if (platform === "electron") {
