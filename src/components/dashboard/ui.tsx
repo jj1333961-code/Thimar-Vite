@@ -156,3 +156,22 @@ export function StatCard({
     </button>
   );
 }
+
+
+/** Lightweight inline brand mark used by the shared dashboard shell. */
+export function BrandMark({ size = 42 }: { size?: number }) {
+  return (
+    <span
+      className="brand-mark"
+      style={{ display: "grid", placeItems: "center", width: size, height: size, flex: "0 0 auto" }}
+      aria-hidden="true"
+    >
+      <svg width={size * 0.68} height={size * 0.68} viewBox="0 0 32 32" fill="none">
+        <path d="M16 27V8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M16 16C8.5 16 5 12.5 5 7c7.5 0 11 3.5 11 9Z" fill="currentColor" opacity=".9" />
+        <path d="M16 21c7.5 0 11-3.5 11-9-7.5 0-11 3.5-11 9Z" fill="#C49A42" />
+        <path d="M10 27h12" stroke="#C49A42" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    </span>
+  );
+}
