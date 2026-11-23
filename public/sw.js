@@ -1,5 +1,5 @@
 /* ثمار — عامل الخدمة: يشغّل التطبيق والمصحف والتحفة والأذكار والأحاديث دون إنترنت. */
-const VERSION = "v38";
+const VERSION = "v37";
 const SHELL_CACHE = `thimar-shell-${VERSION}`;
 const DATA_CACHE = "thimar-data-v1";
 const RUNTIME_CACHE = "thimar-runtime-v1";
@@ -95,19 +95,6 @@ async function cacheFirst(request, cacheName) {
   const response = await fetch(request);
   if (response.ok) cache.put(request, response.clone());
   return response;
-}
-
-/** الشبكة أولًا حتى لا يعرض المتصفح ملف موارد قديمًا عند توفر الإنترنت. */
-async function networkFirst(request, cacheName) {
-  const cache = await caches.open(cacheName);
-  try {
-    const response = await fetch(request, { cache: "no-store" });
-    if (response.ok) await cache.put(request, response.clone());
-    return response;
-  } catch {
-    const cached = await cache.match(request);
-    return cached || new Response("", { status: 504 });
-  }
 }
 
 self.addEventListener("fetch", (event) => {
@@ -237,27 +224,30 @@ self.addEventListener("fetch", (event) => {
     url.pathname.startsWith("/icons/") ||
     url.pathname.startsWith("/adhan/") ||
     url.pathname.startsWith("/quran/") ||
-    url.pathname.startsWith("/api/") ||
-    url.pathname === "/manifest.webmanifest"
+    url.pathname.startsWith("/api/")
   ) {
-    event.respondWith(networkFirst(request, SHELL_CACHE));
+    event.respondWith(cacheFirst(request, SHELL_CACHE));
     return;
   }
 
-  // Every other same-origin GET is network-first too: documents and files
-  // (including /references/* and PDFs) must refresh online, with cache as offline fallback.
+  if (url.pathname === "/manifest.webmanifest") {
+    event.respondWith(cacheFirst(request, SHELL_CACHE));
+    return;
+  }
+
   event.respondWith(
     (async () => {
+      const cached = await caches.match(request);
+      if (cached) return cached;
       try {
-        const response = await fetch(request, { cache: "no-store" });
+        const response = await fetch(request);
         if (response.ok && response.type === "basic") {
           const cache = await caches.open(RUNTIME_CACHE);
-          await cache.put(request, response.clone());
+          cache.put(request, response.clone());
         }
         return response;
       } catch {
-        const cached = await caches.match(request);
-        return cached || new Response("", { status: 504 });
+        return new Response("", { status: 504 });
       }
     })(),
   );
