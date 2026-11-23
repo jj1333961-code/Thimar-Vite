@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { getInstalledVersionCode } from "../lib/nativePush";
 
-const METADATA_URL = (import.meta as any).env?.VITE_UPDATE_METADATA_URL || "/updates/android.json";
-const IOS_METADATA_URL = (import.meta as any).env?.VITE_IOS_UPDATE_METADATA_URL || "/updates/ios.json";
+export const ANDROID_UPDATE_METADATA_URL =
+  (import.meta as any).env?.VITE_UPDATE_METADATA_URL || "/updates/android.json";
+export const IOS_UPDATE_METADATA_URL =
+  (import.meta as any).env?.VITE_IOS_UPDATE_METADATA_URL || "/updates/ios.json";
+const METADATA_URL = ANDROID_UPDATE_METADATA_URL;
 
 type Platform = "ios" | "android" | "electron" | "web";
 
@@ -47,10 +50,14 @@ export function detectPlatform(): Platform {
   );
   if (!hasNativeBridge) return "web";
 
-  const nativePlatform =
-    typeof nativeBridge?.platform === "function"
-      ? String(nativeBridge.platform()).toLowerCase()
-      : "";
+  let nativePlatform = "";
+  try {
+    if (typeof nativeBridge?.platform === "function") {
+      nativePlatform = String(nativeBridge.platform()).toLowerCase();
+    }
+  } catch {
+    // A broken optional bridge must not prevent the website from opening.
+  }
   if (nativePlatform.includes("ios") || /iphone|ipad|ipod/.test(ua)) return "ios";
   return "android";
 }
