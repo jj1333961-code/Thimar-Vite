@@ -1,10 +1,10 @@
-import { cloud, SUPABASE_URL, SUPABASE_ANON_KEY } from "./cloud";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./cloud";
 import { CALL_SESSION_KEY } from "./authRpc";
 
 /**
- * إشارات مكالمات ثمار (صوت وفيديو) عبر Supabase Realtime.
- * تُستخدم قناة خاصة لكل مستخدم لاستقبال المكالمات الواردة،
- * وقناة لكل مكالمة لتتبادل فيها العروض والردود ومرشّحي ICE.
+ * Call signaling is relayed through the authenticated Edge Function.
+ * The client never joins a public Realtime channel and never writes signaling
+ * payloads directly to the database.
  */
 
 export type CallMode = "audio" | "video";
@@ -23,14 +23,25 @@ export const ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.cloudflare.com:3478" },
 ];
 
-export function subscribeChannel(channel: ReturnType<typeof createChannel>): Promise<void> {
+type SignalChannel = {
+  send: (message: { type: string; event: string; payload: CallSignal }) => Promise<void>;
+  subscribe: (callback?: (status: string) => void) => SignalChannel;
+  unsubscribe: () => Promise<void>;
+};
+
+export function subscribeChannel(channel: SignalChannel): Promise<void> {
   return new Promise((resolve) => {
     let done = false;
-    const finish = () => { if (!done) { done = true; resolve(); } };
-    const timer = setTimeout(finish, 2500);
+    const finish = () => {
+      if (!done) {
+        done = true;
+        resolve();
+      }
+    };
+    const timer = setTimeout(finish, 3000);
     try {
-      channel.subscribe((status: string) => {
-        if (status === "SUBSCRIBED") {
+      channel.subscribe((status) => {
+        if (status === "SUBSCRIBED" || status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           clearTimeout(timer);
           finish();
         }
@@ -50,23 +61,133 @@ export function callChannelName(callId: string): string {
   return `thimar-call-${callId}`;
 }
 
-export function createChannel(name: string, selfId: string, onSignal: (signal: CallSignal) => void) {
-  const channel = cloud.channel(name, { config: { broadcast: { self: false } } });
-  channel.on("broadcast", { event: "signal" }, (message: unknown) => {
-    const signal = (message as { payload?: CallSignal } | null)?.payload;
-    if (signal && signal.from !== selfId) onSignal(signal);
-  });
-  return channel;
+type CallSession = { token: string; expiresAt: number; accountId: string };
+
+function readCallSession(): CallSession | null {
+  try {
+    const value = JSON.parse(localStorage.getItem(CALL_SESSION_KEY) || "null");
+    if (
+      typeof value?.token !== "string"
+      || !/^[a-f0-9]{64}$/i.test(value.token)
+      || typeof value?.accountId !== "string"
+      || !value.accountId
+      || Number(value.expiresAt) * 1000 <= Date.now()
+    ) return null;
+    return value as CallSession;
+  } catch {
+    return null;
+  }
 }
 
-type RealtimeChannel = ReturnType<typeof createChannel>;
-
-export async function sendSignal(channel: RealtimeChannel, signal: CallSignal): Promise<void> {
+export async function callServer(action: string, payload: Record<string, unknown> = {}): Promise<any> {
   try {
-    await channel.send({ type: "broadcast", event: "signal", payload: signal });
-  } catch {
-    /* الشبكة انقطعت — ستُغلق المكالمة بالتاريخ الزمني للمستخدم. */
+    const session = readCallSession();
+    if (!session) return { error: "AUTH_REQUIRED" };
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/thimar-calls`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${session.token}`,
+      },
+      body: JSON.stringify({ action, ...payload }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok && !result?.error) return { error: `HTTP_${response.status}` };
+    return result;
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "NETWORK_ERROR" };
   }
+}
+
+export function createChannel(
+  name: string,
+  selfId: string,
+  onSignal: (signal: CallSignal) => void,
+): SignalChannel {
+  const isInbox = name.startsWith("thimar-inbox-");
+  const inboxOwner = isInbox ? name.slice("thimar-inbox-".length) : "";
+  const isOwnInbox = isInbox && inboxOwner === selfId;
+  const callId = name.startsWith("thimar-call-") ? name.slice("thimar-call-".length) : "";
+  let active = false;
+  let polling = false;
+  let lastId = 0;
+  let timer: ReturnType<typeof setInterval> | null = null;
+  let statusCallback: ((status: string) => void) | undefined;
+
+  const poll = async () => {
+    if (!active || polling || (!isOwnInbox && !callId)) return;
+    polling = true;
+    try {
+      const action = isOwnInbox ? "signal:poll-inbox" : "signal:poll";
+      const result = await callServer(action, {
+        callerId: selfId,
+        ...(callId ? { callId } : {}),
+        afterId: lastId,
+      });
+      if (result?.error) {
+        if (result.error === "AUTH_REQUIRED" || result.error === "INVALID_SESSION" || result.error === "ACCOUNT_UNAVAILABLE") {
+          statusCallback?.("CHANNEL_ERROR");
+          if (timer) clearInterval(timer);
+          timer = null;
+          active = false;
+        }
+        return;
+      }
+      const signals = Array.isArray(result?.signals) ? result.signals : [];
+      for (const row of signals) {
+        const id = Number(row?.id) || 0;
+        if (id > lastId) lastId = id;
+        const signal = row?.payload as CallSignal | undefined;
+        if (signal && typeof signal === "object") onSignal(signal);
+      }
+      statusCallback?.("SUBSCRIBED");
+    } finally {
+      polling = false;
+    }
+  };
+
+  return {
+    send: async (message) => {
+      if (message?.type !== "broadcast" || message?.event !== "signal") {
+        throw new Error("UNSUPPORTED_SIGNAL_TRANSPORT");
+      }
+      const signal = message.payload;
+      if (!signal?.callId || signal.from !== selfId) throw new Error("INVALID_SIGNAL");
+      const result = await callServer("signal:send", {
+        callerId: selfId,
+        callId: signal.callId,
+        signal,
+      });
+      if (result?.error) throw new Error(String(result.error));
+    },
+    subscribe: (callback) => {
+      statusCallback = callback;
+      active = true;
+      if (isOwnInbox || callId) {
+        void poll();
+        if (!timer) timer = setInterval(() => void poll(), 900);
+      } else {
+        statusCallback?.("SUBSCRIBED");
+      }
+      return thisChannel;
+    },
+    unsubscribe: async () => {
+      active = false;
+      if (timer) clearInterval(timer);
+      timer = null;
+      statusCallback = undefined;
+    },
+  } as SignalChannel;
+
+  // The channel is returned above; this identifier keeps the subscribe method chainable.
+  function thisChannel(): never {
+    throw new Error("unreachable");
+  }
+}
+
+export async function sendSignal(channel: SignalChannel, signal: CallSignal): Promise<void> {
+  await channel.send({ type: "broadcast", event: "signal", payload: signal });
 }
 
 /** يجهّز الميكروفون والكاميرا مع تقليل الضوضاء والصدى. */
@@ -88,7 +209,14 @@ export async function getIceServers(): Promise<RTCIceServer[]> {
   try {
     const session = readCallSession();
     if (!session) throw new Error("AUTH_REQUIRED");
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/thimar-turn`, { method: "GET", headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.token}` } });
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/thimar-turn`, {
+      method: "GET",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${session.token}`,
+      },
+      cache: "no-store",
+    });
     if (!response.ok) return ICE_SERVERS;
     const data = await response.json();
     if (Array.isArray(data?.iceServers) && data.iceServers.length) {
@@ -97,33 +225,6 @@ export async function getIceServers(): Promise<RTCIceServer[]> {
     return ICE_SERVERS;
   } catch {
     return ICE_SERVERS;
-  }
-}
-
-function readCallSession(): { token: string; expiresAt: number; accountId: string } | null {
-  try {
-    const value = JSON.parse(localStorage.getItem(CALL_SESSION_KEY) || "null");
-    if (!value?.token || !value?.accountId || Number(value.expiresAt) * 1000 <= Date.now()) return null;
-    return value;
-  } catch { return null; }
-}
-
-export async function callServer(action: string, payload: Record<string, unknown> = {}): Promise<any> {
-  try {
-    const session = readCallSession();
-    if (!session) return { error: "AUTH_REQUIRED" };
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/thimar-calls`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${session.token}`,
-      },
-      body: JSON.stringify({ action, ...payload }),
-    });
-    return await response.json().catch(() => ({}));
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : "NETWORK_ERROR" };
   }
 }
 
