@@ -73,8 +73,8 @@ export function accountTypeLabel(type: AccountType): string {
 // Supabase integration
 import { cloud, pushAccount, removeAccountFromCloud } from "./cloud";
 import { authorizeDevice } from "./nativePush";
-import { clearRememberedDevice, getRememberedAccountId, rememberThisDevice } from "./rememberedDevice";
-export { rememberThisDevice } from "./rememberedDevice";
+import { clearRememberedDevice, getRememberedAccountId, rememberThisDevice } from "./rememberedDevice.mjs";
+export { rememberThisDevice };
 import { hashPassword, newPasswordSalt, verifyPassword } from "./password";
 import {
   changePasswordViaRpc,
