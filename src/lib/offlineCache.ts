@@ -1,6 +1,10 @@
 import { localQuranResponse } from "./quranLocal";
 
-/** يجرّب بيانات المصحف المحلية أولًا، ثم الشبكة، ويخزّن النتائج في Cache Storage. */
+/**
+ * يقدّم بيانات المصحف المحلية أولًا، ثم يفضّل أحدث نسخة من الشبكة عند الاتصال.
+ * لا يُستخدم Cache Storage إلا كخطة احتياطية عند انقطاع الشبكة، حتى لا تُعاد
+ * ملفات قديمة عند وجود إصدار أحدث على الخادم.
+ */
 export async function cachedFetch(url: string): Promise<Response> {
   try {
     const local = await localQuranResponse(url);
@@ -15,15 +19,19 @@ export async function cachedFetch(url: string): Promise<Response> {
   } catch {
     cache = null;
   }
-  const cached = cache ? await cache.match(url) : undefined;
-  if (cached) return cached;
+
   try {
-    const res = await fetch(url);
-    if (res.ok && cache) {
-      void cache.put(url, res.clone());
+    const response = await fetch(url, { cache: "no-store" });
+    if (response.ok && cache) {
+      try {
+        await cache.put(url, response.clone());
+      } catch {
+        // تعذّر التخزين لا يمنع استخدام الاستجابة السليمة الحالية.
+      }
     }
-    return res;
+    return response;
   } catch {
+    const cached = cache ? await cache.match(url) : undefined;
     if (cached) return cached;
     throw new Error("offline");
   }
