@@ -71,13 +71,14 @@ export function accountTypeLabel(type: AccountType): string {
 }
 
 // Supabase integration
-import { cloud, pushAccount, removeAccountFromCloud } from "./cloud";
+import { cloud, SUPABASE_URL, SUPABASE_ANON_KEY, pushAccount, removeAccountFromCloud } from "./cloud";
 import { authorizeDevice } from "./nativePush";
 import { clearRememberedDevice, getRememberedAccountId, rememberThisDevice } from "./rememberedDevice.mjs";
 export { rememberThisDevice };
 import { hashPassword, newPasswordSalt, verifyPassword } from "./password";
 import {
   changePasswordViaRpc,
+  CALL_SESSION_KEY,
   loginViaRpc,
   rpcAuthEnabled,
   type RpcAccountRow,
@@ -428,6 +429,18 @@ export function deleteAccount(accountId: string): boolean {
 
 export function signOut(): void {
   clearRememberedDevice();
+  try {
+    const session = JSON.parse(localStorage.getItem(CALL_SESSION_KEY) || "null");
+    if (session?.token && session?.accountId) {
+      void fetch(SUPABASE_URL + "/functions/v1/thimar-calls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + session.token },
+        body: JSON.stringify({ action: "logout" }),
+        keepalive: true,
+      }).catch(() => undefined);
+    }
+    localStorage.removeItem(CALL_SESSION_KEY);
+  } catch {}
   /* إلغاء ربط جهاز هذا الحساب بإشعارات FCM (إن كنا داخل تطبيق أندرويد). */
   try {
     window.dispatchEvent(new Event("thimar:signout"));

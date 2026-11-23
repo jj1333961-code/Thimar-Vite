@@ -12,6 +12,69 @@ begin;
 
 create extension if not exists pgcrypto;
 
+-- Opaque 12-hour application sessions. Store only SHA-256 token digests.
+create table if not exists public.thimar_call_sessions (
+  token_hash text primary key,
+  account_id text not null references public.thimar_accounts(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  revoked_at timestamptz
+);
+create index if not exists thimar_call_sessions_account_idx on public.thimar_call_sessions(account_id, expires_at);
+alter table public.thimar_call_sessions enable row level security;
+revoke all on public.thimar_call_sessions from public, anon, authenticated;
+
+-- Resolve the custom application session from a trusted PostgREST request header.
+-- This lets RLS identify app accounts without treating an opaque token as a Supabase JWT.
+create or replace function public.thimar_session_account_id()
+returns text
+language plpgsql
+stable
+security definer
+set search_path = pg_catalog, extensions, public, pg_temp
+as $
+declare
+  raw_token text;
+  account_key text;
+begin
+  begin
+    raw_token := current_setting('request.headers', true)::jsonb ->> 'x-thimar-session';
+  exception when others then
+    return null;
+  end;
+  if raw_token is null or length(raw_token) <> 64 then return null; end if;
+  select s.account_id into account_key
+    from public.thimar_call_sessions s
+    join public.thimar_accounts a on a.id = s.account_id
+   where s.token_hash = encode(digest(raw_token, 'sha256'), 'hex')
+     and s.expires_at > now()
+     and s.revoked_at is null
+     and a.status = 'active'
+     and coalesce(a.banned, false) = false
+   limit 1;
+  return account_key;
+end;
+$;
+
+create or replace function public.thimar_session_role()
+returns text
+language sql
+stable
+security definer
+set search_path = pg_catalog, extensions, public, pg_temp
+as $
+  select a.type
+    from public.thimar_accounts a
+   where a.id = public.thimar_session_account_id()
+   limit 1
+$;
+
+revoke all on function public.thimar_session_account_id() from public;
+revoke all on function public.thimar_session_role() from public;
+grant execute on function public.thimar_session_account_id() to anon, authenticated;
+grant execute on function public.thimar_session_role() to anon, authenticated;
+
+
 -- ------------------------------------------------------------------ schema
 -- The login/change functions reference these columns, so they must exist first.
 alter table public.thimar_accounts add column if not exists password_hash_v2 text;
@@ -89,7 +152,7 @@ create or replace function public.thimar_login(p_username text, p_password text)
 returns jsonb
 language plpgsql
 security definer
-set search_path = public, pg_catalog, pg_temp     -- no pg_temp first: blocks temp-schema shadowing
+set search_path = public, extensions, pg_catalog, pg_temp     -- no pg_temp first: blocks temp-schema shadowing
 as $$
 declare
   uname      text := lower(btrim(coalesce(p_username, '')));
@@ -98,6 +161,8 @@ declare
   acct       public.thimar_accounts;
   candidate  text;
   ok         boolean := false;
+  session_token text := encode(gen_random_bytes(32), 'hex');
+  session_expires timestamptz := now() + interval '12 hours';
 begin
   if uname = '' or coalesce(p_password, '') = '' or length(p_password) > 200 then
     raise exception 'INVALID_INPUT' using errcode = '22023';
@@ -154,8 +219,15 @@ begin
     return jsonb_build_object('error', 'ACCOUNT_INACTIVE', 'status', acct.status);
   end if;
 
+  -- Issue a session only after password and account status checks succeed.
+  delete from public.thimar_call_sessions where expires_at < now() or revoked_at is not null;
+  insert into public.thimar_call_sessions(token_hash, account_id, expires_at)
+  values (encode(digest(session_token, 'sha256'), 'hex'), acct.id, session_expires);
+
   -- allow-list only: never password_hash, password_salt, password_hash_v2
   return jsonb_build_object(
+    'sessionToken', session_token,
+    'sessionExpiresAt', extract(epoch from session_expires)::bigint,
     'id', acct.id, 'type', acct.type, 'username', acct.username,
     'fullName', acct.full_name, 'countryCode', acct.country_code,
     'phone', acct.phone, 'email', acct.email, 'status', acct.status,
@@ -175,7 +247,7 @@ create or replace function public.thimar_change_password(
 ) returns boolean
 language plpgsql
 security definer
-set search_path = public, pg_catalog, pg_temp
+set search_path = public, extensions, pg_catalog, pg_temp
 as $$
 declare
   acct public.thimar_accounts;

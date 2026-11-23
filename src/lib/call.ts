@@ -1,4 +1,5 @@
 import { cloud, SUPABASE_URL, SUPABASE_ANON_KEY } from "./cloud";
+import { CALL_SESSION_KEY } from "./authRpc";
 
 /**
  * إشارات مكالمات ثمار (صوت وفيديو) عبر Supabase Realtime.
@@ -20,13 +21,6 @@ export type CallSignal =
 export const ICE_SERVERS: RTCIceServer[] = [
   { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
   { urls: "stun:stun.cloudflare.com:3478" },
-  // TURN احتياطي (openrelay) — للاختبار/التطوير. للإنتاج استخدم خادم TURN مخصص
-  // (Twilio/Metered/coturn) مع بيانات اعتماد قصيرة الأجل من Edge Function.
-  {
-    urls: ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443", "turns:openrelay.metered.ca:443"],
-    username: "openrelayproject",
-    credential: "openrelayproject",
-  },
 ];
 
 export function subscribeChannel(channel: ReturnType<typeof createChannel>): Promise<void> {
@@ -92,7 +86,9 @@ export async function getLocalStream(mode: CallMode): Promise<MediaStream> {
 
 export async function getIceServers(): Promise<RTCIceServer[]> {
   try {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/thimar-turn`, { method: "GET" });
+    const session = readCallSession();
+    if (!session) throw new Error("AUTH_REQUIRED");
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/thimar-turn`, { method: "GET", headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.token}` } });
     if (!response.ok) return ICE_SERVERS;
     const data = await response.json();
     if (Array.isArray(data?.iceServers) && data.iceServers.length) {
@@ -104,14 +100,24 @@ export async function getIceServers(): Promise<RTCIceServer[]> {
   }
 }
 
+function readCallSession(): { token: string; expiresAt: number; accountId: string } | null {
+  try {
+    const value = JSON.parse(localStorage.getItem(CALL_SESSION_KEY) || "null");
+    if (!value?.token || !value?.accountId || Number(value.expiresAt) * 1000 <= Date.now()) return null;
+    return value;
+  } catch { return null; }
+}
+
 export async function callServer(action: string, payload: Record<string, unknown> = {}): Promise<any> {
   try {
+    const session = readCallSession();
+    if (!session) return { error: "AUTH_REQUIRED" };
     const response = await fetch(`${SUPABASE_URL}/functions/v1/thimar-calls`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Authorization: `Bearer ${session.token}`,
       },
       body: JSON.stringify({ action, ...payload }),
     });
