@@ -31,7 +31,14 @@ export function detectPlatform(): Platform {
   // User-agent identifies the operating system, not an installed native app.
   // Only the native bridge marks this runtime as an updatable Android/iOS app.
   const nativeBridge = w.ThimarNative;
-  const updaterBridge = w.ThimarUpdater;
+  let updaterBridge = w.ThimarUpdater;
+  if (typeof updaterBridge === "function") {
+    try {
+      updaterBridge = updaterBridge();
+    } catch {
+      updaterBridge = null;
+    }
+  }
   const hasNativeBridge = Boolean(
     nativeBridge ||
     (updaterBridge &&
@@ -137,10 +144,6 @@ export default function UpdatePrompt() {
         window.open(url, "_blank", "noopener,noreferrer");
         setStatus("تم فتح متجر التطبيقات/تست فلايت. أكمل التحديث من النظام.");
       } else if (platform === "android") {
-        const rawUpdater = (window as any).ThimarUpdater || (window as any).ThimarNative;
-        const nativeUpdater = rawUpdater && (rawUpdater.downloadUpdate || rawUpdater.getInstalledVersionCode)
-          ? rawUpdater
-          : (typeof rawUpdater === "function" ? (() => { try { return rawUpdater(); } catch { return null; } })() : rawUpdater);
         let metadata: AndroidMetadata | null = null;
         try {
           const response = await fetch(METADATA_URL, { cache: "no-store" });
@@ -155,21 +158,8 @@ export default function UpdatePrompt() {
         } catch {
           metadata = null;
         }
-        if (nativeUpdater?.downloadUpdate) {
-          setStatus("جارٍ بدء التحديث الأصلي…");
-          try {
-            const result = await Promise.resolve(nativeUpdater.downloadUpdate(METADATA_URL));
-            if (result === false || result?.success === false || result?.error) {
-              throw new Error(String(result?.error || "native updater failed"));
-            }
-            setBusy(false);
-            return;
-          } catch {
-            // If incremental resource verification fails, fall back to the complete APK.
-            // The APK contains the matching app resources and avoids a mixed-version install.
-            setStatus("تعذّر التحديث الجزئي؛ سيتم تنزيل حزمة التطبيق الكاملة بدلًا منه…");
-          }
-        }
+        // Download the complete APK, not a separate/incremental resource patch.
+        // Its bundled assets always belong to the same release as the installed binary.
         if (!metadata?.available || !metadata.downloadUrl) {
           setStatus("رابط تحديث Android غير مُعدّ. أعد المحاولة لاحقًا.");
           setBusy(false);
