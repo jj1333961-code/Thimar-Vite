@@ -322,8 +322,11 @@ export async function login(username: string, password: string, remember = false
       if (account.status === "pending") return { status: "pending", account, message: "حسابك قيد المراجعة." };
       if (account.banned) return { status: "error", message: "تم حظر حسابك من قبل المسؤول." };
       if (account.status === "rejected") return { status: "error", message: "تم رفض حسابك من قبل المسؤول." };
-      if (remember) rememberThisDevice(account.id);
-      else clearRememberedDevice();
+      if (remember) {
+        rememberThisDevice(account.id);
+      } else {
+        clearRememberedDevice();
+      }
       const nativeDeviceId = (window as any)?.ThimarNative?.deviceId?.();
       if (typeof nativeDeviceId === "string" && nativeDeviceId) {
         void authorizeDevice(account.id, password);
@@ -354,8 +357,11 @@ export async function login(username: string, password: string, remember = false
   if (account.status === "pending") return { status: "pending", account, message: "حسابك قيد المراجعة." };
   if (account.banned) return { status: "error", message: "تم حظر حسابك من قبل المسؤول." };
   if (account.status === "rejected") return { status: "error", message: "تم رفض حسابك من قبل المسؤول." };
-  if (remember) rememberThisDevice(account.id);
-      else clearRememberedDevice();
+  if (remember) {
+    rememberThisDevice(account.id);
+  } else {
+    clearRememberedDevice();
+  }
   const nativeDeviceId = (window as any)?.ThimarNative?.deviceId?.();
   if (typeof nativeDeviceId === "string" && nativeDeviceId) {
     void authorizeDevice(account.id, password);
