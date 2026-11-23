@@ -78,6 +78,7 @@ export { rememberThisDevice };
 import { hashPassword, newPasswordSalt, verifyPassword } from "./password";
 import {
   changePasswordViaRpc,
+  CALL_SESSION_KEY,
   loginViaRpc,
   rpcAuthEnabled,
   type RpcAccountRow,
@@ -428,6 +429,7 @@ export function deleteAccount(accountId: string): boolean {
 
 export function signOut(): void {
   clearRememberedDevice();
+  try { localStorage.removeItem(CALL_SESSION_KEY); } catch {}
   /* إلغاء ربط جهاز هذا الحساب بإشعارات FCM (إن كنا داخل تطبيق أندرويد). */
   try {
     window.dispatchEvent(new Event("thimar:signout"));
