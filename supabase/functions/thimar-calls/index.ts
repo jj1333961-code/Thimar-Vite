@@ -64,6 +64,18 @@ Deno.serve(async (request) => {
     const TERMINAL = ["rejected", "cancelled", "busy", "unavailable", "missed", "ended", "failed"];
     const expired = new Date(call.expires_at).getTime() < Date.now() && !TERMINAL.includes(call.state);
 
+    if (action === "connecting" || action === "connected") {
+      if (!isCaller && !isCallee) return new Response(JSON.stringify({ error: "FORBIDDEN" }), { status: 403, headers });
+      if (TERMINAL.includes(call.state)) return new Response(JSON.stringify({ error: "ALREADY_ENDED", state: call.state }), { status: 409, headers });
+      const nextState = action === "connected" ? "connected" : "connecting";
+      const allowedStates = action === "connected" ? ["accepted", "connecting", "connected"] : ["accepted", "connecting"];
+      const { data: updated, error: updateError } = await supabase.from("thimar_calls")
+        .update({ state: nextState, ...(action === "connected" ? { connected_at: new Date().toISOString() } : {}), updated_at: new Date().toISOString() })
+        .eq("id", callId).in("state", allowedStates).select("id,state").maybeSingle();
+      if (updateError) return new Response(JSON.stringify({ error: updateError.message }), { status: 500, headers });
+      if (!updated) return new Response(JSON.stringify({ error: "INVALID_CALL_TRANSITION" }), { status: 409, headers });
+      return new Response(JSON.stringify({ callId, state: nextState }), { status: 200, headers });
+    }
     if (action === "accept") {
       if (!isCallee) return new Response(JSON.stringify({ error: "NOT_CALLEE" }), { status: 403, headers });
       if (expired) { await supabase.from("thimar_calls").update({ state: "missed", ended_at: new Date().toISOString(), end_reason: "expired" }).eq("id", callId); return new Response(JSON.stringify({ error: "EXPIRED" }), { status: 409, headers }); }
