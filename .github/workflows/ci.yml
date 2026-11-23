@@ -34,6 +34,8 @@ jobs:
         run: npm run test:offline-integrity
       - name: Test release metadata and targeting
         run: npm run test:release-targeting
+      - name: Test administrator diagnostics
+        run: npm run test:admin-diagnostics
       - name: TypeScript validation
         run: npm run typecheck
       - name: Production Vite build
