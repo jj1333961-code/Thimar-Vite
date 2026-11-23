@@ -75,7 +75,7 @@ Deno.serve(async (request) => {
       const nextState = action === "connected" ? "connected" : "connecting";
       const allowedStates = action === "connected" ? ["accepted", "connecting", "connected"] : ["accepted", "connecting"];
       const { data: updated, error: updateError } = await supabase.from("thimar_calls")
-        .update({ state: nextState, ...(action === "connected" ? { connected_at: new Date().toISOString() } : {}), updated_at: new Date().toISOString() })
+        .update({ state: nextState, updated_at: new Date().toISOString() })
         .eq("id", callId).in("state", allowedStates).select("id,state").maybeSingle();
       if (updateError) return new Response(JSON.stringify({ error: updateError.message }), { status: 500, headers });
       if (!updated) return new Response(JSON.stringify({ error: "INVALID_CALL_TRANSITION" }), { status: 409, headers });
