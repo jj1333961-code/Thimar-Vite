@@ -244,19 +244,20 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Every other same-origin GET is network-first too: documents and files
+  // (including /references/* and PDFs) must refresh online, with cache as offline fallback.
   event.respondWith(
     (async () => {
-      const cached = await caches.match(request);
-      if (cached) return cached;
       try {
-        const response = await fetch(request);
+        const response = await fetch(request, { cache: "no-store" });
         if (response.ok && response.type === "basic") {
           const cache = await caches.open(RUNTIME_CACHE);
-          cache.put(request, response.clone());
+          await cache.put(request, response.clone());
         }
         return response;
       } catch {
-        return new Response("", { status: 504 });
+        const cached = await caches.match(request);
+        return cached || new Response("", { status: 504 });
       }
     })(),
   );
