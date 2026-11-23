@@ -31,6 +31,12 @@ Deno.serve(async (request) => {
       const calleeId = String(body.calleeId ?? "").trim();
       const mode = body.mode === "video" ? "video" : "audio";
       if (!callerId || !calleeId || calleeId === callerId) return new Response(JSON.stringify({ error: "INVALID_PARTICIPANTS" }), { status: 400, headers });
+      const { data: calleeAccount, error: calleeError } = await supabase.from("thimar_accounts").select("id,status,banned").eq("id", calleeId).maybeSingle();
+      if (calleeError) return new Response(JSON.stringify({ error: "CALLEE_LOOKUP_FAILED" }), { status: 500, headers });
+      if (!calleeAccount || calleeAccount.status !== "active" || calleeAccount.banned) return new Response(JSON.stringify({ error: "CALLEE_UNAVAILABLE" }), { status: 404, headers });
+      const { data: sharedConversations, error: conversationError } = await supabase.from("thimar_conversations").select("id").contains("member_ids", [callerId, calleeId]).limit(1);
+      if (conversationError) return new Response(JSON.stringify({ error: "CONVERSATION_LOOKUP_FAILED" }), { status: 500, headers });
+      if (!sharedConversations?.length) return new Response(JSON.stringify({ error: "NOT_CONVERSATION_MEMBER" }), { status: 403, headers });
       const ACTIVE = ["initiated", "ringing", "accepted", "connecting", "connected"];
       const now = new Date().toISOString();
       // المكالمة الرنّانة التي انتهت مهلتها كانت تبقى "نشطة" للأبد فيمنع صاحبها من
