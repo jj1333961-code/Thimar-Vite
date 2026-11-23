@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cachedFetch } from "../src/lib/offlineCache.ts";
+import { fetchWithOfflineFallback } from "../src/lib/offlineCacheCore.ts";
 
-function memoryCaches() {
+function memoryCache() {
   const values = new Map();
   return {
     values,
@@ -20,61 +20,69 @@ function memoryCaches() {
   };
 }
 
-const originalFetch = globalThis.fetch;
-const originalCaches = globalThis.caches;
-
 test("online Quran fetch replaces stale cached content", async () => {
-  const cache = memoryCaches();
-  globalThis.caches = cache;
+  const cache = memoryCache();
   const url = "https://example.test/quran-resource.json";
   cache.values.set(url, new Response("old", { status: 200 }));
   let requestOptions;
-  globalThis.fetch = async (_input, options) => {
-    requestOptions = options;
-    return new Response("new", { status: 200 });
-  };
+  const response = await fetchWithOfflineFallback(
+    url,
+    async () => null,
+    () => cache.open(),
+    async (_input, options) => {
+      requestOptions = options;
+      return new Response("new", { status: 200 });
+    },
+  );
 
-  try {
-    const response = await cachedFetch(url);
-    assert.equal(await response.text(), "new");
-    assert.equal(await (await cache.values.get(url).clone()).text(), "new");
-    assert.equal(requestOptions.cache, "no-store");
-  } finally {
-    globalThis.fetch = originalFetch;
-    globalThis.caches = originalCaches;
-  }
+  assert.equal(await response.text(), "new");
+  assert.equal(await cache.values.get(url).clone().text(), "new");
+  assert.equal(requestOptions.cache, "no-store");
 });
 
 test("cached Quran content is used only when the network is unavailable", async () => {
-  const cache = memoryCaches();
-  globalThis.caches = cache;
+  const cache = memoryCache();
   const url = "https://example.test/quran-resource.json";
   cache.values.set(url, new Response("cached-valid-content", { status: 200 }));
-  globalThis.fetch = async () => {
-    throw new TypeError("offline");
-  };
+  const response = await fetchWithOfflineFallback(
+    url,
+    async () => null,
+    () => cache.open(),
+    async () => {
+      throw new TypeError("offline");
+    },
+  );
 
-  try {
-    const response = await cachedFetch(url);
-    assert.equal(await response.text(), "cached-valid-content");
-  } finally {
-    globalThis.fetch = originalFetch;
-    globalThis.caches = originalCaches;
-  }
+  assert.equal(await response.text(), "cached-valid-content");
 });
 
 test("network HTTP errors are returned and not cached as successful resources", async () => {
-  const cache = memoryCaches();
-  globalThis.caches = cache;
+  const cache = memoryCache();
   const url = "https://example.test/quran-resource.json";
-  globalThis.fetch = async () => new Response("not found", { status: 404 });
+  const response = await fetchWithOfflineFallback(
+    url,
+    async () => null,
+    () => cache.open(),
+    async () => new Response("not found", { status: 404 }),
+  );
 
-  try {
-    const response = await cachedFetch(url);
-    assert.equal(response.status, 404);
-    assert.equal(cache.values.has(url), false);
-  } finally {
-    globalThis.fetch = originalFetch;
-    globalThis.caches = originalCaches;
-  }
+  assert.equal(response.status, 404);
+  assert.equal(cache.values.has(url), false);
+});
+
+test("local Quran response takes priority without a network request", async () => {
+  const local = new Response("local-quran", { status: 200 });
+  let networkCalls = 0;
+  const response = await fetchWithOfflineFallback(
+    "https://api.alquran.cloud/v1/page/1",
+    async () => local.clone(),
+    async () => null,
+    async () => {
+      networkCalls += 1;
+      return new Response("network");
+    },
+  );
+
+  assert.equal(await response.text(), "local-quran");
+  assert.equal(networkCalls, 0);
 });
