@@ -31,7 +31,10 @@ export default function CallSimulator({ onClose }: { onClose: () => void }) {
     setSharing(false);
   };
 
-  useEffect(() => () => release(), []);
+  useEffect(() => () => {
+    screenRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+  }, []);
   useEffect(() => {
     if (phase !== "active") return;
     const timer = window.setInterval(() => setSeconds((value) => value + 1), 1000);
@@ -89,7 +92,13 @@ export default function CallSimulator({ onClose }: { onClose: () => void }) {
     setCameraOff(next);
   };
   const shareScreen = async () => {
-    if (sharing) { finish("ended", "أوقفت مشاركة الشاشة. يمكنك بدء محاكاة جديدة."); return; }
+    if (sharing) {
+      screenRef.current?.getTracks().forEach((track) => { track.onended = null; track.stop(); });
+      screenRef.current = null;
+      setSharing(false);
+      setNotice("تم إيقاف مشاركة الشاشة التجريبية.");
+      return;
+    }
     if (!navigator.mediaDevices?.getDisplayMedia) {
       setNotice("مشاركة الشاشة غير مدعومة في هذه البيئة. اختبرها من متصفح كمبيوتر يدعم التقاط الشاشة.");
       return;
@@ -134,7 +143,7 @@ export default function CallSimulator({ onClose }: { onClose: () => void }) {
         ) : (
           <div className="call-simulator-stage">
             <div className="call-simulator-remote">
-              {mode === "video" && phase === "active" && !sharing ? <video ref={videoRef} autoPlay playsInline muted /> : sharing ? <video ref={videoRef} autoPlay playsInline muted /> : <div className="call-simulator-avatar"><Icon name="user-round" size={42} /></div>}
+              <div className="call-simulator-avatar"><Icon name="user-round" size={42} /></div>
               <strong>{direction === "incoming" ? "متصل تجريبي" : "المستخدم التجريبي"}</strong>
               <span>{phase === "ringing" ? direction === "incoming" ? "مكالمة واردة تجريبية" : "جارٍ الرنين..." : phase === "active" ? "متصل (محاكاة)" : "جارٍ الاختبار"}</span>
             </div>
