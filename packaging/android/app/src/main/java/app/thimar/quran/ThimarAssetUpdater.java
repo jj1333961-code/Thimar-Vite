@@ -117,7 +117,17 @@ public class ThimarAssetUpdater {
         long expectedBytes = f.optLong("bytes", 0);
         String expectedSha = f.optString("sha256", "").toLowerCase();
         JSONObject inst = installedMap.get(path);
-        boolean unchanged = (inst != null
+        // التحقق من الملف الفعلي على القرص (وليس من بيانات المانيفست فقط).
+        boolean diskMatches = false;
+        File existingOnDisk = new File(currentDir, path);
+        if (existingOnDisk.exists() && existingOnDisk.isFile()) {
+          try {
+            long actualBytes = existingOnDisk.length();
+            String actualSha = sha256File(existingOnDisk);
+            diskMatches = (actualBytes == expectedBytes && actualSha.equalsIgnoreCase(expectedSha));
+          } catch (Exception ignored) { diskMatches = false; }
+        }
+        boolean unchanged = (inst != null && diskMatches
             && inst.optLong("bytes", -1) == expectedBytes
             && inst.optString("sha256", "").equalsIgnoreCase(expectedSha));
         if (unchanged) continue; // preserve existing file
@@ -139,7 +149,8 @@ public class ThimarAssetUpdater {
         return;
       }
 
-      // Commit: move staged files into current
+      // Commit: استبدال آمن (staging -> verify -> temp -> rename) مع نسخة احتياطية وrollback.
+      boolean commitOk = true;
       for (int i = 0; i < remoteFiles.length(); i++) {
         JSONObject f = remoteFiles.optJSONObject(i);
         if (f == null) continue;
@@ -147,14 +158,45 @@ public class ThimarAssetUpdater {
         if (path.isEmpty() || path.contains("..")) continue;
         File staged = new File(stagingDir, path);
         if (!staged.exists()) continue; // unchanged, already in current
+        long expBytes = f.optLong("bytes", 0);
+        String expSha = f.optString("sha256", "").toLowerCase();
         File dest = new File(currentDir, path);
         File destParent = dest.getParentFile();
         if (destParent != null) destParent.mkdirs();
-        if (dest.exists()) dest.delete();
-        if (!staged.renameTo(dest)) {
-          copyFile(staged, dest);
+        File backup = new File(dest.getAbsolutePath() + ".bak");
+        File tmp = new File(dest.getAbsolutePath() + ".tmp");
+        try {
+          // نسخة احتياطية من الملف السابق (إن وُجد) — للعودة عند الفشل.
+          if (backup.exists()) backup.delete();
+          if (dest.exists()) {
+            if (!dest.renameTo(backup)) copyFile(dest, backup);
+          }
+          // كتابة إلى ملف مؤقت ثم تحقق.
+          if (tmp.exists()) tmp.delete();
+          copyFile(staged, tmp);
+          if (expBytes > 0 && tmp.length() != expBytes) throw new java.io.IOException("size mismatch after copy");
+          if (!expSha.isEmpty() && !sha256File(tmp).equalsIgnoreCase(expSha)) throw new java.io.IOException("sha256 mismatch after copy");
+          if (dest.exists()) dest.delete();
+          if (!tmp.renameTo(dest)) { copyFile(tmp, dest); tmp.delete(); }
+          if (backup.exists()) backup.delete();
           staged.delete();
+        } catch (Exception ex) {
+          Log.e(TAG, "Commit failed for " + path, ex);
+          if (tmp.exists()) tmp.delete();
+          // rollback: استعادة النسخة السابقة.
+          if (backup.exists()) {
+            if (dest.exists()) dest.delete();
+            if (!backup.renameTo(dest)) copyFile(backup, dest);
+          }
+          commitOk = false;
+          break;
         }
+      }
+
+      if (!commitOk) {
+        deleteDir(stagingDir);
+        showToast("فشل تثبيت بعض الموارد؛ تم الاحتفاظ بالنسخة الحالية.");
+        return;
       }
 
       // Handle deleted files: remove from current if not in remote

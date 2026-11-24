@@ -5,14 +5,14 @@
   "versionCode": 26,
   "minSupportedVersionCode": 1,
   "available": true,
-  "apkRequired": false,
-  "apkReason": "Native APK unavailable; update delivered via web assets only.",
-  "assetOnly": true,
+  "apkRequired": true,
+  "apkReason": "Native updater fixes require installing the new APK (v26).",
+  "assetOnly": false,
   "assetManifestUrl": "https://thimar.freebuff.page/updates/web-manifest.json",
   "assetDownloadSize": 0,
-  "fileName": "thimar-1.11.3-release.apk",
-  "fileSize": 0,
-  "sha256": "daf7c57c7b2229c12313e5b06ef8618f1168736df33942466fe32bc0333c279d",
+  "fileName": "app-release.apk",
+  "fileSize": 282370295,
+  "sha256": "a27c545bc8e5b0561a261a1abbff6c5f234e8fbeefc6ad911c7c78172214dd6f",
   "versionHistory": [
     {
       "versionName": "1.9.5",
@@ -37,6 +37,10 @@
     {
       "versionName": "1.11.3",
       "versionCode": 25
+    },
+    {
+      "versionName": "1.11.4",
+      "versionCode": 26
     }
   ],
   "releaseDate": "2026-11-22",
@@ -75,5 +79,5 @@
     "ar": "تحديث 1.11.3 — تلاوة دون اتصال وشاشة الصلاة.",
     "en": "Update 1.11.3 — offline recitation and prayer screen."
   },
-  "downloadUrl": null
+  "downloadUrl": "https://github.com/jj1333961-code/Thimar-Vite/releases/download/v1.11.4/app-release.apk"
 }
