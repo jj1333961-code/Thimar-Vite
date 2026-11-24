@@ -566,7 +566,7 @@ export default function MessagesPage({
                   </button>
                   {account.type === "admin" ? (
                     <button type="button" className="icon-button call-simulator-launch" onClick={() => setShowCallSimulator(true)} aria-label="فتح محاكي المكالمات" title="محاكي المكالمات">
-                      <Icon name="flask-conical" size={18} />
+                      <Icon name="sparkles" size={18} />
                     </button>
                   ) : null}
                 </div>
