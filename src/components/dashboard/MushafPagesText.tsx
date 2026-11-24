@@ -231,7 +231,19 @@ export default function MushafPagesText({
   const fitPage = useCallback(() => {
     const pageEl = pageRef.current;
     const bodyEl = bodyRef.current;
-    if (!pageEl || !bodyEl) return;
+    const stageEl = stageRef.current;
+    if (!pageEl || !bodyEl || !stageEl) return;
+
+    // Keep the printed-page proportions while fitting the complete page into
+    // the actual reader viewport (phone portrait/landscape, tablet and desktop).
+    const availableWidth = stageEl.clientWidth;
+    const availableHeight = stageEl.clientHeight;
+    if (availableWidth < 40 || availableHeight < 40) return;
+    const pageWidth = Math.min(availableWidth, availableHeight * 0.715, 560);
+    const pageHeight = pageWidth / 0.715;
+    pageEl.style.width = `${pageWidth}px`;
+    pageEl.style.height = `${pageHeight}px`;
+
     const available = bodyEl.clientHeight;
     if (available < 40) return;
     const apply = (size: number) => {
@@ -303,6 +315,13 @@ export default function MushafPagesText({
     const onResize = () => run();
     window.addEventListener("resize", onResize);
     window.addEventListener("orientationchange", onResize);
+    // ResizeObserver also catches WebView/container changes that do not emit a
+    // window resize (for example safe-area and split-screen size changes).
+    const stage = stageRef.current;
+    const resizeObserver = typeof ResizeObserver !== "undefined" && stage
+      ? new ResizeObserver(onResize)
+      : null;
+    if (stage && resizeObserver) resizeObserver.observe(stage);
     if (typeof document !== "undefined" && document.fonts?.ready) {
       void document.fonts.ready.then(() => run());
     }
@@ -311,6 +330,7 @@ export default function MushafPagesText({
       window.clearTimeout(settle);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("orientationchange", onResize);
+      resizeObserver?.disconnect();
     };
   }, [data, rows, page, fitPage]);
 
