@@ -197,13 +197,13 @@ export default function UpdatePrompt() {
         if (assetOnly) {
           const updater = (window as any).ThimarAssetUpdater;
           if (updater && typeof updater.update === "function") {
-            setStatus("جارٍ تحديث الموارد…");
+            setStatus("جارٍ تحديث الموارد (تفاضلي)…");
             try { updater.update(); } catch (e) { setStatus(`تعذّر بدء التحديث: ${String(e)}`); }
-          } else {
-            setStatus("محدّث الموارد غير متوفر على هذا الإصدار. يلزم تثبيت APK محدّث مرة واحدة.");
+            setBusy(false);
+            return;
           }
-          setBusy(false);
-          return;
+          // No differential updater bridge (e.g. older 1.10.1 install):
+          // fall through to the one-time compatible APK upgrade below.
         }
         // Download the complete APK, not a separate/incremental resource patch.
         // Its bundled assets always belong to the same release as the installed binary.

@@ -7,7 +7,7 @@
   "nativeVersionCode": 26,
   "nativeVersionName": "1.11.4",
   "baseUrl": "/",
-  "generatedAt": "2026-11-24T06:16:33.722Z",
+  "generatedAt": "2026-11-24T06:31:48.237Z",
   "files": [
     {
       "path": "adhan/afasy-fajr.mp3",
@@ -70,9 +70,9 @@
       "sha256": "b4b3c75cfe65a93dd56ead63dae638fb84bdfb1ced5193c7b78431281c919513"
     },
     {
-      "path": "assets/esm-BhhWciPw.js",
+      "path": "assets/esm-BBQaL1Sj.js",
       "bytes": 599,
-      "sha256": "5fe522dba0f27f5af925dfefe62d518aaff2b498b34217f62ec2ae69de9fd885"
+      "sha256": "d7e26f420ac97624a5739ff426f055f03e24eb135ea0193e27e812b2a8afecf6"
     },
     {
       "path": "assets/index-DwC6EEWg.css",
@@ -85,9 +85,9 @@
       "sha256": "02124e23f8e5bb503e638fdc84febbad20ef3ea89b83f5f1d2cd2a85ac9544a8"
     },
     {
-      "path": "assets/web-Dbi8LsVU.js",
+      "path": "assets/web-BmUJtwef.js",
       "bytes": 4591,
-      "sha256": "e50bff43cb012222bfa735bb719dc9a35228e421ec478d552b6e561109aa3d19"
+      "sha256": "bdf9ef5181437e370e58edbbfc90a6648d4da0d4b37537bcd46cc5a3caec7e9d"
     },
     {
       "path": "fonts/UthmanicHafs-v3.woff2",
@@ -147,7 +147,7 @@
     {
       "path": "index.html",
       "bytes": 2483,
-      "sha256": "c9012807cfff060d5d0ef61154734c95d2c6b0e9557a5ae53be8a7f7c1faa81d"
+      "sha256": "7295094040ac00debd008571ddeaee49ed16cd98b84da9a40c4ea3fe2697bffb"
     },
     {
       "path": "licenses/THIRD_PARTY_NOTICES.md",
