@@ -127,23 +127,23 @@ export default function CallSimulator({ onClose }: { onClose: () => void }) {
           <div><strong>محاكي Thimar Connect</strong><span>بيئة اختبار داخلية للمسؤول</span></div>
           <button type="button" onClick={() => { release(); onClose(); }} aria-label="إغلاق المحاكي">×</button>
         </header>
-        <div className="call-simulator-warning"><Icon name="flask-conical" size={17} /> محاكاة فقط — لا يتم الاتصال بمستخدم حقيقي ولا إرسال صوت أو فيديو عبر الإنترنت.</div>
+        <div className="call-simulator-warning"><Icon name="sparkles" size={17} /> محاكاة فقط — لا يتم الاتصال بمستخدم حقيقي ولا إرسال صوت أو فيديو عبر الإنترنت.</div>
         {phase === "idle" || phase === "ended" || phase === "failed" ? (
           <div className="call-simulator-start">
-            <div className="call-simulator-avatar"><Icon name="phone-call" size={34} /></div>
+            <div className="call-simulator-avatar"><Icon name="phone" size={34} /></div>
             <h2>{phase === "idle" ? "اختبر نظام المكالمات" : phase === "ended" ? "انتهى الاختبار" : "تعذّر الاختبار"}</h2>
             <p>{phase === "idle" ? "اختر سيناريو وارد أو صادر، ثم اختبر الأذونات وأزرار التحكم." : notice}</p>
             <div className="call-simulator-grid">
               <button type="button" onClick={() => begin("audio", "outgoing")}><Icon name="phone" size={18} /> مكالمة صوتية صادرة</button>
               <button type="button" onClick={() => begin("video", "outgoing")}><Icon name="video" size={18} /> مكالمة فيديو صادرة</button>
-              <button type="button" onClick={() => begin("audio", "incoming")}><Icon name="phone-incoming" size={18} /> مكالمة صوتية واردة</button>
+              <button type="button" onClick={() => begin("audio", "incoming")}><Icon name="phone" size={18} /> مكالمة صوتية واردة</button>
               <button type="button" onClick={() => begin("video", "incoming")}><Icon name="video" size={18} /> مكالمة فيديو واردة</button>
             </div>
           </div>
         ) : (
           <div className="call-simulator-stage">
             <div className="call-simulator-remote">
-              <div className="call-simulator-avatar"><Icon name="user-round" size={42} /></div>
+              <div className="call-simulator-avatar"><Icon name="users" size={42} /></div>
               <strong>{direction === "incoming" ? "متصل تجريبي" : "المستخدم التجريبي"}</strong>
               <span>{phase === "ringing" ? direction === "incoming" ? "مكالمة واردة تجريبية" : "جارٍ الرنين..." : phase === "active" ? "متصل (محاكاة)" : "جارٍ الاختبار"}</span>
             </div>
@@ -160,7 +160,7 @@ export default function CallSimulator({ onClose }: { onClose: () => void }) {
                 <div className="call-simulator-controls">
                   <button type="button" className={muted ? "active" : ""} onClick={toggleMute}><Icon name="mic" size={18} /> {muted ? "إلغاء الكتم" : "كتم"}</button>
                   {mode === "video" ? <button type="button" className={cameraOff ? "active" : ""} onClick={toggleCamera}><Icon name="camera" size={18} /> {cameraOff ? "تشغيل الكاميرا" : "إيقاف الكاميرا"}</button> : null}
-                  <button type="button" className={sharing ? "active" : ""} onClick={() => void shareScreen()}><Icon name="monitor" size={18} /> {sharing ? "إيقاف المشاركة" : "مشاركة الشاشة"}</button>
+                  <button type="button" className={sharing ? "active" : ""} onClick={() => void shareScreen()}><Icon name="globe" size={18} /> {sharing ? "إيقاف المشاركة" : "مشاركة الشاشة"}</button>
                   <button type="button" className="danger-button" onClick={() => finish()}>إنهاء الاختبار</button>
                   <button type="button" className="ghost-button" onClick={() => finish("failed", "تمت محاكاة انقطاع الشبكة.")}>محاكاة انقطاع الشبكة</button>
                 </div>
