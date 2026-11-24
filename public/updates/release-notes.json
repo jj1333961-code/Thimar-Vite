@@ -2,6 +2,45 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "versionName": "1.11.3",
+      "versionCode": 25,
+      "releaseDate": "2026-11-22",
+      "shortDescription": {
+        "ar": "تحديث 1.11.3 — تلاوة دون اتصال وشاشة الصلاة.",
+        "en": "Update 1.11.3 — offline recitation and prayer screen."
+      },
+      "releaseNotes": {
+        "ar": {
+          "features": [
+            "محرك تسميع قرآني (ASR Small) مضمّن داخل التطبيق للعمل دون اتصال (لا حاجة لتنزيل نموذج).",
+            "شاشة صلاة (Adhan) بملء الشاشة عند دخول وقت الصلاة."
+          ],
+          "improvements": [
+            "تحسين أداء واجهة المصحف (تصيير الصفحات، التمرير).",
+            "تحسين كاش الأصول (Service Worker) لتسريع التحميل."
+          ],
+          "bugFixes": [
+            "إصلاحات استقرار في تشغيل الصوت (HLS/Cache)."
+          ],
+          "securityUpdates": []
+        },
+        "en": {
+          "features": [
+            "Bundled Quran recitation engine (ASR Small) for offline recognition (no model download required).",
+            "Full-screen prayer (Adhan) screen when prayer time begins."
+          ],
+          "improvements": [
+            "Improved Mushaf UI performance (page rendering, scrolling).",
+            "Improved asset caching (Service Worker) for faster load."
+          ],
+          "bugFixes": [
+            "Stability fixes for audio playback (HLS/Cache)."
+          ],
+          "securityUpdates": []
+        }
+      }
+    },
+    {
       "versionName": "1.11.1",
       "versionCode": 23,
       "releaseDate": "2026-11-22",

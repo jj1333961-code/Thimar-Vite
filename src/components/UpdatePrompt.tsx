@@ -90,6 +90,8 @@ export default function UpdatePrompt() {
   const [availableVersion, setAvailableVersion] = useState<number>(0);
   const [availableSize, setAvailableSize] = useState<number>(0);
   const [availableNotes, setAvailableNotes] = useState<string>("");
+  const [availableMeta, setAvailableMeta] = useState<any>(null);
+  const [showDetails, setShowDetails] = useState<boolean>(false);
 
 
   useEffect(() => {
@@ -125,6 +127,7 @@ export default function UpdatePrompt() {
               (meta as any)?.releaseNotes?.en?.shortDescription;
             const note = (typeof sd === "string" ? sd : (sd?.ar || sd?.en || ""));
             if (note) setAvailableNotes(String(note));
+            setAvailableMeta(meta);
             setOpen(true);
           }
         } catch {
@@ -182,6 +185,7 @@ export default function UpdatePrompt() {
             const sd = (metadata as any)?.shortDescription;
             const note = (typeof sd === "string" ? sd : (sd?.ar || sd?.en || ""));
             if (note) setAvailableNotes(String(note));
+            setAvailableMeta(metadata);
           }
         } catch {
           metadata = null;
@@ -272,27 +276,65 @@ export default function UpdatePrompt() {
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
       <div className="modal">
-        <h3>هناك تحديث جديد</h3>
+        <h3>هناك تحديث جديد — Thimar</h3>
         <p className="muted">يتوفر إصدار جديد من تطبيق ثمار. يمكنك تنزيله الآن أو تأجيله.</p>
         {availableVersion ? (
           <p className="muted">
-            {availableVersion}
+            <strong>{availableVersion}</strong>
+            {" — "}
+            {availableMeta?.releaseDate ? `تاريخ الإصدار: ${availableMeta.releaseDate}` : null}
             {" — "}
             {availableSize
               ? (availableSize >= 1024 * 1024 * 1024
                   ? (availableSize / (1024 * 1024 * 1024)).toFixed(2) + " GB"
                   : (availableSize / (1024 * 1024)).toFixed(1) + " MB")
               : "Size unavailable"}
+            {(availableMeta?.minSupportedVersionCode && getInstalledVersionCode() !== null && (getInstalledVersionCode() as number) < availableMeta.minSupportedVersionCode)
+              ? " — إلزامي" : " — اختياري"}
           </p>
         ) : null}
         {availableNotes ? <p className="muted" style={{ fontSize: 13 }}>{availableNotes}</p> : null}
         {status ? <p className="muted">{status}</p> : null}
+        {busy ? (
+          <div style={{ width: "100%", height: 6, background: "#e5e7eb", borderRadius: 3, overflow: "hidden", margin: "8px 0" }}>
+            <div style={{ width: "100%", height: "100%", background: "#2F5C4A", animation: "thimar-progress 1.2s ease-in-out infinite" }} />
+          </div>
+        ) : null}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+          <button type="button" className="ghost-button" onClick={() => setShowDetails((v) => !v)} disabled={busy}>
+            {showDetails ? "إخفاء التفاصيل" : "عرض تفاصيل الإصدار"}
+          </button>
+        </div>
+        {showDetails && availableMeta ? (
+          <div className="muted" style={{ fontSize: 13, marginTop: 8, textAlign: "right" }}>
+            {(() => {
+              const rn = availableMeta.releaseNotes?.ar || availableMeta.releaseNotes?.en;
+              if (!rn) return null;
+              return (
+                <>
+                  {Array.isArray(rn.features) && rn.features.length ? (
+                    <div><strong>الميزات:</strong><ul>{rn.features.map((x: string, i: number) => <li key={i}>{x}</li>)}</ul></div>
+                  ) : null}
+                  {Array.isArray(rn.improvements) && rn.improvements.length ? (
+                    <div><strong>تحسينات:</strong><ul>{rn.improvements.map((x: string, i: number) => <li key={i}>{x}</li>)}</ul></div>
+                  ) : null}
+                  {Array.isArray(rn.bugFixes) && rn.bugFixes.length ? (
+                    <div><strong>إصلاحات:</strong><ul>{rn.bugFixes.map((x: string, i: number) => <li key={i}>{x}</li>)}</ul></div>
+                  ) : null}
+                  {Array.isArray(rn.securityUpdates) && rn.securityUpdates.length ? (
+                    <div><strong>أمان:</strong><ul>{rn.securityUpdates.map((x: string, i: number) => <li key={i}>{x}</li>)}</ul></div>
+                  ) : null}
+                </>
+              );
+            })()}
+          </div>
+        ) : null}
         <div className="form-actions">
           <button type="button" className="ghost-button" onClick={handleLater} disabled={busy}>
             لاحقاً
           </button>
           <button type="button" className="primary-button" onClick={handleDownload} disabled={busy}>
-            {busy ? "جارٍ…" : "تنزيل"}
+            {busy ? "جارٍ…" : "تحديث الآن"}
           </button>
         </div>
       </div>

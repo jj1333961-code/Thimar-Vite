@@ -350,6 +350,8 @@ public class WebFallbackActivity extends Activity {
     pushBridge = new PushBridge(this);
     webView.addJavascriptInterface(pushBridge, "ThimarNative");
     webView.addJavascriptInterface(new AdhanBridge(this), "ThimarAdhan");
+    /* جسر تحديث APK (window.ThimarUpdater) — تحديث أصلي آمن مع تحقق SHA-256. */
+    webView.addJavascriptInterface(new ThimarUpdater(this), "ThimarUpdater");
     PushBridge.attach(webView, this);
 
     webView.loadUrl(APP_URL);

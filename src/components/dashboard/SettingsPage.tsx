@@ -682,7 +682,9 @@ export default function SettingsPage({
         const response = await fetch(ANDROID_UPDATE_METADATA_URL, { cache: "no-store" });
         if (!response.ok) throw new Error("metadata");
         const metadata = await response.json();
-        if (!metadata?.available || !metadata.downloadUrl || !metadata.versionCode || !metadata.sha256) throw new Error("invalid");
+        if (!metadata?.available || !metadata.versionCode) throw new Error("invalid");
+        const assetOnly = metadata.assetOnly === true || metadata.apkRequired === false;
+        if (!assetOnly && (!metadata.downloadUrl || !metadata.sha256)) throw new Error("invalid");
         const available = Number(metadata.versionCode);
         let installedCode = getInstalledVersionCode();
         if (installedCode === null) {
@@ -769,12 +771,8 @@ export default function SettingsPage({
       }
     } catch (error) {
       setUpdateStatus("error");
-      const detail = error instanceof Error ? error.message : "network error";
-      setUpdateMessage(
-        isArabic
-          ? `تعذّر الوصول إلى بيانات التحديث (${detail}). تحقق من الاتصال وحاول مرة أخرى.`
-          : `Could not reach update metadata (${detail}). Check the connection and try again.`,
-      );
+      const detail = error instanceof Error ? error.message : "";
+      setUpdateMessage(isArabic ? `تعذر التحقق من وجود تحديث. ${detail ? `(${detail})` : ""} تحقق من اتصال الإنترنت وحاول مرة أخرى.` : `Could not check for updates. ${detail ? `(${detail})` : ""} Check your internet connection and try again.`);
     } finally {
       setUpdateChecking(false);
     }

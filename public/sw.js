@@ -116,6 +116,13 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
 
+  // طلبات التحديث (مُعلَّمة) تُجلب من الشبكة مباشرةً بلا كاش،
+  // حتى لا يُقدَّم ملف قديم (حجم/بصمة مختلفان) أثناء التحديث.
+  if (url.searchParams.has("thimar_update")) {
+    event.respondWith(fetch(request, { cache: "no-store" }));
+    return;
+  }
+
   /*
    * حزمة أندرويد المضمَّنة (/offline/v1/*) تُقدَّم من داخل التطبيق عبر
    * shouldInterceptRequest، ولا يدخل عامل الخدمة بينهما: لا نسخ ٩٢ م.ب من النماذج
@@ -213,7 +220,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   /* ملفات البناء المضفّرة: الشبكة أولًا حتى تصل أحدث نسخة فورًا، والكاش عند انقطاع الإنترنت. */
-  if (url.pathname.startsWith("/assets/")) {
+  if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/fonts/")) {
     const cacheName = url.pathname.startsWith("/assets/large/") ? LARGE_CACHE : SHELL_CACHE;
     event.respondWith(
       (async () => {
