@@ -25,6 +25,7 @@ import { uploadChatMedia } from "../../lib/cloud";
 import { aiChat, buildCompanionMessages, offlineCompanionReply } from "../../lib/ai";
 import { createChannel, subscribeChannel, sendSignal, userChannelName, callServer, type CallMode, type CallSignal } from "../../lib/call";
 import CallOverlay from "./CallOverlay";
+import CallSimulator from "./CallSimulator";
 import { Icon, EmptyState } from "./ui";
 
 type AiTurn = { role: "user" | "assistant"; content: string; at: number };
@@ -55,6 +56,7 @@ export default function MessagesPage({
   const [showMembers, setShowMembers] = useState(false);
   const [addMemberName, setAddMemberName] = useState("");
   const [callMode, setCallMode] = useState<"audio" | "video" | null>(null);
+  const [showCallSimulator, setShowCallSimulator] = useState(false);
   const [outgoingCallId, setOutgoingCallId] = useState<string | null>(null);
   const [incomingCall, setIncomingCall] = useState<{ callId: string; fromName: string; from: string; mode: CallMode } | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
@@ -562,6 +564,11 @@ export default function MessagesPage({
                   <button type="button" className="icon-button" onClick={() => startCall("video")} aria-label="مكالمة فيديو">
                     <Icon name="video" size={18} />
                   </button>
+                  {account.type === "admin" ? (
+                    <button type="button" className="icon-button call-simulator-launch" onClick={() => setShowCallSimulator(true)} aria-label="فتح محاكي المكالمات" title="محاكي المكالمات">
+                      <Icon name="flask-conical" size={18} />
+                    </button>
+                  ) : null}
                 </div>
               </header>
 
@@ -842,6 +849,7 @@ export default function MessagesPage({
           peerId={peerIdOf(selected)}
           peerName={conversationTitle(selected)}
           mode={callMode}
+          conversationId={selected.id}
           callId={outgoingCallId ?? undefined}
           onClose={() => { setCallMode(null); setOutgoingCallId(null); refresh(); }}
           onLog={(text) => logCall(selected.id, text)}
@@ -855,10 +863,15 @@ export default function MessagesPage({
           peerId={incomingCall.from}
           peerName={incomingCall.fromName}
           mode={incomingCall.mode}
+          conversationId={loadChats().find((conversation) => conversation.memberIds.includes(account.id) && conversation.memberIds.includes(incomingCall.from))?.id}
           incoming={{ callId: incomingCall.callId, fromName: incomingCall.fromName }}
           onClose={() => setIncomingCall(null)}
           onLog={() => undefined}
         />
+      ) : null}
+
+      {showCallSimulator && account.type === "admin" ? (
+        <CallSimulator onClose={() => setShowCallSimulator(false)} />
       ) : null}
 
       {reviewId ? (
