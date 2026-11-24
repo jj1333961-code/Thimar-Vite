@@ -6360,7 +6360,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
   background: #fffdf9;
   border: 1px solid rgba(176, 151, 94, 0.72);
   border-radius: 3px;
-  box-shadow: 0 2px 12px rgba(48, 38, 20, 0.10), inset 0 0 0 4px #fffdf9, inset 0 0 0 5px rgba(176, 151, 94, 0.28);
+  box-shadow: 0 2px 12px rgba(48, 38, 20, 0.10), inset 0 0 0 4px rgba(176, 151, 94, 0.08), inset 0 0 0 5px rgba(176, 151, 94, 0.28);
   padding: 10px 12px 8px;
   text-align: justify;
   text-align-last: center;
