@@ -561,11 +561,11 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
           ) : null}
           {status === "active" ? (
             <button type="button" className={`icon-button ${screenSharing ? "active" : ""}`} onClick={() => void startScreenShare()} aria-label={screenSharing ? "إيقاف مشاركة الشاشة" : "مشاركة الشاشة"} title={screenSharing ? "إيقاف مشاركة الشاشة" : "مشاركة الشاشة"}>
-              <Icon name="monitor" size={18} />
+              <Icon name="globe" size={18} />
             </button>
           ) : null}
           <button type="button" className={`icon-button ${chatOpen ? "active" : ""}`} onClick={() => setChatOpen((value) => !value)} aria-label="دردشة المكالمة" title="دردشة المكالمة">
-            <Icon name="message-circle" size={18} />
+            <Icon name="chat" size={18} />
           </button>
           <button type="button" className="danger-button" onClick={hangUp}>
             <Icon name="phone" size={18} /> إنهاء
