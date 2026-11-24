@@ -46,6 +46,8 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
   const pendingIce = useRef<RTCIceCandidateInit[]>([]);
   const offerRef = useRef<RTCSessionDescriptionInit | null>(null);
   const localOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
+  const localIceRef = useRef<RTCIceCandidateInit[]>([]);
+  const offerRetryRef = useRef<number | null>(null);
   const endedRef = useRef(false);
   const ringbackCtxRef = useRef<AudioContext | null>(null);
   const ringbackTimerRef = useRef<number | null>(null);
@@ -122,21 +124,19 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
     };
     pc.onicecandidate = (event) => {
       if (event.candidate && channelRef.current) {
+        const candidate = event.candidate.toJSON();
+        localIceRef.current.push(candidate);
         void sendSignal(channelRef.current, {
           kind: "ice",
           from: selfId,
           callId,
-          candidate: event.candidate.toJSON(),
+          candidate,
         });
       }
     };
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === "connected") {
         setStatus("active");
-        void callServer("connected", { callerId: selfId, callId });
-      }
-      if (pc.connectionState === "connecting") {
-        void callServer("connecting", { callerId: selfId, callId });
       }
       if (pc.connectionState === "failed") {
         void callServer("failed", { callerId: selfId, callId, reason: "ice_failed" });
@@ -164,12 +164,29 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
       if (signal.kind === "offer") {
         offerRef.current = signal.sdp;
         setStatus("ringing");
+        if (offerRetryRef.current !== null) {
+          window.clearInterval(offerRetryRef.current);
+          offerRetryRef.current = null;
+        }
+        return;
+      }
+      if (signal.kind === "request-offer" && isCaller) {
+        const offer = localOfferRef.current;
+        if (offer) {
+          await sendSignal(channel, { kind: "offer", from: selfId, callId, sdp: offer });
+          for (const candidate of localIceRef.current) {
+            await sendSignal(channel, { kind: "ice", from: selfId, callId, candidate });
+          }
+        }
         return;
       }
       if (signal.kind === "accept" && isCaller) {
         // نعيد إرسال العرض بعد القبول حتى لا يضيع قبل انضمام الطرف الآخر.
         if (localOfferRef.current) {
           await sendSignal(channel, { kind: "offer", from: selfId, callId, sdp: localOfferRef.current });
+          for (const candidate of localIceRef.current) {
+            await sendSignal(channel, { kind: "ice", from: selfId, callId, candidate });
+          }
         }
         setStatus("connecting");
         return;
@@ -181,7 +198,7 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
           const candidate = pendingIce.current.shift();
           if (candidate) await pc.addIceCandidate(candidate).catch(() => undefined);
         }
-        setStatus("active");
+        setStatus("connecting");
         return;
       }
       if (signal.kind === "ice") {
@@ -215,12 +232,31 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
       });
       channelRef.current = channel;
       await subscribeChannel(channel);
+      if (!isCaller) {
+        // لا نفترض أن العرض الأول وصل: Realtime لا يحتفظ برسائل broadcast
+        // قبل اشتراك الطرف المستقبل، لذا نطلب إعادة إرساله حتى يصل العرض.
+        const requestOffer = () => void sendSignal(channel, {
+          kind: "request-offer", from: selfId, callId,
+        });
+        requestOffer();
+        let attempts = 0;
+        offerRetryRef.current = window.setInterval(() => {
+          if (offerRef.current || attempts >= 12) {
+            if (offerRetryRef.current !== null) window.clearInterval(offerRetryRef.current);
+            offerRetryRef.current = null;
+            return;
+          }
+          attempts += 1;
+          requestOffer();
+        }, 1000);
+      }
       try {
         if (isCaller) {
           const pc = await ensurePeer();
           const offer = await pc.createOffer();
           localOfferRef.current = offer;
           await pc.setLocalDescription(offer);
+          localOfferRef.current = pc.localDescription ?? offer;
           await sendSignal(channel, {
             kind: "invite",
             from: selfId,
@@ -244,6 +280,8 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
       disposed = true;
       endedRef.current = true;
       stopRingback();
+      if (offerRetryRef.current !== null) window.clearInterval(offerRetryRef.current);
+      offerRetryRef.current = null;
       closeCall(pcRef.current, localStreamRef.current);
       try { channelRef.current?.unsubscribe(); } catch { /* ignore */ }
     };
@@ -297,7 +335,7 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
       }
       await sendSignal(channel, { kind: "accept", from: selfId, callId });
       await sendSignal(channel, { kind: "answer", from: selfId, callId, sdp: answer });
-      setStatus("active");
+      setStatus("connecting");
     } catch (err) {
       setError(err instanceof Error ? err.message : "تعذّر الرد على المكالمة.");
       setStatus("error");
