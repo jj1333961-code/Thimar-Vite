@@ -7,6 +7,8 @@
 import { loadHafsAyahs, type HafsAyah } from "./mushafText";
 import { loadTajweed } from "./tajweed";
 import { wordMatches } from "./recitationMatch";
+import { cloud } from "./cloud";
+import { getRememberedAccountId } from "./rememberedDevice.mjs";
 
 export type TasmeeScope = "page" | "selection" | "surah";
 
@@ -42,6 +44,101 @@ export type TasmeeSession = {
 
 const STORE_KEY = "thimar.mushafTasmee.v1";
 const MAX_SESSIONS = 40;
+const PENDING_SYNC_KEY = "thimar.mushafTasmee.pending.v1";
+
+type PendingTasmeeSync = { accountId: string; session: TasmeeSession & { syncId: string } };
+type TasmeeNativeBridge = { deviceId?: () => string; accountId?: () => string };
+declare global {
+  interface Window { ThimarNative?: TasmeeNativeBridge }
+}
+
+let tasmeeSyncRunning = false;
+
+function createTasmeeId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function createTasmeeNonce(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+}
+
+function readPendingTasmeeSync(): PendingTasmeeSync[] {
+  try {
+    const value = JSON.parse(localStorage.getItem(PENDING_SYNC_KEY) || "[]");
+    return Array.isArray(value) ? value.filter((item) => item?.accountId && item?.session?.syncId) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePendingTasmeeSync(items: PendingTasmeeSync[]): void {
+  try { localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify(items)); } catch { /* يبقى الأرشيف المحلي محفوظًا */ }
+}
+
+/** يرفع نتائج Android فقط عبر تفويض الجهاز؛ لا يُرسل أي ملف أو تسجيل صوتي. */
+export async function syncPendingTasmeeSessions(): Promise<void> {
+  if (tasmeeSyncRunning || typeof window === "undefined" || !navigator.onLine) return;
+  const native = window.ThimarNative;
+  const deviceId = native?.deviceId?.();
+  if (!deviceId) return;
+  const pending = readPendingTasmeeSync();
+  if (!pending.length) return;
+  tasmeeSyncRunning = true;
+  try {
+    for (const item of pending) {
+      const activeAccountId = native.accountId?.() || getRememberedAccountId();
+      if (!activeAccountId || activeAccountId !== item.accountId) continue;
+      let secret = "";
+      try { secret = localStorage.getItem(`thimar.deviceSecret.${item.accountId}`) || ""; } catch { /* storage unavailable */ }
+      if (!secret) continue;
+      try {
+        const { error } = await cloud.rpc("thimar_save_tasmee_session", {
+          p_account_id: item.accountId,
+          p_device_id: deviceId,
+          p_device_secret: secret,
+          p_request_nonce: createTasmeeNonce(),
+          p_session_id: item.session.syncId,
+          p_session: {
+            at: item.session.at,
+            page: item.session.page,
+            scope: item.session.scope,
+            surah: item.session.surah,
+            fromAyah: item.session.fromAyah,
+            toAyah: item.session.toAyah,
+            accuracy: item.session.accuracy,
+            correct: item.session.correct,
+            wrong: item.session.wrong,
+            total: item.session.total,
+            durationSec: item.session.durationSec,
+            maxErrors: item.session.maxErrors,
+            reciterId: item.session.reciterId,
+            mistakes: item.session.mistakes,
+          },
+        });
+        if (error) throw error;
+        const current = readPendingTasmeeSync().filter((entry) => entry.session.syncId !== item.session.syncId);
+        writePendingTasmeeSync(current);
+      } catch {
+        // تبقى الجلسة في صندوق الصادر لإعادة المحاولة عند الاتصال التالي.
+        break;
+      }
+    }
+  } finally {
+    tasmeeSyncRunning = false;
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("online", () => { void syncPendingTasmeeSessions(); });
+  window.addEventListener("focus", () => { void syncPendingTasmeeSessions(); });
+}
 
 /** كلمات الآيات بالترتيب مع مرجع كل كلمة إلى آيتها. */
 export function tasmeeWords(ayahs: HafsAyah[]): TasmeeWord[] {
@@ -152,6 +249,9 @@ export function loadTasmeeSessions(): TasmeeSession[] {
 }
 
 export function deleteTasmeeSession(at: number): TasmeeSession[] {
+  const removed = loadTasmeeSessions().filter((session) => session.at === at);
+  const removedIds = new Set(removed.map((session) => session.syncId).filter(Boolean));
+  writePendingTasmeeSync(readPendingTasmeeSync().filter((item) => !removedIds.has(item.session.syncId)));
   const next = loadTasmeeSessions().filter((session) => session.at !== at);
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(next));
@@ -162,6 +262,7 @@ export function deleteTasmeeSession(at: number): TasmeeSession[] {
 }
 
 export function clearTasmeeSessions(): void {
+  writePendingTasmeeSync([]);
   try {
     localStorage.removeItem(STORE_KEY);
   } catch {
@@ -170,11 +271,23 @@ export function clearTasmeeSessions(): void {
 }
 
 export function saveTasmeeSession(session: TasmeeSession): TasmeeSession[] {
-  const next = [session, ...loadTasmeeSessions()].slice(0, MAX_SESSIONS);
+  const saved: TasmeeSession & { syncId: string } = { ...session, syncId: session.syncId || createTasmeeId() };
+  const next = [saved, ...loadTasmeeSessions()].slice(0, MAX_SESSIONS);
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(next));
   } catch {
     /* التخزين غير متاح */
+  }
+
+  // اربط النتيجة بحساب الطالب الحالي وقت إنشاء الجلسة، ولا تغيّر مالكها لاحقًا.
+  const accountId = (typeof window !== "undefined" ? window.ThimarNative?.accountId?.() : null) || getRememberedAccountId();
+  if (accountId) {
+    const pending = readPendingTasmeeSync();
+    if (!pending.some((item) => item.session.syncId === saved.syncId)) {
+      pending.push({ accountId, session: saved });
+      writePendingTasmeeSync(pending);
+    }
+    void syncPendingTasmeeSessions();
   }
   return next;
 }
