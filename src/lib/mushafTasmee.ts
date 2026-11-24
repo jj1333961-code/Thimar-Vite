@@ -130,6 +130,36 @@ export async function syncPendingTasmeeSessions(): Promise<void> {
         break;
       }
     }
+
+    // استرجاع أرشيف الطالب على جهازه بعد التحقق من تفويض الجهاز نفسه.
+    const activeAccountId = native.accountId?.() || getRememberedAccountId();
+    if (activeAccountId) {
+      let secret = "";
+      try { secret = localStorage.getItem(`thimar.deviceSecret.${activeAccountId}`) || ""; } catch { /* storage unavailable */ }
+      if (secret) {
+        try {
+          const { data, error } = await cloud.rpc("thimar_list_own_tasmee_sessions", {
+            p_account_id: activeAccountId,
+            p_device_id: deviceId,
+            p_device_secret: secret,
+            p_request_nonce: createTasmeeNonce(),
+          });
+          if (error) throw error;
+          if (Array.isArray(data)) {
+            const local = loadTasmeeSessions();
+            const byId = new Map<string, TasmeeSession>();
+            for (const session of local) if (session.syncId) byId.set(session.syncId, session);
+            for (const raw of data as Array<TasmeeSession & { syncId: string }>) {
+              if (raw?.syncId && typeof raw.at === "number") byId.set(raw.syncId, raw);
+            }
+            const merged = Array.from(byId.values()).sort((a, b) => b.at - a.at).slice(0, MAX_SESSIONS);
+            try { localStorage.setItem(STORE_KEY, JSON.stringify(merged)); } catch { /* لا يؤثر على الجلسة الحالية */ }
+          }
+        } catch {
+          // لا نمنع استخدام الأرشيف المحلي عند تعذر استرجاع السحابة.
+        }
+      }
+    }
   } finally {
     tasmeeSyncRunning = false;
   }
