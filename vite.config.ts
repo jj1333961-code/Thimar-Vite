@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
+import { existsSync, rmSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve as resolvePath } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -43,6 +44,22 @@ function sendJson(response: ServerResponse, status: number, payload: unknown) {
   response.setHeader("Content-Type", "application/json; charset=utf-8");
   response.setHeader("Cache-Control", "no-store");
   response.end(JSON.stringify(payload));
+}
+
+/** نسخة المصحف واحدة فقط: لا نُشحن ملف PDF قديمًا غير مستخدم (٢٠٩ م.ب). */
+function excludeLegacyMushafPdf(): Plugin {
+  return {
+    name: "thimar-exclude-legacy-mushaf-pdf",
+    apply: "build",
+    closeBundle() {
+      try {
+        const legacy = resolvePath(process.cwd(), "dist/quran/mushaf.pdf");
+        if (existsSync(legacy)) rmSync(legacy, { force: true });
+      } catch {
+        /* لا يضرّ بقاء الملف */
+      }
+    },
+  };
 }
 
 function aiProxyPlugin(config: ProxyConfig): Plugin {
@@ -366,6 +383,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       react(),
+      excludeLegacyMushafPdf(),
       aiProxyPlugin({ apiKey, base, model }),
       tafsirProxyPlugin(youtubeKey),
       naceProxyPlugin({ apiKey: naceKey, model: naceModel }),

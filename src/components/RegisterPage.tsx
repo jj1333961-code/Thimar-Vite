@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { findCountry } from "../data/countries";
 import { juzRangeLabel, surahsForJuzs } from "../data/juzSurahs";
 import { surahs } from "../data/surahs";
@@ -111,6 +111,9 @@ export default function RegisterPage({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [surahQuery, setSurahQuery] = useState("");
   const [created, setCreated] = useState<Account | null>(null);
+  /* رسالة عائمة مؤقتة عند نقص البيانات أو رفض التسجيل. */
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
 
   // المعلمون المعروضون للطالب هم حسابات معتمدة موجودة فعلًا في التطبيق.
   const realTeachers = useMemo(
@@ -171,7 +174,28 @@ export default function RegisterPage({
     clearError("qiraat");
   }
 
-  function validateStep(index: number): boolean {
+  function showToast(message: string) {
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+    setToast(message);
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 4000);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current !== null) {
+        window.clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  function validateStep(index: number): Record<string, string> {
     const next: Record<string, string> = {};
 
     if (index === 0 && !type) {
@@ -227,11 +251,16 @@ export default function RegisterPage({
     }
 
     setErrors(next);
-    return Object.keys(next).length === 0;
+    return next;
   }
 
   async function goNext() {
-    if (!validateStep(step)) return;
+    const problems = validateStep(step);
+    const problemList = Object.values(problems).filter(Boolean);
+    if (problemList.length > 0) {
+      showToast(`أكمل البيانات الناقصة — ${problemList[0]}`);
+      return;
+    }
     if (step < 2) {
       setStep((prev) => prev + 1);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1025,6 +1054,33 @@ export default function RegisterPage({
           {type && step > 0 ? `نوع الحساب: ${accountTypeLabel(type)}` : ""}
         </p>
       </div>
+
+      {toast && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          style={{
+            position: "fixed",
+            bottom: 24,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 10000,
+            maxWidth: "calc(100vw - 32px)",
+            padding: "12px 20px",
+            borderRadius: 14,
+            background: "rgba(180, 72, 60, 0.96)",
+            color: "#fff",
+            fontSize: 14,
+            fontWeight: 700,
+            lineHeight: 1.6,
+            textAlign: "center",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+            direction: "rtl",
+          }}
+        >
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

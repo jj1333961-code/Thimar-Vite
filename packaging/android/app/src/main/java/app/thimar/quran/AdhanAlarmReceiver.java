@@ -6,12 +6,15 @@ import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.media.AudioAttributes;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Build;
 import android.os.PowerManager;
 import androidx.core.app.NotificationCompat;
+import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -49,7 +52,7 @@ public class AdhanAlarmReceiver extends BroadcastReceiver {
     PowerManager.WakeLock wl = null;
     if (pm != null) {
       wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "thimar:adhan");
-      wl.acquire(60 * 1000L);
+      wl.acquire(10 * 60 * 1000L);
     }
 
     ensureChannel(context);
@@ -59,9 +62,17 @@ public class AdhanAlarmReceiver extends BroadcastReceiver {
     screenIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
         | Intent.FLAG_ACTIVITY_CLEAR_TOP
         | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+    String shownTime = time == null ? "" : time.trim();
+    if (shownTime.isEmpty()) {
+      shownTime = new SimpleDateFormat("HH:mm", Locale.US).format(new Date());
+    }
+    String today = new SimpleDateFormat("EEEE، d MMMM yyyy", new Locale("ar")).format(new Date());
+    String title = "حان وقت " + (name == null ? prayer : name);
+    String details = "الوقت: " + shownTime + " • " + today;
+
     screenIntent.putExtra("prayer", prayer);
     if (name != null) screenIntent.putExtra("name", name);
-    if (time != null) screenIntent.putExtra("time", time);
+    screenIntent.putExtra("time", shownTime);
     PendingIntent screenPi = PendingIntent.getActivity(context, SCREEN_REQUEST_CODE, screenIntent,
         PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     PendingIntent actionPi = PendingIntent.getActivity(context, ACTION_REQUEST_CODE, screenIntent,
@@ -72,17 +83,38 @@ public class AdhanAlarmReceiver extends BroadcastReceiver {
 
     NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
         .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-        .setContentTitle("حان وقت " + (name == null ? prayer : name))
-        .setContentText("الوقت: " + (time == null ? "" : time))
+        .setContentTitle(title)
+        .setContentText(details)
         .setPriority(NotificationCompat.PRIORITY_HIGH)
         .setCategory(NotificationCompat.CATEGORY_ALARM)
         .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
         .setContentIntent(screen ? screenPi : appPi)
         .setAutoCancel(true);
+
+    /* صورة الصلاة داخل الإشعار نفسه: تظهر على شاشة القفل حتى لو مَنع النظام ملء الشاشة. */
+    Bitmap picture = prayerImage(context, prayer);
+    if (picture != null) {
+      builder.setLargeIcon(picture);
+      builder.setStyle(new NotificationCompat.BigPictureStyle()
+          .bigPicture(picture)
+          .bigLargeIcon((Bitmap) null)
+          .setBigContentTitle(title)
+          .setSummaryText(details));
+    } else {
+      builder.setStyle(new NotificationCompat.BigTextStyle().bigText(details));
+    }
     if (screen) {
       /* ملء الشاشة: يعمل على شاشة القفل ويعود إلى إشعار عادي عند عدم توفّر الإذن. */
       builder.setFullScreenIntent(screenPi, true)
           .addAction(0, "عرض شاشة الصلاة", actionPi);
+      if (Build.VERSION.SDK_INT >= 34) {
+        NotificationManager permissionCheck =
+            (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (permissionCheck != null && !permissionCheck.canUseFullScreenIntent()) {
+          LaunchLog.add(context,
+              "شاشة الصلاة: إذن ملء الشاشة غير ممنوح — يظهر إشعار بالصورة ويمكن فتح الشاشة بالضغط");
+        }
+      }
     }
 
     /*
@@ -135,6 +167,44 @@ public class AdhanAlarmReceiver extends BroadcastReceiver {
       AdhanScheduler.scheduleAll(context);
     } catch (Exception ignored) {
       // الجدولة الحالية تبقى صالحة.
+    }
+  }
+
+  /** يقرأ صورة الصلاة من أصول الحزمة (دون شبكة) لعرضها داخل الإشعار. */
+  private static Bitmap prayerImage(Context context, String prayer) {
+    String[] keys = { "fajr", "dhuhr", "asr", "maghrib", "isha" };
+    String key = prayer == null ? "" : prayer.trim().toLowerCase(Locale.US);
+    boolean known = false;
+    for (String item : keys) {
+      if (item.equals(key)) {
+        known = true;
+        break;
+      }
+    }
+    String path = known ? "www/adhan/prayer/" + key + ".jpg" : "www/images/prayer-card.jpg";
+    try {
+      BitmapFactory.Options bounds = new BitmapFactory.Options();
+      bounds.inJustDecodeBounds = true;
+      InputStream head = context.getAssets().open(path);
+      try {
+        BitmapFactory.decodeStream(head, null, bounds);
+      } finally {
+        head.close();
+      }
+      int widest = Math.max(bounds.outWidth, bounds.outHeight);
+      int sample = 1;
+      while (widest > 0 && widest / sample > 1080) sample *= 2;
+
+      BitmapFactory.Options options = new BitmapFactory.Options();
+      options.inSampleSize = sample;
+      InputStream data = context.getAssets().open(path);
+      try {
+        return BitmapFactory.decodeStream(data, null, options);
+      } finally {
+        data.close();
+      }
+    } catch (Exception error) {
+      return null;
     }
   }
 

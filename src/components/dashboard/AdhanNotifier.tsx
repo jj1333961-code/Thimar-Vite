@@ -42,7 +42,8 @@ export default function AdhanNotifier() {
 
     const tick = async (c: { lat: number; lng: number }) => {
       const settings = loadSettings();
-      if (!settings.adhanSound) return;
+      // الصوت والشاشة والإشعارات مستقلة: إغلاق الصوت وحده لا يوقف شاشة الأذان أو الجدولة الأصلية.
+      if (!settings.adhanSound && settings.adhanScreen === false && !settings.notifications) return;
       try {
         const data = await fetchPrayerTimes(c.lat, c.lng, settings.prayerMethod, "موقعك");
         if (cancelled) return;
@@ -68,11 +69,13 @@ export default function AdhanNotifier() {
           if (Math.abs(nowMin - pMin) <= 1 && !triggeredRef.current.has(dayKey)) {
             triggeredRef.current.add(dayKey);
             const adhan = getAdhan(settings.adhanByPrayer?.[key] || settings.adhanId);
-            if (!audioRef.current) audioRef.current = new Audio();
-            const audio = audioRef.current;
-            audio.src = adhan.url;
-            audio.volume = Math.min(1, Math.max(0, settings.adhanVolume ?? 0.9));
-            audio.play().catch(() => {});
+            if (settings.adhanSound) {
+              if (!audioRef.current) audioRef.current = new Audio();
+              const audio = audioRef.current;
+              audio.src = adhan.url;
+              audio.volume = Math.min(1, Math.max(0, settings.adhanVolume ?? 0.9));
+              audio.play().catch(() => {});
+            }
             recordAdhan({
               prayer: label,
               city: data.city || "موقعك",
@@ -80,7 +83,7 @@ export default function AdhanNotifier() {
               adhanId: adhan.id,
               adhanName: adhan.name,
             });
-            setScreen({ key, time: t, city: data.city || "موقعك" });
+            if (settings.adhanScreen !== false) setScreen({ key, time: t, city: data.city || "موقعك" });
             if (settings.notifications) {
               void showSystemNotification(`حان وقت ${art.label}`, art.phrase, {
                 image: prayerImageUrl(key),

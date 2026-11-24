@@ -108,7 +108,8 @@ export default function SettingsPage({
   }, []);
 
   useEffect(() => {
-    if (autoCheckUpdates && activeGroup === "updates") {
+    // الويب محدَّث دائمًا من الخادم: لا نتحقق من تحديثات تنزيل هناك.
+    if (autoCheckUpdates && activeGroup === "updates" && detectPlatform() !== "web") {
       setAutoCheckUpdates(false);
       void checkForUpdates();
     }
@@ -1182,8 +1183,26 @@ export default function SettingsPage({
       </SectionCard>
       )}
 
-      {activeGroup === "updates" && detectPlatform() !== "web" && (
+      {activeGroup === "updates" && (
       <SectionCard title={settings.language === "en" ? "Updates" : "التحديثات"}>
+        {detectPlatform() === "web" ? (
+          <div className="settings-grid">
+            <div className="settings-inline-action">
+              <p className="muted">
+                {settings.language === "en"
+                  ? "You are using the web version — it is always up to date automatically and never needs a download or an update."
+                  : "أنت تستخدم نسخة الويب — محدَّثة تلقائيًا دائمًا، ولا تحتاج إلى تنزيل أو تثبيت أي تحديث."}
+              </p>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => (window as any).__thimarStartUpdateDownload?.()}
+              >
+                {settings.language === "en" ? "Download the full app" : "تحميل التطبيق كاملًا"}
+              </button>
+            </div>
+          </div>
+        ) : (
         <div className="settings-grid">
           <div className="settings-inline-action">
             <button
@@ -1262,6 +1281,7 @@ export default function SettingsPage({
             {updateStatus === "error" ? <p className="muted">{updateMessage}</p> : null}
           </div>
         </div>
+        )}
       </SectionCard>
       )}
 

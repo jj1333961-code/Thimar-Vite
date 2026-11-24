@@ -124,13 +124,12 @@ export async function localQuranResponse(url: string): Promise<Response | null> 
     const query = decodeURIComponent(search[1]).trim();
     const needle = normalize(query);
     if (!needle) return jsonResponse({ count: 0, matches: [] });
+    // كل نتائج القرآن المطابقة — بلا سقف ٢٠٠: كلمة شائعة قد تظهر في آلاف الآيات.
     const matches: unknown[] = [];
     for (const page of data) {
       for (const row of page) {
         if (normalize(row[4]).includes(needle)) matches.push(ayahPayload(row, pageIndex.get(row[2])));
-        if (matches.length >= 200) break;
       }
-      if (matches.length >= 200) break;
     }
     return jsonResponse({ count: matches.length, matches });
   }

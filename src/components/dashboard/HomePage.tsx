@@ -123,15 +123,6 @@ export default function HomePage({
         <div>
           <span className="welcome-date">{hijri}</span>
           <h1>مرحبًا، {account.fullName}</h1>
-          <p>
-            {account.type === "admin"
-              ? null
-              : account.type === "teacher"
-                ? "تابع طلابك، صحّح التسميعات، وتابع التقدّم."
-                : account.type === "guardian"
-                  ? "تابع أبناءك ومستواهم في الحفظ."
-                  : "واصل الحفظ، وحلّ الألغاز، واجمع النجوم."}
-          </p>
         </div>
         <div className="hero-chips">
           <button type="button" className="chip" onClick={() => onNavigate("games")} title="كل نقاطك في الألغاز والتحدي والاختبارات">
