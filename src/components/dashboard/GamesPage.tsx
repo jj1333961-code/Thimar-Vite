@@ -20,7 +20,7 @@ import WordOrderBoard from "./WordOrderBoard";
 type LevelId = "a1" | "a2" | "a3" | "a4" | "a5" | "a6" | "a7" | "a8" | "a9" | "a10" | "a11" | "a12";
 type QuestionKind = "surah" | "complete" | "juz" | "tafsir" | "recite" | "truefalse" | "order";
 type QuestionScope = { juzs: number[]; surahs: number[] };
-type Phase = "menu" | "generalTypes" | "generalLevels" | "typeLevels" | "setup" | "playing" | "result";
+type Phase = "menu" | "generalTypes" | "generalLevels" | "specialTypes" | "typeLevels" | "setup" | "playing" | "result";
 
 type LevelConfig = {
   id: LevelId;
@@ -1041,10 +1041,10 @@ ${context}`;
           <button type="button" className="game-mode-card game-mode-general" onClick={() => setPhase("generalTypes")}>
             <span className="game-mode-icon"><Icon name="globe" size={30} /></span>
             <span className="game-mode-copy"><strong>الألغاز العامة</strong><small>كوّن اختبارًا متنوعًا باختيار أكثر من نوع من الأسئلة، ثم اختر مستواك ونطاق الامتحان.</small></span>
-            <span className="game-mode-arrow"><Icon name="arrow-left" size={20} /></span>
+            <span className="game-mode-arrow"><Icon name="play" size={20} /></span>
           </button>
           <button type="button" className="game-mode-card game-mode-special" onClick={() => { setSelectedTypeKind(null); setPhase("specialTypes"); }}>
-            <span className="game-mode-icon"><Icon name="puzzle" size={30} /></span>
+            <span className="game-mode-icon"><Icon name="book" size={30} /></span>
             <span className="game-mode-copy"><strong>الألغاز الخاصة</strong><small>اختر نوعًا واحدًا من الأسئلة، ثم انتقل إلى مستوياته المخصصة من A1 إلى A12.</small></span>
             <span className="game-mode-arrow"><Icon name="arrow-left" size={20} /></span>
           </button>
@@ -1085,7 +1085,7 @@ ${context}`;
               const picked = generalKinds.includes(kind);
               return <button key={kind} type="button" aria-pressed={picked} className={`question-kind-chip kind-${kind} ${picked ? "active" : ""}`} onClick={() => setGeneralKinds(previous => previous.includes(kind) ? previous.length > 1 ? previous.filter(item => item !== kind) : previous : [...previous, kind])}>
                 <Icon name={KIND_ICONS[kind]} size={18} /><span>{KIND_LABELS[kind]}</span>
-                <Icon name={picked ? "check-circle" : "plus-circle"} size={16} />
+                <Icon name={picked ? "check" : "plus"} size={16} />
               </button>;
             })}
           </div>
