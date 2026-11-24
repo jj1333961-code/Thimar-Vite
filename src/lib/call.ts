@@ -15,7 +15,8 @@ export type CallSignal =
   | { kind: "offer"; from: string; callId: string; sdp: RTCSessionDescriptionInit }
   | { kind: "answer"; from: string; callId: string; sdp: RTCSessionDescriptionInit }
   | { kind: "ice"; from: string; callId: string; candidate: RTCIceCandidateInit }
-  | { kind: "hangup"; from: string; callId: string };
+  | { kind: "hangup"; from: string; callId: string }
+  | { kind: "request-offer"; from: string; callId: string };
 
 export const ICE_SERVERS: RTCIceServer[] = [
   { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
@@ -92,7 +93,14 @@ export async function getLocalStream(mode: CallMode): Promise<MediaStream> {
 
 export async function getIceServers(): Promise<RTCIceServer[]> {
   try {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/thimar-turn`, { method: "GET" });
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/thimar-turn`, {
+      method: "GET",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      cache: "no-store",
+    });
     if (!response.ok) return ICE_SERVERS;
     const data = await response.json();
     if (Array.isArray(data?.iceServers) && data.iceServers.length) {
