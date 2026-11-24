@@ -1,5 +1,5 @@
 import React from "react";
-import { BrandMark, Icon, IconName } from "./ui";
+import { Icon, IconName } from "./ui";
 
 export type NavItem = {
   id: string;
@@ -14,6 +14,8 @@ export default function AppShell({
   nav,
   active,
   onNavigate,
+  onLogout,
+  onOpenSettings,
   children,
 }: {
   accountName: string;
@@ -25,25 +27,12 @@ export default function AppShell({
   onOpenSettings: () => void;
   children: React.ReactNode;
 }) {
-  const initial = accountName.trim().charAt(0) || "ث";
+  void accountName;
+  void roleLabel;
+  void onLogout;
+  void onOpenSettings;
   return (
     <div className="app-shell">
-      <header className="app-topbar">
-        <div className="thimar-topbar-brand" aria-label="ثمار">
-          <BrandMark size={42} />
-          <div>
-            <div className="thimar-wordmark">ثمار</div>
-            <div className="thimar-tagline">تنمو بالعلم وتزهر بالعمل</div>
-          </div>
-        </div>
-        <div className="thimar-user-area">
-          <div className="thimar-user-copy">
-            <strong>{accountName}</strong>
-            <span>{roleLabel}</span>
-          </div>
-          <div className="thimar-avatar" aria-hidden="true">{initial}</div>
-        </div>
-      </header>
       <main className="app-main">{children}</main>
       <nav className="bottom-nav" aria-label="التنقل الرئيسي">
         {nav.map((item) => (
