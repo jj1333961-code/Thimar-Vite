@@ -11,7 +11,9 @@ import {
   type CallMode,
   type CallSignal,
 } from "../../lib/call";
+import { loadChats, sendChatMessage, type ChatMessage } from "../../lib/appStore";
 import { Icon } from "./ui";
+import "./CallConnect.css";
 
 type Props = {
   selfId: string;
@@ -20,6 +22,7 @@ type Props = {
   peerName: string;
   mode: CallMode;
   callId?: string;
+  conversationId?: string;
   incoming?: { callId: string; fromName: string };
   onClose: () => void;
   onLog: (text: string) => void;
@@ -29,7 +32,7 @@ type Props = {
  * مكالمة صوتية/فيديو حقيقية بين مستخدمين عبر الإنترنت (WebRTC).
  * الإشارات تُتبادل عبر قناة Supabase Realtime خاصة بالمكالمة.
  */
-export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, callId: givenCallId, incoming, onClose, onLog }: Props) {
+export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, callId: givenCallId, conversationId, incoming, onClose, onLog }: Props) {
   const callId = useRef(incoming?.callId ?? givenCallId ?? `call-${Math.random().toString(36).slice(2, 10)}`).current;
   const isCaller = !incoming;
   const [status, setStatus] = useState<"connecting" | "ringing" | "active" | "ended" | "error">("connecting");
@@ -37,9 +40,17 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
   const [seconds, setSeconds] = useState(0);
   const [muted, setMuted] = useState(false);
   const [cameraOff, setCameraOff] = useState(false);
+  const [screenSharing, setScreenSharing] = useState(false);
+  const [remoteScreenSharing, setRemoteScreenSharing] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatDraft, setChatDraft] = useState("");
+  const [chatItems, setChatItems] = useState<ChatMessage[]>([]);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const videoSenderRef = useRef<RTCRtpSender | null>(null);
+  const cameraTrackRef = useRef<MediaStreamTrack | null>(null);
   const channelRef = useRef<ReturnType<typeof createChannel> | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -96,6 +107,8 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
     if (endedRef.current) return;
     endedRef.current = true;
     stopRingback();
+    screenStreamRef.current?.getTracks().forEach((track) => track.stop());
+    screenStreamRef.current = null;
     closeCall(pcRef.current, localStreamRef.current);
     pcRef.current = null;
     localStreamRef.current = null;
@@ -109,13 +122,21 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
     const iceServers = await getIceServers();
     const pc = new RTCPeerConnection({ iceServers });
     pcRef.current = pc;
+    // نجهّز مسار فيديو احتياطيًا حتى يمكن مشاركة الشاشة لاحقًا في المكالمة الصوتية دون تفاوض جديد.
+    if (mode === "audio") {
+      const videoTransceiver = pc.addTransceiver("video", { direction: "sendrecv" });
+      videoSenderRef.current = videoTransceiver.sender;
+    }
     const stream = await getLocalStream(mode);
     localStreamRef.current = stream;
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = stream;
       void localVideoRef.current.play().catch(() => undefined);
     }
-    stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+    stream.getTracks().forEach((track) => {
+      const sender = pc.addTrack(track, stream);
+      if (track.kind === "video") videoSenderRef.current = sender;
+    });
     pc.ontrack = (event) => {
       if (remoteVideoRef.current && event.streams[0]) {
         remoteVideoRef.current.srcObject = event.streams[0];
@@ -161,6 +182,10 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
     const channel = channelRef.current;
     if (!channel) return;
     try {
+      if (signal.kind === "screen-share") {
+        setRemoteScreenSharing(signal.active);
+        return;
+      }
       if (signal.kind === "offer") {
         offerRef.current = signal.sdp;
         setStatus("ringing");
@@ -384,6 +409,72 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
     setCameraOff(next);
   };
 
+  const stopScreenShare = async () => {
+    const display = screenStreamRef.current;
+    if (!display) return;
+    const track = display.getVideoTracks()[0];
+    if (track) track.onended = null;
+    display.getTracks().forEach((item) => item.stop());
+    screenStreamRef.current = null;
+    try {
+      if (videoSenderRef.current) await videoSenderRef.current.replaceTrack(cameraTrackRef.current);
+    } catch { setError("تعذّر إيقاف مشاركة الشاشة بأمان."); }
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = mode === "video" ? localStreamRef.current : null;
+    }
+    setScreenSharing(false);
+    if (channelRef.current) void sendSignal(channelRef.current, { kind: "screen-share", from: selfId, callId, active: false });
+  };
+
+  const startScreenShare = async () => {
+    if (screenSharing) { await stopScreenShare(); return; }
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      setError("مشاركة الشاشة غير مدعومة في هذا المتصفح أو داخل إصدار التطبيق الحالي. استخدم متصفح الكمبيوتر أو حدّث دعم الالتقاط الأصلي للهاتف.");
+      return;
+    }
+    try {
+      const pc = pcRef.current ?? await ensurePeer();
+      const sender = videoSenderRef.current ?? pc.getSenders().find((item) => item.track?.kind === "video") ?? null;
+      if (!sender) throw new Error("مسار الفيديو غير جاهز في هذه المكالمة.");
+      cameraTrackRef.current = localStreamRef.current?.getVideoTracks()[0] ?? null;
+      const display = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 15, max: 30 } }, audio: false });
+      const track = display.getVideoTracks()[0];
+      if (!track) { display.getTracks().forEach((item) => item.stop()); throw new Error("لم يتم اختيار شاشة للمشاركة."); }
+      screenStreamRef.current = display;
+      videoSenderRef.current = sender;
+      await sender.replaceTrack(track);
+      setScreenSharing(true);
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = display;
+        void localVideoRef.current.play().catch(() => undefined);
+      }
+      track.onended = () => { void stopScreenShare(); };
+      if (channelRef.current) void sendSignal(channelRef.current, { kind: "screen-share", from: selfId, callId, active: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تعذّرت مشاركة الشاشة.");
+    }
+  };
+
+  const sendCallChat = () => {
+    const value = chatDraft.trim();
+    if (!value || !conversationId) return;
+    sendChatMessage(conversationId, { senderId: selfId, kind: "text", text: value });
+    setChatDraft("");
+    const conversation = loadChats().find((item) => item.id === conversationId);
+    setChatItems(conversation?.messages ?? []);
+  };
+
+  useEffect(() => {
+    if (!chatOpen || !conversationId) return;
+    const refreshChat = () => {
+      const conversation = loadChats().find((item) => item.id === conversationId);
+      setChatItems(conversation?.messages ?? []);
+    };
+    refreshChat();
+    const timer = window.setInterval(refreshChat, 1200);
+    return () => window.clearInterval(timer);
+  }, [chatOpen, conversationId]);
+
   const label =
     status === "ringing"
       ? isCaller ? "جارٍ الاتصال…" : "مكالمة واردة"
@@ -400,11 +491,11 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
       <div className="call-stage">
         <video
           ref={remoteVideoRef}
-          className={`call-remote ${mode === "audio" ? "audio-only" : ""}`}
+          className={`call-remote ${mode === "audio" && !remoteScreenSharing ? "audio-only" : ""}`}
           autoPlay
           playsInline
         />
-        {mode === "video" ? (
+        {mode === "video" || screenSharing ? (
           <video ref={localVideoRef} className="call-local" autoPlay playsInline muted />
         ) : (
           <audio ref={localVideoRef as unknown as React.RefObject<HTMLAudioElement>} autoPlay />
@@ -425,6 +516,27 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
           </div>
         ) : null}
         {error ? <p className="call-error">{error}</p> : null}
+        {chatOpen ? (
+          <section className="call-chat-panel" aria-label="دردشة المكالمة">
+            <header><strong>دردشة المكالمة</strong><button type="button" onClick={() => setChatOpen(false)} aria-label="إغلاق الدردشة">×</button></header>
+            {!conversationId ? <p className="call-chat-empty">لا توجد محادثة محفوظة مرتبطة بهذا الاتصال.</p> : (
+              <>
+                <div className="call-chat-list">
+                  {chatItems.slice(-30).map((item) => (
+                    <div key={item.id} className={`call-chat-message ${item.senderId === selfId ? "mine" : "theirs"}`}>
+                      <span>{item.senderId === selfId ? "أنت" : peerName}</span>
+                      <p>{item.text ?? (item.kind === "audio" ? "رسالة صوتية" : "مرفق")}</p>
+                    </div>
+                  ))}
+                </div>
+                <form className="call-chat-compose" onSubmit={(event) => { event.preventDefault(); sendCallChat(); }}>
+                  <input value={chatDraft} onChange={(event) => setChatDraft(event.target.value)} placeholder="اكتب رسالة أثناء المكالمة..." maxLength={1000} />
+                  <button type="submit" disabled={!chatDraft.trim()}>إرسال</button>
+                </form>
+              </>
+            )}
+          </section>
+        ) : null}
         <div className="call-actions bottom">
           <button type="button" className={`icon-button ${muted ? "active" : ""}`} onClick={toggleMute} aria-label="كتم الصوت">
             <Icon name="mic" size={18} />
@@ -434,6 +546,14 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
               <Icon name="camera" size={18} />
             </button>
           ) : null}
+          {status === "active" ? (
+            <button type="button" className={`icon-button ${screenSharing ? "active" : ""}`} onClick={() => void startScreenShare()} aria-label={screenSharing ? "إيقاف مشاركة الشاشة" : "مشاركة الشاشة"} title={screenSharing ? "إيقاف مشاركة الشاشة" : "مشاركة الشاشة"}>
+              <Icon name="monitor" size={18} />
+            </button>
+          ) : null}
+          <button type="button" className={`icon-button ${chatOpen ? "active" : ""}`} onClick={() => setChatOpen((value) => !value)} aria-label="دردشة المكالمة" title="دردشة المكالمة">
+            <Icon name="message-circle" size={18} />
+          </button>
           <button type="button" className="danger-button" onClick={hangUp}>
             <Icon name="phone" size={18} /> إنهاء
           </button>
