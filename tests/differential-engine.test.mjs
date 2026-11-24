@@ -27,7 +27,7 @@ test("applyUpdate downloads only required, stores, updates manifest, removes del
   };
 
   const fetchFn = async (url) => {
-    if (url.endsWith("/assets/b.js")) return new Response(dataB);
+    if (url.includes("/assets/b.js")) return new Response(dataB);
     return new Response("not found", { status: 404 });
   };
   const engine = new DifferentialUpdateEngine({ fetch: fetchFn, assetStore: store, manifestStore: mstore });

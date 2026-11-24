@@ -17,6 +17,7 @@ downloads-site/
 
 # أسرار مؤقتة لا تُرفع
 .push-secret.tmp
+.secrets/
 /artifacts/*
 !/artifacts/*.md
 
