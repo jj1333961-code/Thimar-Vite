@@ -103,6 +103,14 @@ jobs:
             echo "APK not found at $APK_PATH" >&2
             exit 1
           fi
+          # Package ID check
+          if command -v aapt2 >/dev/null 2>&1; then
+            PKG=$(aapt2 dump badging "$APK_PATH" | grep -o "package: name='[^']*'" | sed "s/package: name='//;s/'//")
+            echo "Package: $PKG"
+            if [[ "$PKG" != "app.thimar.quran" ]]; then
+              echo "Wrong package ID: $PKG" >&2; exit 1
+            fi
+          fi
           SHA256=$(sha256sum "$APK_PATH" | cut -d' ' -f1)
           SIZE=$(stat -c%s "$APK_PATH")
           VERSION_CODE=$(grep -oP 'versionCode\s+\K[0-9]+' app/build.gradle | head -1)
@@ -112,6 +120,7 @@ jobs:
           echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
           echo "sha256=$SHA256" >> $GITHUB_OUTPUT
           echo "file_size=$SIZE" >> $GITHUB_OUTPUT
+          echo "APK: thimar-${VERSION_NAME}-release.apk, v${VERSION_NAME} (code ${VERSION_CODE}), ${SIZE} bytes, sha256=${SHA256}"
           cp "$APK_PATH" "/tmp/thimar-${VERSION_NAME}-release.apk"
 
       - name: Upload APK artifact
