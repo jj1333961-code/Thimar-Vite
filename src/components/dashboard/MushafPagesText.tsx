@@ -234,15 +234,12 @@ export default function MushafPagesText({
     const stageEl = stageRef.current;
     if (!pageEl || !bodyEl || !stageEl) return;
 
-    // Keep the printed-page proportions while fitting the complete page into
-    // the actual reader viewport (phone portrait/landscape, tablet and desktop).
+    // الصفحة تملأ مساحة العارض بالكامل (هاتف/تابلت/سطح مكتب) بدل صندوق بنسبة ثابتة.
     const availableWidth = stageEl.clientWidth;
     const availableHeight = stageEl.clientHeight;
     if (availableWidth < 40 || availableHeight < 40) return;
-    const pageWidth = Math.min(availableWidth, availableHeight * 0.707, 720);
-    const pageHeight = pageWidth / 0.707;
-    pageEl.style.width = `${pageWidth}px`;
-    pageEl.style.height = `${pageHeight}px`;
+    pageEl.style.width = `${availableWidth}px`;
+    pageEl.style.height = `${availableHeight}px`;
 
     const available = bodyEl.clientHeight;
     if (available < 40) return;
@@ -268,7 +265,18 @@ export default function MushafPagesText({
       if (lastRect.width < containerWidth * 0.3) return false;
       return true;
     };
-    const heightOk = () => bodyEl.scrollHeight <= available;
+    /* كل سطر منطقي يجب أن يبقى سطرًا واحدًا فعليًا: لا التفاف ولا كلمات
+       منفردة في سطر تالٍ، وبذلك تتساوى جميع الأسطر في الارتفاع والعرض. */
+    const linesStaySingle = () => {
+      const lines = bodyEl.querySelectorAll<HTMLElement>(".qp-line");
+      for (const line of Array.from(lines)) {
+        const style = window.getComputedStyle(line);
+        const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.86 || 24;
+        if (line.scrollHeight > lineHeight * 1.35 + 2) return false;
+      }
+      return true;
+    };
+    const heightOk = () => bodyEl.scrollHeight <= available + 1 && linesStaySingle();
     let low = 9;
     let high = 80;
     let best = 0;

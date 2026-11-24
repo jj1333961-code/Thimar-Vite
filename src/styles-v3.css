@@ -6336,9 +6336,9 @@ html, body { max-width: 100%; overflow-x: hidden; }
   flex: 1;
   min-height: 0;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  padding: 4px 6px max(6px, env(safe-area-inset-bottom));
+  padding: 0;
   overflow: hidden;
   touch-action: none;
   user-select: none;
@@ -6346,60 +6346,35 @@ html, body { max-width: 100%; overflow-x: hidden; }
 }
 .qp-page {
   position: relative;
-  isolation: isolate;
   display: flex;
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   flex-direction: column;
-  width: min(100%, 720px);
-  max-width: 100%;
+  width: 100%;
+  max-width: none;
   height: 100%;
-  max-height: 100%;
-  aspect-ratio: 0.707 / 1;
-  margin: 0 auto;
+  max-height: none;
+  min-height: 0;
+  margin: 0;
   overflow: hidden;
-  background: #fbfaff;
-  border: 2px solid #a51d24;
-  border-radius: 1px;
-  box-shadow: 0 2px 14px rgba(20, 16, 50, 0.18);
-  /* The page itself remains text; these CSS layers recreate the reference's
-     navy, ivory, gold and burgundy ornamental borders without a page image. */
-  padding: 15.5% 14.2% 13.5%;
+  background: #fffdf8;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: max(2px, env(safe-area-inset-top)) clamp(3px, 0.8vw, 12px) max(2px, env(safe-area-inset-bottom));
   text-align: justify;
-  text-align-last: center;
+  text-align-last: justify;
+  text-justify: inter-word;
   color: #111018;
   font-family: "Hafs", "Amiri Quran", serif;
   font-size: var(--qp-fs, 22px);
-  line-height: 1.78;
+  line-height: 1.86;
   -webkit-touch-callout: none;
 }
-.qp-page::before {
-  content: "";
-  position: absolute;
-  z-index: 0;
-  inset: 1.4%;
-  pointer-events: none;
-  border: 5px solid #17164d;
-  outline: 2px solid #d6a84e;
-  outline-offset: -9px;
-  background-color: #17164d;
-  background-image:
-    radial-gradient(ellipse at 50% 50%, #f2c35b 0 7%, #a94c31 8% 13%, transparent 14%),
-    radial-gradient(ellipse at 0 50%, #fff2cb 0 10%, transparent 11%),
-    radial-gradient(ellipse at 100% 50%, #fff2cb 0 10%, transparent 11%),
-    repeating-linear-gradient(45deg, transparent 0 7px, rgba(226,178,75,.92) 7px 9px, transparent 9px 15px),
-    repeating-linear-gradient(-45deg, #17164d 0 9px, #29245e 9px 15px, #17164d 15px 22px);
-  background-size: 38px 38px, 26px 26px, 26px 26px, 32px 32px, 100% 100%;
-  background-position: center, left center, right center, center, center;
-}
+/* لا إطار ولا صندوق حول الصفحة أو الآيات. */
+.qp-page::before,
 .qp-page::after {
-  content: "";
-  position: absolute;
-  z-index: 0;
-  pointer-events: none;
-  inset: 7.2% 8.2%;
-  border: 4px double #4a4b83;
-  box-shadow: inset 0 0 0 5px #f7f6fb, inset 0 0 0 8px rgba(74,75,131,.7);
-  background: rgba(250, 249, 255, 0.96);
+  content: none;
+  display: none;
 }
 .qp-page-body {
   position: relative;
@@ -6407,13 +6382,20 @@ html, body { max-width: 100%; overflow-x: hidden; }
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 .qp-page .qp-line {
   display: block;
+  flex: 0 0 auto;
+  width: 100%;
   text-align: justify;
-  text-align-last: center;
+  text-align-last: justify;
+  text-justify: inter-word;
   line-height: 1.86;
   white-space: normal;
+  overflow: visible;
 }
 .qp-page .ayah {
   font-family: inherit;
@@ -6528,10 +6510,10 @@ html, body { max-width: 100%; overflow-x: hidden; }
   text-align: center;
   color: #111827;
   line-height: 1.5;
-  margin: 0.12em 0 0.22em;
-  padding: 0.12em 0.08em;
+  margin: 0.08em 0 0.14em;
+  padding: 0;
   font-size: 0.9em;
-  border-bottom: 2px solid rgba(165,29,36,.42);
+  border: 0;
 }
 .qp-surah-title {
   display: block;
@@ -6543,15 +6525,12 @@ html, body { max-width: 100%; overflow-x: hidden; }
   font-weight: 700;
   color: #17164d;
   letter-spacing: 0.02em;
-  margin: 0.08em 0 0.32em;
-  padding: 0.5em 0.25em;
-  border: 3px double #a51d24;
-  outline: 1px solid rgba(211, 165, 68, .85);
-  outline-offset: 2px;
-  background:
-    linear-gradient(90deg, rgba(216,171,74,.2), transparent 16% 84%, rgba(216,171,74,.2)),
-    #fffdf8;
-  box-shadow: inset 0 0 0 3px rgba(23,22,77,.12);
+  margin: 0.08em 0 0.18em;
+  padding: 0.12em 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
 }
 .qp-readable-hint { display: none; }
 .qp-reader-page {
@@ -6585,8 +6564,8 @@ html, body { max-width: 100%; overflow-x: hidden; }
   padding: 24px 0;
 }
 @media (min-width: 900px) {
-  .qp-reader-stage { padding: 6px 0 0; }
-  .qp-page { padding: 4px 14px 0; }
+  .qp-reader-stage { padding: 0; }
+  .qp-page { padding: 4px 14px; }
 }
 
 /* ==================================================================
