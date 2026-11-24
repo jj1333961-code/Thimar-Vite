@@ -6885,21 +6885,3 @@ html, body { max-width: 100%; overflow-x: hidden; }
 /* Tasmee display-mode choice inside the ayah menu sheet */
 .ayah-tasmee-choice { display: flex; flex-direction: column; gap: 10px; }
 .ayah-tasmee-choice .primary-button { width: 100%; }
-
-
-/* Games: clear general/special entry cards and responsive selection flow */
-.game-mode-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:18px 0 22px}
-.game-mode-card{position:relative;display:flex;align-items:center;gap:16px;min-height:150px;padding:22px;border:1px solid var(--border);border-radius:24px;text-align:right;color:var(--text);background:var(--card);cursor:pointer;overflow:hidden;transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease}
-.game-mode-card:hover{transform:translateY(-3px);border-color:var(--primary);box-shadow:0 14px 34px rgba(0,0,0,.09)}
-.game-mode-general{background:linear-gradient(135deg,color-mix(in srgb,#16a36a 13%,var(--card)),var(--card) 72%)}
-.game-mode-special{background:linear-gradient(135deg,color-mix(in srgb,#3978d5 13%,var(--card)),var(--card) 72%)}
-.game-mode-icon{width:58px;height:58px;flex:0 0 58px;display:grid;place-items:center;border-radius:19px;background:color-mix(in srgb,var(--primary) 13%,var(--card));color:var(--primary)}
-.game-mode-special .game-mode-icon{background:rgba(59,130,246,.13);color:#3b82f6}
-.game-mode-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:8px}
-.game-mode-copy strong{font-size:20px;font-weight:850}
-.game-mode-copy small{font-size:13px;line-height:1.8;color:var(--muted)}
-.game-mode-arrow{display:grid;place-items:center;width:34px;height:34px;flex:0 0 34px;border-radius:50%;background:color-mix(in srgb,var(--primary) 10%,var(--card));color:var(--primary)}
-.games-page .game-start{margin-top:18px;min-width:190px}
-.games-page .question-kind-chip{transition:transform .18s ease,box-shadow .18s ease}
-.games-page .question-kind-chip:hover{transform:translateY(-2px)}
-@media(max-width:640px){.game-mode-grid{grid-template-columns:1fr;gap:12px}.game-mode-card{min-height:126px;padding:17px;border-radius:20px}.game-mode-icon{width:50px;height:50px;flex-basis:50px}.game-mode-copy strong{font-size:18px}.game-mode-copy small{font-size:12px}}
