@@ -1,13 +1,17 @@
 {
   "platform": "android",
   "packageName": "app.thimar.quran",
-  "versionName": "1.11.3",
-  "versionCode": 25,
+  "versionName": "1.11.4",
+  "versionCode": 26,
   "minSupportedVersionCode": 1,
   "available": true,
-  "downloadUrl": "https://thimar.freebuff.page/assets/large/thimar-1.11.3-release.apk",
+  "apkRequired": false,
+  "apkReason": "Native APK unavailable; update delivered via web assets only.",
+  "assetOnly": true,
+  "assetManifestUrl": "https://thimar.freebuff.page/updates/web-manifest.json",
+  "assetDownloadSize": 0,
   "fileName": "thimar-1.11.3-release.apk",
-  "fileSize": 282336037,
+  "fileSize": 0,
   "sha256": "daf7c57c7b2229c12313e5b06ef8618f1168736df33942466fe32bc0333c279d",
   "versionHistory": [
     {
@@ -70,5 +74,6 @@
   "shortDescription": {
     "ar": "تحديث 1.11.3 — تلاوة دون اتصال وشاشة الصلاة.",
     "en": "Update 1.11.3 — offline recitation and prayer screen."
-  }
+  },
+  "downloadUrl": null
 }
