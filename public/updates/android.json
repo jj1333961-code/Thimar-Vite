@@ -1,18 +1,18 @@
 {
   "platform": "android",
   "packageName": "app.thimar.quran",
-  "versionName": "1.11.4",
-  "versionCode": 26,
-  "resourceVersionName": "1.11.4",
-  "resourceVersionCode": 26,
+  "versionName": "1.11.5",
+  "versionCode": 27,
+  "resourceVersionName": "1.11.5",
+  "resourceVersionCode": 27,
   "minSupportedVersionCode": 1,
   "available": true,
-  "apkRequired": false,
-  "assetOnly": true,
+  "apkRequired": true,
+  "assetOnly": false,
   "assetManifestUrl": "https://thimar.freebuff.page/updates/web-manifest.json",
   "fileName": "app-release.apk",
-  "fileSize": 282369505,
-  "sha256": "68d5b5574336b970ba32a26e9c264ddd5c5668d55e6287742ead6089e7a5d3c0",
+  "fileSize": 282369502,
+  "sha256": "c6567bbb0bfe38633805498c7dcc059182651be0dfb7714d2f453b76ff969ef7",
   "versionHistory": [
     {
       "versionName": "1.9.5",
@@ -79,5 +79,5 @@
     "ar": "تحديث 1.11.3 — تلاوة دون اتصال وشاشة الصلاة.",
     "en": "Update 1.11.3 — offline recitation and prayer screen."
   },
-  "downloadUrl": "https://github.com/jj1333961-code/Thimar-Vite/releases/download/v1.11.4/app-release.apk"
+  "downloadUrl": "https://github.com/jj1333961-code/Thimar-Vite/releases/download/v1.11.5/app-release.apk"
 }

@@ -1,13 +1,13 @@
 {
   "platform": "web",
-  "versionName": "1.11.4",
-  "versionCode": 26,
-  "resourceVersion": "1.11.4",
-  "resourceVersionCode": 26,
-  "nativeVersionCode": 26,
-  "nativeVersionName": "1.11.4",
+  "versionName": "1.11.5",
+  "versionCode": 27,
+  "resourceVersion": "1.11.5",
+  "resourceVersionCode": 27,
+  "nativeVersionCode": 27,
+  "nativeVersionName": "1.11.5",
   "baseUrl": "/",
-  "generatedAt": "2026-11-24T06:35:42.433Z",
+  "generatedAt": "2026-11-24T06:51:12.717Z",
   "files": [
     {
       "path": "adhan/afasy-fajr.mp3",
@@ -70,14 +70,14 @@
       "sha256": "b4b3c75cfe65a93dd56ead63dae638fb84bdfb1ced5193c7b78431281c919513"
     },
     {
-      "path": "assets/esm-BBQaL1Sj.js",
+      "path": "assets/esm-D0L1kdMb.js",
       "bytes": 599,
-      "sha256": "d7e26f420ac97624a5739ff426f055f03e24eb135ea0193e27e812b2a8afecf6"
+      "sha256": "b7899af01ebd0d6c3f5b44a54cc4dd6ce61f97070536cdc5e1837c2e7fb717d2"
     },
     {
-      "path": "assets/index-DwC6EEWg.css",
+      "path": "assets/index-CyV3rYRf.css",
       "bytes": 256720,
-      "sha256": "111996c4dc31895f072ce0fc1a96777940e336b5c489a01c5b2ca8dfa5c8331b"
+      "sha256": "9da551fe2940159fd668f3aed18ec7c92502162ac2f9abd4ecc197c566fd0b41"
     },
     {
       "path": "assets/ort.bundle.min-B0peBxyq.js",
@@ -85,9 +85,9 @@
       "sha256": "02124e23f8e5bb503e638fdc84febbad20ef3ea89b83f5f1d2cd2a85ac9544a8"
     },
     {
-      "path": "assets/web-BmUJtwef.js",
+      "path": "assets/web-CbptSU7K.js",
       "bytes": 4591,
-      "sha256": "bdf9ef5181437e370e58edbbfc90a6648d4da0d4b37537bcd46cc5a3caec7e9d"
+      "sha256": "53816e50dc7d23f7ea596eea2b47061684440f42578474c3db0be1327d11e8e8"
     },
     {
       "path": "fonts/UthmanicHafs-v3.woff2",
@@ -147,7 +147,7 @@
     {
       "path": "index.html",
       "bytes": 2483,
-      "sha256": "7295094040ac00debd008571ddeaee49ed16cd98b84da9a40c4ea3fe2697bffb"
+      "sha256": "eefee3760be0e0839892031f4c62cff999e9053522aacb6bb50b89837c098dfc"
     },
     {
       "path": "licenses/THIRD_PARTY_NOTICES.md",
