@@ -168,6 +168,12 @@ export async function syncPendingTasmeeSessions(): Promise<void> {
 if (typeof window !== "undefined") {
   window.addEventListener("online", () => { void syncPendingTasmeeSessions(); });
   window.addEventListener("focus", () => { void syncPendingTasmeeSessions(); });
+  window.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") void syncPendingTasmeeSessions();
+  });
+  // إعادة المحاولة أثناء بقاء التطبيق مفتوحًا؛ لا يُرسل شيء دون اتصال أو دون تفويض.
+  window.setInterval(() => { void syncPendingTasmeeSessions(); }, 30_000);
+  void syncPendingTasmeeSessions();
 }
 
 /** كلمات الآيات بالترتيب مع مرجع كل كلمة إلى آيتها. */
