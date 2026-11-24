@@ -53,6 +53,7 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
   const cameraTrackRef = useRef<MediaStreamTrack | null>(null);
   const channelRef = useRef<ReturnType<typeof createChannel> | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteStreamRef = useRef<MediaStream>(new MediaStream());
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const pendingIce = useRef<RTCIceCandidateInit[]>([]);
   const offerRef = useRef<RTCSessionDescriptionInit | null>(null);
@@ -138,9 +139,13 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
       if (track.kind === "video") videoSenderRef.current = sender;
     });
     pc.ontrack = (event) => {
+      // نُبقي الصوت والفيديو ومشاركة الشاشة داخل MediaStream واحد حتى عند وصول
+      // مسار الشاشة بلا stream association في بعض المتصفحات.
+      const remoteStream = remoteStreamRef.current;
+      if (!remoteStream.getTracks().some((track) => track.id === event.track.id)) {
+        remoteStream.addTrack(event.track);
+      }
       if (remoteVideoRef.current) {
-        // بعض مسارات مشاركة الشاشة تُرسل دون MediaStream association.
-        const remoteStream = event.streams[0] ?? new MediaStream([event.track]);
         remoteVideoRef.current.srcObject = remoteStream;
         void remoteVideoRef.current.play().catch(() => undefined);
       }
