@@ -138,8 +138,6 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
       if (pc.connectionState === "connected") {
         setStatus("active");
       }
-      if (pc.connectionState === "connecting") {
-      }
       if (pc.connectionState === "failed") {
         void callServer("failed", { callerId: selfId, callId, reason: "ice_failed" });
         setError("فشل الاتصال بين الطرفين. تحقق من الشبكة.");
