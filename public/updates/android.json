@@ -3,6 +3,8 @@
   "packageName": "app.thimar.quran",
   "versionName": "1.11.4",
   "versionCode": 26,
+  "resourceVersionName": "1.11.4",
+  "resourceVersionCode": 26,
   "minSupportedVersionCode": 1,
   "available": true,
   "apkRequired": true,

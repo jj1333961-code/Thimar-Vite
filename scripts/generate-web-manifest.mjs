@@ -11,6 +11,8 @@ function readAndroidVersion() {
     return {
       versionName: typeof meta.versionName === "string" ? meta.versionName : undefined,
       versionCode: Number.isFinite(Number(meta.versionCode)) ? Number(meta.versionCode) : undefined,
+      resourceVersionName: typeof meta.resourceVersionName === "string" ? meta.resourceVersionName : (typeof meta.resourceVersion === "string" ? meta.resourceVersion : undefined),
+      resourceVersionCode: Number.isFinite(Number(meta.resourceVersionCode)) ? Number(meta.resourceVersionCode) : (Number.isFinite(Number(meta.resourceVersion)) ? Number(meta.resourceVersion) : undefined),
     };
   } catch {
     return {};
@@ -19,6 +21,8 @@ function readAndroidVersion() {
 const androidVersion = readAndroidVersion();
 const versionName = process.argv[3] || process.env.VERSION_NAME || androidVersion.versionName || "1.11.4";
 const versionCode = Number(process.argv[4] || process.env.VERSION_CODE || androidVersion.versionCode || 26);
+const resourceVersionName = process.env.RESOURCE_VERSION_NAME || androidVersion.resourceVersionName || versionName;
+const resourceVersionCode = Number(process.env.RESOURCE_VERSION_CODE || androidVersion.resourceVersionCode || versionCode);
 const outDir = "public/updates/manifests";
 mkdirSync(outDir, { recursive: true });
 
@@ -67,6 +71,10 @@ const manifest = {
   platform: "web",
   versionName,
   versionCode,
+  resourceVersion: resourceVersionName,
+  resourceVersionCode,
+  nativeVersionCode: versionCode,
+  nativeVersionName: versionName,
   baseUrl: "/",
   generatedAt: new Date().toISOString(),
   files,

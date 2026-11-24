@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
+import android.webkit.WebView;
 import android.widget.Toast;
 
 import org.json.JSONArray;
@@ -37,13 +38,19 @@ public class ThimarAssetUpdater {
   private static final String BUNDLED_MANIFEST_ASSET = "www/updates/web-manifest.json";
 
   private final Activity activity;
+  private final WebView webView;
   private final File webAssetsRoot;
   private final File currentDir;
   private final File stagingDir;
   private final File installedManifestFile;
 
   public ThimarAssetUpdater(Activity activity) {
+    this(activity, null);
+  }
+
+  public ThimarAssetUpdater(Activity activity, WebView webView) {
     this.activity = activity;
+    this.webView = webView;
     this.webAssetsRoot = new File(activity.getFilesDir(), "webassets");
     this.currentDir = new File(webAssetsRoot, "current");
     this.stagingDir = new File(webAssetsRoot, "staging");
@@ -77,9 +84,9 @@ public class ThimarAssetUpdater {
       }
       // لا نعتمد على رقم الإصدار وحده: قد تتغير موارد الويب دون رفع رقم الإصدار.
       // نقارن الملفات فعليًا، وإن لم يتغير شيء نُبلغ المستخدم بذلك بعد الفحص.
-      int remoteCode = remote.optInt("versionCode", 0);
-      int installedCode = (installed == null) ? 0 : installed.optInt("versionCode", 0);
-      if (remoteCode < installedCode) {
+      int remoteResourceCode = remote.optInt("resourceVersionCode", remote.optInt("versionCode", 0));
+      int installedResourceCode = (installed == null) ? 0 : installed.optInt("resourceVersionCode", installed.optInt("versionCode", 0));
+      if (remoteResourceCode < installedResourceCode) {
         showToast("أنت تستخدم أحدث إصدار من الموارد.");
         return;
       }
@@ -221,6 +228,9 @@ public class ThimarAssetUpdater {
         return;
       }
       showToast("تم تحديث الموارد بنجاح.");
+      if (webView != null) {
+        activity.runOnUiThread(() -> { try { webView.reload(); } catch (Exception ignored) {} });
+      }
     } catch (Exception e) {
       Log.e(TAG, "Asset update failed", e);
       deleteDir(stagingDir);
