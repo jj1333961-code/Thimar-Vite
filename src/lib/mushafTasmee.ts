@@ -154,7 +154,10 @@ export async function syncPendingTasmeeSessions(): Promise<void> {
               if (raw?.syncId && typeof raw.at === "number") byId.set(raw.syncId, raw);
             }
             const merged = Array.from(byId.values()).sort((a, b) => b.at - a.at).slice(0, MAX_SESSIONS);
-            try { localStorage.setItem(STORE_KEY, JSON.stringify(merged)); } catch { /* لا يؤثر على الجلسة الحالية */ }
+            try {
+              localStorage.setItem(STORE_KEY, JSON.stringify(merged));
+              window.dispatchEvent(new Event("thimar:tasmee-sync"));
+            } catch { /* لا يؤثر على الجلسة الحالية */ }
           }
         } catch {
           // لا نمنع استخدام الأرشيف المحلي عند تعذر استرجاع السحابة.
