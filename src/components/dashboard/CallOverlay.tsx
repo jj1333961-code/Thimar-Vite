@@ -138,8 +138,10 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
       if (track.kind === "video") videoSenderRef.current = sender;
     });
     pc.ontrack = (event) => {
-      if (remoteVideoRef.current && event.streams[0]) {
-        remoteVideoRef.current.srcObject = event.streams[0];
+      if (remoteVideoRef.current) {
+        // بعض مسارات مشاركة الشاشة تُرسل دون MediaStream association.
+        const remoteStream = event.streams[0] ?? new MediaStream([event.track]);
+        remoteVideoRef.current.srcObject = remoteStream;
         void remoteVideoRef.current.play().catch(() => undefined);
       }
     };
