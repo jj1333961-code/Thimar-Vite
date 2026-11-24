@@ -49,11 +49,6 @@ const MAX_SESSIONS = 40;
 const PENDING_SYNC_KEY = "thimar.mushafTasmee.pending.v1";
 
 type PendingTasmeeSync = { accountId: string; session: TasmeeSession & { syncId: string } };
-type TasmeeNativeBridge = { deviceId?: () => string; accountId?: () => string };
-declare global {
-  interface Window { ThimarNative?: TasmeeNativeBridge }
-}
-
 let tasmeeSyncRunning = false;
 
 function createTasmeeId(): string {
@@ -88,7 +83,8 @@ function writePendingTasmeeSync(items: PendingTasmeeSync[]): void {
 export async function syncPendingTasmeeSessions(): Promise<void> {
   if (tasmeeSyncRunning || typeof window === "undefined" || !navigator.onLine) return;
   const native = window.ThimarNative;
-  const deviceId = native?.deviceId?.();
+  if (!native) return;
+  const deviceId = native.deviceId?.();
   if (!deviceId) return;
   const pending = readPendingTasmeeSync();
   tasmeeSyncRunning = true;
