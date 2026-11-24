@@ -6346,29 +6346,60 @@ html, body { max-width: 100%; overflow-x: hidden; }
 }
 .qp-page {
   position: relative;
+  isolation: isolate;
   display: flex;
   flex: 0 1 auto;
   flex-direction: column;
-  /* يضبط العرض والارتفاع من قياس مساحة القراءة مع نسبة صفحة المصحف المرجعية. */
   width: min(100%, 560px);
   max-width: 100%;
   height: 100%;
   max-height: 100%;
-  aspect-ratio: 0.715 / 1;
+  aspect-ratio: 0.707 / 1;
   margin: 0 auto;
   overflow: hidden;
-  background: #fffdf9;
-  border: 1px solid rgba(176, 151, 94, 0.72);
-  border-radius: 3px;
-  box-shadow: 0 2px 12px rgba(48, 38, 20, 0.10), inset 0 0 0 4px rgba(176, 151, 94, 0.08), inset 0 0 0 5px rgba(176, 151, 94, 0.28);
-  padding: 10px 12px 8px;
+  background: #fbfaff;
+  border: 2px solid #a51d24;
+  border-radius: 1px;
+  box-shadow: 0 2px 14px rgba(20, 16, 50, 0.18);
+  /* The page itself remains text; these CSS layers recreate the reference's
+     navy, ivory, gold and burgundy ornamental borders without a page image. */
+  padding: 15.5% 14.2% 13.5%;
   text-align: justify;
   text-align-last: center;
-  color: #111827;
+  color: #111018;
   font-family: "Hafs", "Amiri Quran", serif;
   font-size: var(--qp-fs, 22px);
   line-height: 1.78;
   -webkit-touch-callout: none;
+}
+.qp-page::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 1.4%;
+  pointer-events: none;
+  border: 5px solid #17164d;
+  outline: 2px solid #d6a84e;
+  outline-offset: -9px;
+  background-color: #17164d;
+  background-image:
+    radial-gradient(ellipse at 50% 50%, #f2c35b 0 7%, #a94c31 8% 13%, transparent 14%),
+    radial-gradient(ellipse at 0 50%, #fff2cb 0 10%, transparent 11%),
+    radial-gradient(ellipse at 100% 50%, #fff2cb 0 10%, transparent 11%),
+    repeating-linear-gradient(45deg, transparent 0 7px, rgba(226,178,75,.92) 7px 9px, transparent 9px 15px),
+    repeating-linear-gradient(-45deg, #17164d 0 9px, #29245e 9px 15px, #17164d 15px 22px);
+  background-size: 38px 38px, 26px 26px, 26px 26px, 32px 32px, 100% 100%;
+  background-position: center, left center, right center, center, center;
+}
+.qp-page::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  inset: 7.2% 8.2%;
+  border: 4px double #4a4b83;
+  box-shadow: inset 0 0 0 5px #f7f6fb, inset 0 0 0 8px rgba(74,75,131,.7);
+  background: rgba(250, 249, 255, 0.96);
 }
 .qp-page-body {
   position: relative;
@@ -6432,6 +6463,15 @@ html, body { max-width: 100%; overflow-x: hidden; }
   background: #1f231f;
   color: #efe7d8;
 }
+[data-theme="dark"] .qp-page::after {
+  background: rgba(31, 35, 31, 0.96);
+  border-color: #7775ad;
+  box-shadow: inset 0 0 0 5px #25292b, inset 0 0 0 8px rgba(119,117,173,.7);
+}
+[data-theme="dark"] .qp-surah-title {
+  color: #efe7d8;
+  background: linear-gradient(90deg, rgba(216,171,74,.12), transparent 16% 84%, rgba(216,171,74,.12)), #26272d;
+}
 [data-theme="dark"] .qp-basmala {
   color: #ffffff;
 }
@@ -6488,22 +6528,30 @@ html, body { max-width: 100%; overflow-x: hidden; }
   text-align: center;
   color: #111827;
   line-height: 1.5;
-  margin: 0.05em 0 0.15em;
+  margin: 0.12em 0 0.22em;
+  padding: 0.12em 0.08em;
   font-size: 0.9em;
+  border-bottom: 2px solid rgba(165,29,36,.42);
 }
 .qp-surah-title {
   display: block;
+  position: relative;
   text-align: center;
   font-family: "Tajawal", system-ui, sans-serif;
-  font-size: clamp(12px, 0.42em, 18px);
-  line-height: 1.9;
-  font-weight: 700;
-  color: #0f766e;
-  letter-spacing: 0.02em;
-  margin: 0 0 0.1em;
-  border-bottom: 1px solid rgba(15, 95, 78, 0.16);
-  padding-bottom: 0.1em;
+  font-size: clamp(12px, 0.52em, 18px);
   line-height: 1.5;
+  font-weight: 700;
+  color: #17164d;
+  letter-spacing: 0.02em;
+  margin: 0.08em 0 0.32em;
+  padding: 0.5em 0.25em;
+  border: 3px double #a51d24;
+  outline: 1px solid rgba(211, 165, 68, .85);
+  outline-offset: 2px;
+  background:
+    linear-gradient(90deg, rgba(216,171,74,.2), transparent 16% 84%, rgba(216,171,74,.2)),
+    #fffdf8;
+  box-shadow: inset 0 0 0 3px rgba(23,22,77,.12);
 }
 .qp-readable-hint { display: none; }
 .qp-reader-page {

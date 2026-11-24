@@ -239,8 +239,8 @@ export default function MushafPagesText({
     const availableWidth = stageEl.clientWidth;
     const availableHeight = stageEl.clientHeight;
     if (availableWidth < 40 || availableHeight < 40) return;
-    const pageWidth = Math.min(availableWidth, availableHeight * 0.715, 560);
-    const pageHeight = pageWidth / 0.715;
+    const pageWidth = Math.min(availableWidth, availableHeight * 0.707, 560);
+    const pageHeight = pageWidth / 0.707;
     pageEl.style.width = `${pageWidth}px`;
     pageEl.style.height = `${pageHeight}px`;
 
