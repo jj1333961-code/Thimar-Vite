@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ayahAudioUrl } from "../../data/reciters";
 import { arabicNumber, surahNameOfNumber } from "../../lib/ayahImage";
 import { deleteTasmeeSession, loadTasmeeSessions, scopeLabel, type TasmeeSession } from "../../lib/mushafTasmee";
@@ -18,6 +18,11 @@ function formatDate(at: number): string {
 
 export default function MushafTasmeeArchive({ refreshKey = 0 }: { refreshKey?: number }) {
   const [localRefresh, setLocalRefresh] = useState(refreshKey);
+  useEffect(() => {
+    const refresh = () => setLocalRefresh((value) => value + 1);
+    window.addEventListener("thimar:tasmee-sync", refresh);
+    return () => window.removeEventListener("thimar:tasmee-sync", refresh);
+  }, []);
   const sessions = useMemo(() => loadTasmeeSessions(), [refreshKey, localRefresh]);
   const [playingKey, setPlayingKey] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
