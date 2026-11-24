@@ -20,7 +20,7 @@ import WordOrderBoard from "./WordOrderBoard";
 type LevelId = "a1" | "a2" | "a3" | "a4" | "a5" | "a6" | "a7" | "a8" | "a9" | "a10" | "a11" | "a12";
 type QuestionKind = "surah" | "complete" | "juz" | "tafsir" | "recite" | "truefalse" | "order";
 type QuestionScope = { juzs: number[]; surahs: number[] };
-type Phase = "menu" | "typeLevels" | "setup" | "playing" | "result";
+type Phase = "menu" | "generalTypes" | "generalLevels" | "specialTypes" | "typeLevels" | "setup" | "playing" | "result";
 
 type LevelConfig = {
   id: LevelId;
@@ -1021,14 +1021,10 @@ ${context}`;
         <div className="games-hero">
           <div>
             <span className="games-hero-kicker">الألغاز والاختبارات</span>
-            <h2>رحلة الألغاز A1–A12</h2>
-            <p>رتّب الكلمات، أكمل الآيات، واجمع النجوم. كل مستوى يفتح ما بعده.</p>
+            <h2>اختر مغامرتك</h2>
+            <p>ابدأ بالألغاز العامة المتنوعة أو اختر لغزًا خاصًا بنوع واحد من الأسئلة.</p>
           </div>
-          <div
-            className="games-hero-ring"
-            style={{ ["--p" as string]: `${Math.round((clearedCount / LEVELS.length) * 360)}deg` }}
-            aria-label={`أكملت ${clearedCount} من ${LEVELS.length} مستوى`}
-          >
+          <div className="games-hero-ring" style={{ ["--p" as string]: `${Math.round((clearedCount / LEVELS.length) * 360)}deg` }} aria-label={`أكملت ${clearedCount} من ${LEVELS.length} مستوى`}>
             <strong>{clearedCount}/{LEVELS.length}</strong>
             <span>مستوى مكتمل</span>
           </div>
@@ -1041,99 +1037,20 @@ ${context}`;
           <div className="stat-mini"><span>الجولات</span><strong>{progress.history.length}</strong></div>
         </div>
 
-        <SectionCard title="مسار المستويات العامة" subtitle={`أكملت ${clearedCount} من ١٢ مستويًا`}>
-          <div className="question-kinds-grid" role="group" aria-label="أنواع الأسئلة في المسار العام">
-            {ALL_KINDS.map((kind) => {
-              const picked = generalKinds.includes(kind);
-              return (
-                <button
-                  key={kind}
-                  type="button"
-                  aria-pressed={picked}
-                  className={`question-kind-chip kind-${kind} ${picked ? "active" : ""}`}
-                  onClick={() =>
-                    setGeneralKinds((previous) => {
-                      if (previous.includes(kind)) {
-                        if (previous.length === 1) return previous;
-                        return previous.filter((item) => item !== kind);
-                      }
-                      return [...previous, kind];
-                    })
-                  }
-                >
-                  <Icon name={KIND_ICONS[kind]} size={16} />
-                  <span>{KIND_LABELS[kind]}</span>
-                </button>
-              );
-            })}
-          </div>
-          <p className="muted">
-            الأنواع المختارة: {generalKinds.map((kind) => KIND_LABELS[kind]).join("، ")} — يمكنك اختيار أكثر من نوع.
-          </p>
-          <div className="level-path">
-            {LEVELS.map((level, levelIndex) => {
-              const unlocked = isUnlocked(levelIndex);
-              const done = Boolean(cleared[scopeKeyOf(level)]);
-              const stars = progress.stars[starsKeyOf(level)] ?? 0;
-              return (
-                <button
-                  key={level.id}
-                  type="button"
-                  className={`level-card ${unlocked ? "" : "locked"} ${done ? "cleared" : ""} ${level.id === currentLevel.id ? "current" : ""}`}
-                  onClick={() => {
-                    if (!unlocked) return;
-                    setSelectedTypeKind(null);
-                    openLevel(level);
-                  }}
-                  disabled={!unlocked}
-                >
-                  <div className="level-card-top">
-                    <span className={`level-badge level-${level.id}`}>{level.id.toUpperCase()}</span>
-                    {done ? <Icon name="check" size={18} /> : unlocked ? <Icon name="play" size={18} /> : <Icon name="lock" size={18} />}
-                  </div>
-                  <strong>{level.name}</strong>
-                  <span className="level-subtitle">{level.subtitle}</span>
-                  <div className="level-meta">
-                    <span>{livesLabel(level.lives)}</span>
-                    <span>{level.count} سؤال</span>
-                    <span>{level.seconds}ث</span>
-                  </div>
-                  <div className="level-stars">
-                    {"★".repeat(stars)}
-                    {"☆".repeat(3 - stars)}
-                  </div>
-                  {!unlocked ? <small className="level-lock-note">أكمل {LEVELS[levelIndex - 1].id.toUpperCase()} أولًا</small> : null}
-                </button>
-              );
-            })}
-          </div>
-        </SectionCard>
+        <div className="game-mode-grid">
+          <button type="button" className="game-mode-card game-mode-general" onClick={() => setPhase("generalTypes")}>
+            <span className="game-mode-icon"><Icon name="globe" size={30} /></span>
+            <span className="game-mode-copy"><strong>الألغاز العامة</strong><small>كوّن اختبارًا متنوعًا باختيار أكثر من نوع من الأسئلة، ثم اختر مستواك ونطاق الامتحان.</small></span>
+            <span className="game-mode-arrow"><Icon name="play" size={20} /></span>
+          </button>
+          <button type="button" className="game-mode-card game-mode-special" onClick={() => { setSelectedTypeKind(null); setPhase("specialTypes"); }}>
+            <span className="game-mode-icon"><Icon name="book" size={30} /></span>
+            <span className="game-mode-copy"><strong>الألغاز الخاصة</strong><small>اختر نوعًا واحدًا من الأسئلة، ثم انتقل إلى مستوياته المخصصة من A1 إلى A12.</small></span>
+            <span className="game-mode-arrow"><Icon name="arrow-left" size={20} /></span>
+          </button>
+        </div>
 
-        <SectionCard title="أنواع الأسئلة" subtitle="كل نوع مسار مستقل بنوع واحد فقط">
-          <p className="muted">
-            هذه المسارات مستقلة عن المسار العام، وكل مسار مخصّص لنوع واحد فقط من الأسئلة. اضغط على النوع
-            لتفتح مستوياته الخاصة به.
-          </p>
-          <div className="question-kinds-grid">
-            {ALL_KINDS.map((kind) => (
-              <button
-                key={kind}
-                type="button"
-                className={`question-kind-chip kind-${kind} ${selectedTypeKind === kind ? "active" : ""}`}
-                onClick={() => {
-                  setSelectedTypeKind(kind);
-                  setAllowedKinds([kind]);
-                  setPhase("typeLevels");
-                }}
-              >
-                <Icon name={KIND_ICONS[kind]} size={16} />
-                <span>{KIND_LABELS[kind]}</span>
-              </button>
-            ))}
-          </div>
-        </SectionCard>
-
-        <SectionCard title="ترتيب الكلمات" subtitle="لغز جديد بالذكاء الاصطناعي">
+        <SectionCard title="ترتيب الكلمات" subtitle="تحدٍّ سريع مستقل">
           <p className="muted">تُعرض كلمات آية أو آيتين مبعثرة، ورتّبها كما في المصحف. ست جولات متدرجة.</p>
           <button type="button" className="primary-button" onClick={() => setOrderGameOpen(true)}>
             <Icon name="sparkles" size={16} /> ابدأ لغز ترتيب الكلمات
@@ -1145,15 +1062,83 @@ ${context}`;
             <div className="history-list">
               {progress.history.slice(0, 6).map((item, historyIndex) => (
                 <div key={historyIndex} className="history-row">
-                  <span>{historyLabel(item.mode)}</span>
-                  <span>{item.points} نقطة</span>
-                  <span>{"★".repeat(item.stars)}</span>
+                  <span>{historyLabel(item.mode)}</span><span>{item.points} نقطة</span><span>{"★".repeat(item.stars)}</span>
                 </div>
               ))}
             </div>
-          ) : (
-            <p className="muted">لم تلعب جولة بعد — ابدأ من المسار أعلاه.</p>
-          )}
+          ) : <p className="muted">لم تلعب جولة بعد — ابدأ مغامرتك الأولى.</p>}
+        </SectionCard>
+      </div>
+    );
+  }
+
+  if (phase === "generalTypes") {
+    return (
+      <div className="page games-page">
+        <div className="page-head">
+          <div><h2>الألغاز العامة</h2><p className="muted">اختر أنواع الأسئلة التي تريد دمجها في جولتك. يمكنك اختيار أكثر من نوع.</p></div>
+          <button type="button" className="ghost-button" onClick={() => setPhase("menu")}>رجوع</button>
+        </div>
+        <SectionCard title="أنواع الأسئلة" subtitle={`${generalKinds.length} أنواع محددة`}>
+          <div className="question-kinds-grid" role="group" aria-label="اختيار أنواع الأسئلة العامة">
+            {ALL_KINDS.map((kind) => {
+              const picked = generalKinds.includes(kind);
+              return <button key={kind} type="button" aria-pressed={picked} className={`question-kind-chip kind-${kind} ${picked ? "active" : ""}`} onClick={() => setGeneralKinds(previous => previous.includes(kind) ? previous.length > 1 ? previous.filter(item => item !== kind) : previous : [...previous, kind])}>
+                <Icon name={KIND_ICONS[kind]} size={18} /><span>{KIND_LABELS[kind]}</span>
+                <Icon name={picked ? "check" : "plus"} size={16} />
+              </button>;
+            })}
+          </div>
+          <p className="muted">الأنواع المختارة: {generalKinds.map(kind => KIND_LABELS[kind]).join("، ") || "لم تختر نوعًا بعد"}.</p>
+          <button type="button" className="primary-button game-start" disabled={!generalKinds.length} onClick={() => { setSelectedTypeKind(null); setAllowedKinds(generalKinds); setPhase("generalLevels"); }}>
+            اختيار المستوى <Icon name="arrow-left" size={17} />
+          </button>
+        </SectionCard>
+      </div>
+    );
+  }
+
+  if (phase === "generalLevels") {
+    return (
+      <div className="page games-page">
+        <div className="page-head">
+          <div><h2>اختر مستوى الألغاز العامة</h2><p className="muted">المستويات من A1 إلى A12 — الجولة ستستخدم الأنواع التي حددتها.</p></div>
+          <button type="button" className="ghost-button" onClick={() => setPhase("generalTypes")}>رجوع</button>
+        </div>
+        <SectionCard title="مسار المستويات" subtitle={`أكملت ${clearedCount} من ١٢ مستوى عامًا`}>
+          <div className="level-path">
+            {LEVELS.map((level, levelIndex) => {
+              const unlocked = isUnlocked(levelIndex);
+              const done = Boolean(cleared[level.id]);
+              const stars = progress.stars[`level-${level.id}`] ?? 0;
+              return <button key={level.id} type="button" className={`level-card ${unlocked ? "" : "locked"} ${done ? "cleared" : ""} ${level.id === currentLevel.id ? "current" : ""}`} onClick={() => { if (unlocked) openLevel(level); }} disabled={!unlocked}>
+                <div className="level-card-top"><span className={`level-badge level-${level.id}`}>{level.id.toUpperCase()}</span>{done ? <Icon name="check" size={18} /> : unlocked ? <Icon name="play" size={18} /> : <Icon name="lock" size={18} />}</div>
+                <strong>{level.name}</strong><span className="level-subtitle">{level.subtitle}</span>
+                <div className="level-meta"><span>{livesLabel(level.lives)}</span><span>{level.count} سؤال</span><span>{level.seconds}ث</span></div>
+                <div className="level-stars">{"★".repeat(stars)}{"☆".repeat(3-stars)}</div>
+                {!unlocked ? <small className="level-lock-note">أكمل {LEVELS[levelIndex-1].id.toUpperCase()} أولًا</small> : null}
+              </button>;
+            })}
+          </div>
+          <p className="muted">أنواع الجولة: {generalKinds.map(kind => KIND_LABELS[kind]).join("، ")}.</p>
+        </SectionCard>
+      </div>
+    );
+  }
+
+  if (phase === "specialTypes") {
+    return (
+      <div className="page games-page">
+        <div className="page-head">
+          <div><h2>الألغاز الخاصة</h2><p className="muted">اختر نوعًا واحدًا لعرض مستوياته المخصصة فقط.</p></div>
+          <button type="button" className="ghost-button" onClick={() => setPhase("menu")}>رجوع</button>
+        </div>
+        <SectionCard title="اختر نوع اللغز" subtitle="كل نوع له مسار تقدم مستقل من A1 إلى A12">
+          <div className="question-kinds-grid">
+            {ALL_KINDS.map(kind => <button key={kind} type="button" className={`question-kind-chip kind-${kind}`} onClick={() => { setSelectedTypeKind(kind); setAllowedKinds([kind]); setPhase("typeLevels"); }}>
+              <Icon name={KIND_ICONS[kind]} size={20} /><span>{KIND_LABELS[kind]}</span><Icon name="arrow-left" size={16} />
+            </button>)}
+          </div>
         </SectionCard>
       </div>
     );
@@ -1167,7 +1152,7 @@ ${context}`;
             <h2>{KIND_LABELS[selectedTypeKind]} — ١٢ مستوى</h2>
             <p className="muted">اختبارات من نوع «{KIND_LABELS[selectedTypeKind]}» فقط. اجتز كل مستوى بالترتيب.</p>
           </div>
-          <button type="button" className="ghost-button" onClick={() => setPhase("menu")}>رجوع</button>
+          <button type="button" className="ghost-button" onClick={() => setPhase("specialTypes")}>رجوع</button>
         </div>
         <SectionCard title="مسار المستويات" subtitle={`أكملت ${clearedInScope} من ١٢ مستويًا في «${KIND_LABELS[selectedTypeKind]}»`}>
           <div className="level-path">
@@ -1222,7 +1207,7 @@ ${context}`;
             <h2>{activeLevel.id.toUpperCase()} — {activeLevel.name}</h2>
             <p className="muted">اختر الأجزاء والسور التي تريد أن تمتحن عليها.</p>
           </div>
-          <button type="button" className="ghost-button" onClick={() => setPhase(selectedTypeKind ? "typeLevels" : "menu")}>رجوع</button>
+          <button type="button" className="ghost-button" onClick={() => setPhase(selectedTypeKind ? "typeLevels" : "generalLevels")}>رجوع</button>
         </div>
 
         <div className="game-setup-grid">
@@ -1344,7 +1329,7 @@ ${context}`;
               </button>
             ) : null}
             <button type="button" className="ghost-button" onClick={restart}>إعادة المحاولة</button>
-            <button type="button" className="ghost-button" onClick={() => setPhase(selectedTypeKind ? "typeLevels" : "menu")}>القائمة</button>
+            <button type="button" className="ghost-button" onClick={() => setPhase(selectedTypeKind ? "typeLevels" : "generalLevels")}>القائمة</button>
           </div>
         </div>
       </div>
