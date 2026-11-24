@@ -40,10 +40,15 @@ function isValidAndroidRelease(meta: AndroidMetadata | null | undefined): meta i
   if (typeof meta.downloadUrl !== "string") return false;
   try {
     const url = new URL(meta.downloadUrl);
-    return url.protocol === "https:"
-      && url.hostname === "thimar.freebuff.page"
-      && url.pathname.startsWith("/assets/large/")
-      && url.pathname.split("/").pop() === meta.fileName;
+    if (url.protocol !== "https:") return false;
+    const lastSegment = url.pathname.split("/").pop();
+    if (lastSegment !== meta.fileName) return false;
+    // APKs are published as GitHub release assets (too large for the site).
+    const allowedHost =
+      url.hostname === "thimar.freebuff.page" ||
+      url.hostname === "github.com" ||
+      url.hostname.endsWith(".github.com");
+    return allowedHost;
   } catch {
     return false;
   }
