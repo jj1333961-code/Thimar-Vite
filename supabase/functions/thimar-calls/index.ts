@@ -2,7 +2,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 Deno.serve(async (request) => {
   // CORS preflight must explicitly allow the headers used by the web app and Android WebView.
-  const origin = request.headers.get("Origin") ?? "*";
   const headers = {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
