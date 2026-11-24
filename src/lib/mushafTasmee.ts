@@ -40,6 +40,8 @@ export type TasmeeSession = {
   maxErrors: number | null;
   reciterId: string;
   mistakes: { word: string; spoken?: string; surah: number; ayah: number; global: number }[];
+  /** UUID ثابت لمنع تكرار رفع الجلسة. */
+  syncId?: string;
 };
 
 const STORE_KEY = "thimar.mushafTasmee.v1";
@@ -89,7 +91,6 @@ export async function syncPendingTasmeeSessions(): Promise<void> {
   const deviceId = native?.deviceId?.();
   if (!deviceId) return;
   const pending = readPendingTasmeeSync();
-  if (!pending.length) return;
   tasmeeSyncRunning = true;
   try {
     for (const item of pending) {
