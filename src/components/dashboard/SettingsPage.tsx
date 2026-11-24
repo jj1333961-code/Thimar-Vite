@@ -808,7 +808,7 @@ export default function SettingsPage({
           { id: "appearance", label: "المظهر" },
           { id: "sounds", label: "الأذان" },
           { id: "downloads", label: "التحميل" },
-          { id: "updates", label: settings.language === "en" ? "Updates" : "التحديثات" },
+          ...(detectPlatform() !== "web" ? [{ id: "updates", label: settings.language === "en" ? "Updates" : "التحديثات" }] : []),
           ...(account.type === "admin" ? [{ id: "approvals", label: "الاعتماد والشكاوى" }] : []),
           { id: "users", label: "المستخدمين" },
           { id: "password", label: "تغير الرقم السري" },
@@ -1182,7 +1182,7 @@ export default function SettingsPage({
       </SectionCard>
       )}
 
-      {activeGroup === "updates" && (
+      {activeGroup === "updates" && detectPlatform() !== "web" && (
       <SectionCard title={settings.language === "en" ? "Updates" : "التحديثات"}>
         <div className="settings-grid">
           <div className="settings-inline-action">

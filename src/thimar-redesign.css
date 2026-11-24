@@ -99,8 +99,8 @@ body {
   box-shadow:0 -8px 28px rgba(24,35,28,.08);
   background:color-mix(in srgb,var(--card) 94%,transparent);
 }
-.nav-item { max-width:110px; min-height:48px; justify-content:center; gap:3px; font-size:10px; }
-.nav-item svg { width:19px; height:19px; }
+.nav-item { max-width:110px; min-height:52px; justify-content:center; gap:4px; font-size:11px; }
+.nav-item svg { width:21px; height:21px; }
 .nav-item.active {
   color:var(--primary); background:color-mix(in srgb,var(--primary) 11%,transparent);
 }
