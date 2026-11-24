@@ -13,8 +13,8 @@
   "assetManifestUrl": "https://thimar.freebuff.page/updates/web-manifest.json",
   "assetDownloadSize": 0,
   "fileName": "app-release.apk",
-  "fileSize": 282370295,
-  "sha256": "a27c545bc8e5b0561a261a1abbff6c5f234e8fbeefc6ad911c7c78172214dd6f",
+  "fileSize": 282369505,
+  "sha256": "68d5b5574336b970ba32a26e9c264ddd5c5668d55e6287742ead6089e7a5d3c0",
   "versionHistory": [
     {
       "versionName": "1.9.5",
