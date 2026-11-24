@@ -45,6 +45,7 @@ public class WebFallbackActivity extends Activity {
   private WebView webView;
   private ValueCallback<Uri[]> filePathCallback;
   private PushBridge pushBridge;
+  private ThimarAssetUpdater assetUpdater;
   private boolean pageLoaded = false;
   private ConnectivityManager connectivityManager;
   private ConnectivityManager.NetworkCallback networkCallback;
@@ -352,6 +353,9 @@ public class WebFallbackActivity extends Activity {
     webView.addJavascriptInterface(new AdhanBridge(this), "ThimarAdhan");
     /* جسر تحديث APK (window.ThimarUpdater) — تحديث أصلي آمن مع تحقق SHA-256. */
     webView.addJavascriptInterface(new ThimarUpdater(this), "ThimarUpdater");
+    /* جسر تحديث الموارد (window.ThimarAssetUpdater) — تحديث تفاضلي مستمر. */
+    assetUpdater = new ThimarAssetUpdater(this, webView);
+    webView.addJavascriptInterface(assetUpdater, "ThimarAssetUpdater");
     PushBridge.attach(webView, this);
 
     webView.loadUrl(APP_URL);
@@ -421,6 +425,21 @@ public class WebFallbackActivity extends Activity {
   }
 
   private WebResourceResponse openAsset(String assetPath) {
+    /* أصول محدثة في التخزين الدائم (لا تشمل نماذج التسميع المضمّنة). */
+    if (!assetPath.startsWith("offline/")) {
+      java.io.File updated = (assetUpdater != null) ? assetUpdater.resolveUpdatedFile(assetPath) : null;
+      if (updated != null) {
+        try {
+          java.io.FileInputStream fis = new java.io.FileInputStream(updated);
+          Map<String, String> headers = new HashMap<>();
+          headers.put("Cache-Control", "no-cache");
+          headers.put("X-Thimar-Updated-Asset", "1");
+          return new WebResourceResponse(mimeTypeOf(assetPath), null, 200, "OK", headers, fis);
+        } catch (Exception ignored) {
+          /* fallback to bundled asset */
+        }
+      }
+    }
     try {
       InputStream stream = getAssets().open(assetPath);
       Map<String, String> headers = new HashMap<>();

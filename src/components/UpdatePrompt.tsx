@@ -15,7 +15,9 @@ type AndroidMetadata = {
   versionName?: string;
   versionCode?: number;
   available?: boolean;
-  downloadUrl: string;
+  downloadUrl?: string;
+  assetOnly?: boolean;
+  apkRequired?: boolean;
   fileName?: string;
   fileSize?: number;
   sha256?: string;
@@ -190,6 +192,19 @@ export default function UpdatePrompt() {
         } catch {
           metadata = null;
         }
+        // تحديث الموارد (asset-only): لا تنزيل APK — استخدم محدّث Java (تفاضلي).
+        const assetOnly = metadata?.assetOnly === true || metadata?.apkRequired === false;
+        if (assetOnly) {
+          const updater = (window as any).ThimarAssetUpdater;
+          if (updater && typeof updater.update === "function") {
+            setStatus("جارٍ تحديث الموارد…");
+            try { updater.update(); } catch (e) { setStatus(`تعذّر بدء التحديث: ${String(e)}`); }
+          } else {
+            setStatus("محدّث الموارد غير متوفر على هذا الإصدار. يلزم تثبيت APK محدّث مرة واحدة.");
+          }
+          setBusy(false);
+          return;
+        }
         // Download the complete APK, not a separate/incremental resource patch.
         // Its bundled assets always belong to the same release as the installed binary.
         if (!isValidAndroidRelease(metadata)) {
@@ -209,7 +224,7 @@ export default function UpdatePrompt() {
           return;
         }
         setStatus("جارٍ تنزيل APK…");
-        window.location.assign(metadata.downloadUrl);
+        window.location.assign(metadata.downloadUrl!);
         setBusy(false);
         return;
       } else if (platform === "electron") {
