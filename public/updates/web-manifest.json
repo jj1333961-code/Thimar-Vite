@@ -3,7 +3,7 @@
   "versionName": "1.11.4",
   "versionCode": 26,
   "baseUrl": "/",
-  "generatedAt": "2026-11-24T05:45:39.523Z",
+  "generatedAt": "2026-11-24T05:57:55.547Z",
   "files": [
     {
       "path": "adhan/afasy-fajr.mp3",
@@ -66,24 +66,24 @@
       "sha256": "b4b3c75cfe65a93dd56ead63dae638fb84bdfb1ced5193c7b78431281c919513"
     },
     {
-      "path": "assets/Dashboard-Cr8fBhnx.js",
-      "bytes": 635480,
-      "sha256": "c2d955c922554c9f13936b57a0f98b85c082c6334c18ae57b4f8a836514d7b84"
+      "path": "assets/Dashboard-jZ5CdV-b.js",
+      "bytes": 650939,
+      "sha256": "e0932c67bcb81cb211c60f0b4f6998e0b73ccba7715bbf4ebb4ee6ebbe6f1126"
     },
     {
-      "path": "assets/esm-BevOfwuo.js",
+      "path": "assets/esm--WsLaLDt.js",
       "bytes": 895,
-      "sha256": "e3edd0011d42eeb25aa0f96de9cad4a8272ba33cecffd84a0317aacf9667cb92"
+      "sha256": "57ba8c4177d4beda72da2570f792d6ce8bb866ae18524eb353a589deb31382bf"
     },
     {
-      "path": "assets/index-DXb__i9h.css",
-      "bytes": 250670,
-      "sha256": "638eb3ed0ea55454afc815f90dae0d25b91c3df938ff3641b803bc8b1519c5a6"
+      "path": "assets/index-D-Sj3u37.js",
+      "bytes": 573987,
+      "sha256": "959900a4a9042002a0b768d511f940e3016490936b9bbb6f8eceb49b83bac15e"
     },
     {
-      "path": "assets/index-DYZLuRG6.js",
-      "bytes": 574953,
-      "sha256": "3f4207769b8ccb5ddf6d2545c9e1830e44e1b3c48ecced4cd1b369096d02d46d"
+      "path": "assets/index-hU91xvEo.css",
+      "bytes": 256737,
+      "sha256": "d19c5084a7bd04796927cb516e750b6d7bcf179a5eaac625bcc1a3536c96cf5c"
     },
     {
       "path": "assets/ort.bundle.min-B0peBxyq.js",
@@ -91,14 +91,14 @@
       "sha256": "02124e23f8e5bb503e638fdc84febbad20ef3ea89b83f5f1d2cd2a85ac9544a8"
     },
     {
-      "path": "assets/quranAsrSmall-hyMUgHaL.js",
+      "path": "assets/quranAsrSmall-i7tHK1Ng.js",
       "bytes": 8913,
-      "sha256": "0afb4929f4d7bf6e72d6cbc0463be7d1f60fc9f1fffe0fe9b7b5758bf27222cc"
+      "sha256": "70fb1d7ac00d2153665d654ce32ad6ec97b629afb4137f9678348fb0631967b7"
     },
     {
-      "path": "assets/tasmeeEngines-DlhNuVxL.js",
+      "path": "assets/tasmeeEngines-AUIb7ssw.js",
       "bytes": 13674,
-      "sha256": "8eb546999ce81cd75827cb736997ac0f916dbb614d74a50a9e61b2f45b296dd3"
+      "sha256": "26fa1a39f5085b6e0052eb910884f2f500e0ec1a102740d356cfd2f3de365b97"
     },
     {
       "path": "assets/tilawaRecitation-C882TdZZ.js",
@@ -106,9 +106,9 @@
       "sha256": "71d5dc6321853955d8ae7bcba1d2a9ac9c731eeff17468ae0f6e7a1e9497ee25"
     },
     {
-      "path": "assets/web-CtCxjrOM.js",
+      "path": "assets/web-D9owdZe0.js",
       "bytes": 4734,
-      "sha256": "facfd32bed73cee71508b03bceae40c1c3179109d95a84198f22339ebde03c42"
+      "sha256": "9065d8d6aedb112c42cfab7fe68e01d0f4aeea3acc498517c0508a50af2f1094"
     },
     {
       "path": "fonts/UthmanicHafs-v3.woff2",
@@ -168,7 +168,7 @@
     {
       "path": "index.html",
       "bytes": 3078,
-      "sha256": "6e4ad5b1ffd7afc11b8c28f5a63db5c0ffe9614efcd8f4117ab79009b6e8220a"
+      "sha256": "24227248728dc9aa7e91a31b0c8c9d83ff142b7021f91c578f753395210c3e8e"
     },
     {
       "path": "licenses/THIRD_PARTY_NOTICES.md",
@@ -512,8 +512,8 @@
     },
     {
       "path": "sw.js",
-      "bytes": 11217,
-      "sha256": "265ea1923ca9b75347921a2828be9c91b1f61fe468925579a9ef17af01fb7d3e"
+      "bytes": 11829,
+      "sha256": "39f6950a51778705242b2732d9c7435a8eb72e804ade1774a6dd7ac174001fcb"
     }
   ]
 }

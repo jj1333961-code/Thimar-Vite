@@ -60,8 +60,8 @@ test("old-version targeting by app_version_code", () => {
   const meta = readJson("public/updates/android.json");
   const rows = [
     { token: "t1", app_version_code: 20 },
-    { token: "t2", app_version_code: 25 },
-    { token: "t3", app_version_code: 26 },
+    { token: "t2", app_version_code: 23 },
+    { token: "t3", app_version_code: 24 },
     { token: "t4" }, // unknown -> conservative eligible
   ];
   const eligible = eligibleRows(rows, meta);
@@ -77,7 +77,7 @@ test("old-version targeting falls back to version history name", () => {
 
 test("equal or newer installed versions are excluded", () => {
   const meta = readJson("public/updates/android.json");
-  const rows = [{ token: "t1", app_version_code: 25 }, { token: "t2", app_version_code: 100 }];
+  const rows = [{ token: "t1", app_version_code: 26 }, { token: "t2", app_version_code: 100 }];
   const eligible = eligibleRows(rows, meta);
   assert.equal(eligible.length, 0);
 });
