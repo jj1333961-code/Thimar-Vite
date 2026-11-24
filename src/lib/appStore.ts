@@ -1115,26 +1115,33 @@ export function clearDemoData(): void {
 
 /* ---------------- دوال المحادثات ---------------- */
 
-export function sendChatMessage(conversationId: string, message: any): void {
+export function sendChatMessage(
+  conversationId: string,
+  message: any,
+  options: { silent?: boolean } = {},
+): void {
   const conversations = loadChats();
   const conv = conversations.find((c) => c.id === conversationId);
   if (!conv) return;
+  const messageId = String(message.id ?? `msg-${Math.random().toString(36).slice(2, 10)}`);
+  if (conv.messages.some((item) => item.id === messageId)) return;
   conv.messages.push({
-    id: `msg-${Math.random().toString(36).slice(2, 10)}`,
+    id: messageId,
     senderId: message.senderId,
     kind: message.kind || "text",
     text: message.text,
     audioUrl: message.audioUrl,
     duration: message.duration,
     fileName: message.fileName,
-    createdAt: Date.now(),
+    createdAt: Number(message.createdAt ?? Date.now()),
   });
   saveChats(conversations);
 
   // إشعار فوري على أجهزة بقية الأعضاء — يصل من الخادم حتى والتطبيق مغلق.
-  const recipients = conv.memberIds.filter(
-    (memberId) => memberId && memberId !== message.senderId,
-  );
+  // رسائل المكالمة تُحفظ بصمت لأن الطرفين داخل المكالمة أصلًا.
+  const recipients = options.silent
+    ? []
+    : conv.memberIds.filter((memberId) => memberId && memberId !== message.senderId);
   if (recipients.length) {
     const sender = loadAccounts().find((item) => item.id === message.senderId);
     const preview =

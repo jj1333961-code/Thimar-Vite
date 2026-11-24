@@ -16,7 +16,9 @@ export type CallSignal =
   | { kind: "answer"; from: string; callId: string; sdp: RTCSessionDescriptionInit }
   | { kind: "ice"; from: string; callId: string; candidate: RTCIceCandidateInit }
   | { kind: "hangup"; from: string; callId: string }
-  | { kind: "request-offer"; from: string; callId: string };
+  | { kind: "request-offer"; from: string; callId: string }
+  | { kind: "screen-share"; from: string; callId: string; active: boolean }
+  | { kind: "chat"; from: string; callId: string; id: string; text: string; at: number };
 
 export const ICE_SERVERS: RTCIceServer[] = [
   { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
