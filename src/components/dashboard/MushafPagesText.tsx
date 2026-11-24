@@ -239,7 +239,7 @@ export default function MushafPagesText({
     const availableWidth = stageEl.clientWidth;
     const availableHeight = stageEl.clientHeight;
     if (availableWidth < 40 || availableHeight < 40) return;
-    const pageWidth = Math.min(availableWidth, availableHeight * 0.707, 560);
+    const pageWidth = Math.min(availableWidth, availableHeight * 0.707, 720);
     const pageHeight = pageWidth / 0.707;
     pageEl.style.width = `${pageWidth}px`;
     pageEl.style.height = `${pageHeight}px`;
@@ -315,6 +315,8 @@ export default function MushafPagesText({
     const onResize = () => run();
     window.addEventListener("resize", onResize);
     window.addEventListener("orientationchange", onResize);
+    const visualViewport = window.visualViewport;
+    visualViewport?.addEventListener("resize", onResize);
     // ResizeObserver also catches WebView/container changes that do not emit a
     // window resize (for example safe-area and split-screen size changes).
     const stage = stageRef.current;
@@ -330,6 +332,7 @@ export default function MushafPagesText({
       window.clearTimeout(settle);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("orientationchange", onResize);
+      visualViewport?.removeEventListener("resize", onResize);
       resizeObserver?.disconnect();
     };
   }, [data, rows, page, fitPage]);
