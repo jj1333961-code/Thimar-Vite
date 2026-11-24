@@ -465,6 +465,12 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
   };
 
   useEffect(() => {
+    if (!screenSharing || !localVideoRef.current || !screenStreamRef.current) return;
+    localVideoRef.current.srcObject = screenStreamRef.current;
+    void localVideoRef.current.play().catch(() => undefined);
+  }, [screenSharing]);
+
+  useEffect(() => {
     if (!chatOpen || !conversationId) return;
     const refreshChat = () => {
       const conversation = loadChats().find((item) => item.id === conversationId);
