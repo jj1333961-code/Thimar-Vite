@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { gzipSync } from "node:zlib";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve as resolvePath } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -57,6 +58,29 @@ function excludeLegacyMushafPdf(): Plugin {
         if (existsSync(legacy)) rmSync(legacy, { force: true });
       } catch {
         /* لا يضرّ بقاء الملف */
+      }
+    },
+  };
+}
+
+/**
+ * حد الرفع في الاستضافة أقل من حجم بيانات التجويد (٣ م.ب)، فننتج نسخة مضغوطة
+ * gzip (~٣٧٠ ك.ب) يقرأها loadTajweed في المتصفح عبر DecompressionStream.
+ * التطبيق يبقى يستخدم الملف الكامل غير المضغوط المضمَّن.
+ */
+function tajweedGzipPlugin(): Plugin {
+  return {
+    name: "thimar-tajweed-gzip",
+    apply: "build",
+    closeBundle() {
+      try {
+        const source = resolvePath(process.cwd(), "public/quran/tajweed.json");
+        const outDir = resolvePath(process.cwd(), "dist/quran");
+        if (!existsSync(source)) return;
+        mkdirSync(outDir, { recursive: true });
+        writeFileSync(resolvePath(outDir, "tajweed.json.gz"), gzipSync(readFileSync(source), { level: 9 }));
+      } catch {
+        /* يبقى الملف الكامل متاحًا في التطبيق */
       }
     },
   };
@@ -384,6 +408,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       excludeLegacyMushafPdf(),
+      tajweedGzipPlugin(),
       aiProxyPlugin({ apiKey, base, model }),
       tafsirProxyPlugin(youtubeKey),
       naceProxyPlugin({ apiKey: naceKey, model: naceModel }),

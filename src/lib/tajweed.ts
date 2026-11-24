@@ -40,7 +40,21 @@ export function loadTajweed(): Promise<TajweedData> {
         const res = await fetch(`${base}quran/tajweed.json`);
         if (res.ok) return (await res.json()) as TajweedData;
       } catch { /* تجاهل */ }
-      // 2) ملفات مجزّأة (النشر — حد حجم الملف). نجلب حتى توقف JSON (وليس HTML).
+      // 1c) النسخة المضغوطة للنشر (حد الرفع في الاستضافة): فكّ gzip في المتصفح.
+      try {
+        const res = await fetch(`${base}quran/tajweed.json.gz`);
+        if (res.ok && typeof DecompressionStream !== "undefined") {
+          const buffer = await res.arrayBuffer();
+          const head = new Uint8Array(buffer.slice(0, 2));
+          if (head[0] === 0x1f && head[1] === 0x8b) {
+            const stream = new Blob([buffer])
+              .stream()
+              .pipeThrough(new DecompressionStream("gzip"));
+            return (await new Response(stream).json()) as TajweedData;
+          }
+        }
+      } catch { /* تجاهل */ }
+      // 2) ملفات مجزّأة (نسخ نشر قديمة). نجلب حتى توقف JSON (وليس HTML).
       const parts: TajweedData[] = [];
       for (let i = 0; i <= 50; i += 1) {
         const res = await fetch(`${base}quran/data${i}.json`);
