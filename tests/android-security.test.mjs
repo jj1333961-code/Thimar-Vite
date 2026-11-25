@@ -18,6 +18,8 @@ test("Android manifest excludes unnecessary special-access permissions", () => {
   assert.ok(manifest.includes("android.permission.SCHEDULE_EXACT_ALARM"));
   assert.ok(manifest.includes('android:allowBackup="false"'));
   assert.ok(manifest.includes('android:usesCleartextTraffic="false"'));
+  assert.ok(manifest.includes('android:name=".AdhanBootReceiver" android:exported="false"'));
+  assert.equal(manifest.includes("app.thimar.quran.OPEN_NOTIFICATION"), false);
 });
 
 test("prayer notification remains tappable without a full-screen intent", () => {
@@ -36,6 +38,8 @@ test("WebView trusts only the exact HTTPS Thimar origin", () => {
   assert.equal(activity.includes('startsWith("https://thimar.freebuff.page"'), false);
   assert.ok(activity.includes("WebSettings.MIXED_CONTENT_NEVER_ALLOW"));
   assert.ok(activity.includes("setAcceptThirdPartyCookies(webView, false)"));
+  assert.ok(activity.includes("settings.setAllowFileAccess(false)"));
+  assert.ok(activity.includes("settings.setAllowContentAccess(false)"));
 });
 
 test("WebView requires Android location permission and rejects untrusted origins", () => {
