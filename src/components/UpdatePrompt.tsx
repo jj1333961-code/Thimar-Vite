@@ -151,8 +151,8 @@ export default function UpdatePrompt() {
           const needsAssetUpdate = assetOnly && (currentResource === null || latestResource > currentResource);
           if ((current !== null && latest > current) || needsAssetUpdate) {
             setAvailableVersion(latest);
-            if (typeof meta.fileSize === "number") setAvailableSize(meta.fileSize);
-            else if (typeof meta.resourceSize === "number") setAvailableSize(meta.resourceSize);
+            const displaySize = assetOnly ? meta.resourceSize : meta.fileSize;
+            if (typeof displaySize === "number") setAvailableSize(displaySize);
             const sd =
               (meta as any)?.shortDescription ??
               (meta as any)?.releaseNotes?.ar?.shortDescription ??
@@ -213,7 +213,10 @@ export default function UpdatePrompt() {
           if (response.ok) {
             metadata = (await response.json()) as AndroidMetadata;
             if (metadata?.versionCode) setAvailableVersion(metadata.versionCode);
-            if (typeof metadata?.fileSize === "number") setAvailableSize(metadata.fileSize);
+            const displaySize = metadata?.assetOnly === true || metadata?.apkRequired === false
+              ? metadata?.resourceSize
+              : metadata?.fileSize;
+            if (typeof displaySize === "number") setAvailableSize(displaySize);
             const sd = (metadata as any)?.shortDescription;
             const note = (typeof sd === "string" ? sd : (sd?.ar || sd?.en || ""));
             if (note) setAvailableNotes(String(note));

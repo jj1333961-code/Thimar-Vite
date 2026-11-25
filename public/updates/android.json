@@ -78,5 +78,9 @@
     "ar": "تحديث موارد صغير: ضبط رقم الهاتف حسب الدولة وإشعار المسؤول بطلب المعلم، دون تنزيل APK كامل.",
     "en": "Small resource update: country-aware phone validation and admin teacher-application notifications, without a full APK download."
   },
-  "resourceSize": 4479936
+  "resourceSize": 4480018,
+  "fileName": "app-release.apk",
+  "fileSize": 282369502,
+  "sha256": "c6567bbb0bfe38633805498c7dcc059182651be0dfb7714d2f453b76ff969ef7",
+  "downloadUrl": "https://github.com/jj1333961-code/Thimar-Vite/releases/download/v1.11.5/app-release.apk"
 }

@@ -755,9 +755,9 @@ export default function SettingsPage({
           setUpdateVersion(String(metadata.versionName ?? metadata.versionCode));
           setUpdateReleaseNotes(metadata.releaseNotes ?? null);
           setUpdateFileSize(
-            typeof metadata.fileSize === "number" && metadata.fileSize > 0
-              ? metadata.fileSize
-              : (typeof metadata.resourceSize === "number" ? metadata.resourceSize : null),
+            assetOnly
+              ? (typeof metadata.resourceSize === "number" ? metadata.resourceSize : null)
+              : (typeof metadata.fileSize === "number" && metadata.fileSize > 0 ? metadata.fileSize : null),
           );
           setUpdateMessage(
             assetOnly
