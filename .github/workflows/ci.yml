@@ -26,6 +26,21 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
+      - name: Report dependency advisories without hiding the build result
+        run: |
+          npm audit --json > /tmp/thimar-npm-audit.json || true
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const report = JSON.parse(fs.readFileSync("/tmp/thimar-npm-audit.json", "utf8"));
+            console.log(JSON.stringify({
+              metadata: report.metadata?.vulnerabilities ?? {},
+              advisories: Object.entries(report.vulnerabilities ?? {}).map(([name, v]) => ({
+                name, severity: v.severity, isDirect: v.isDirect,
+                range: v.range, fixAvailable: v.fixAvailable,
+                via: v.via.map(x => typeof x === "string" ? x : { title: x.title, url: x.url, range: x.range })
+              }))
+            }, null, 2));
+          '
       - name: Test remembered-device opt-in
         run: npm run test:remember-device
       - name: Test Android security regressions
