@@ -15,7 +15,8 @@
     "test:offline-integrity": "node --test tests/offline-package.test.mjs tests/offline-packages.test.mjs tests/tilawa-integrity.test.mjs",
     "test:release-targeting": "node --test tests/release-targeting.test.mjs tests/metadata-display.test.mjs",
     "test:admin-diagnostics": "node --test tests/admin-diagnostics.test.mjs",
-    "test:android-security": "node --test tests/android-security.test.mjs"
+    "test:android-security": "node --test tests/android-security.test.mjs",
+    "build:quran-search-index": "node scripts/build-quran-search-index.mjs"
   },
   "dependencies": {
     "@capacitor/cli": "^8.6.2",
