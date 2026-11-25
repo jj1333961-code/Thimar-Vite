@@ -50,3 +50,21 @@ test("WebView requires Android location permission and rejects untrusted origins
   assert.ok(activity.includes("callback.invoke(origin, true, false)"));
   assert.ok(activity.includes("callback.invoke(origin, false, false)"));
 });
+
+
+test("native APK updater preserves partial bytes and validates HTTP range before appending", () => {
+  const updater = read("../packaging/android/app/src/main/java/app/thimar/quran/ThimarUpdater.java");
+  assert.ok(updater.includes("getFilesDir()"));
+  assert.ok(updater.includes("Range"));
+  assert.ok(updater.includes("If-Range"));
+  assert.ok(updater.includes("Content-Range"));
+  assert.ok(updater.includes("SHA-256"));
+  assert.ok(updater.includes("NET_CAPABILITY_VALIDATED"));
+  assert.ok(updater.includes("part.renameTo(apk)"));
+  assert.ok(updater.includes("pending-updates"));
+});
+
+test("Android alarm receiver imports Build API used by version guards", () => {
+  const receiver = read("../packaging/android/app/src/main/java/app/thimar/quran/AdhanAlarmReceiver.java");
+  assert.ok(receiver.includes("import android.os.Build;"));
+});
