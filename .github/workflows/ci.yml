@@ -28,6 +28,8 @@ jobs:
         run: npm ci
       - name: Test remembered-device opt-in
         run: npm run test:remember-device
+      - name: Test Android security regressions
+        run: npm run test:android-security
       - name: Test Quran resource cache refresh and offline fallback
         run: npm run test:offline-cache
       - name: Test offline package and integrity checks
