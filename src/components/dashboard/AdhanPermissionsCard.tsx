@@ -106,13 +106,6 @@ export default function AdhanPermissionsCard({ imageUrls, audioUrls, defaultAudi
       why: "يمنع تأجيل المنبه أو إيقاف الصوت عند توفير الطاقة. موصى به بشدة.",
       ok: permissions.batteryUnrestricted === true,
     },
-    {
-      key: "overlay",
-      title: "الظهور فوق التطبيقات",
-      why: "يجعل فتح شاشة الصلاة من الخلفية أكثر موثوقية على أندرويد 10+. اختياري لكنه يرفع نسبة نجاح العرض التلقائي.",
-      ok: permissions.overlay === true,
-      optional: true,
-    },
   ];
 
   const request = (key: string) => {
