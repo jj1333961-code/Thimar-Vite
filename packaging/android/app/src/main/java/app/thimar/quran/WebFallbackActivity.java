@@ -41,6 +41,9 @@ public class WebFallbackActivity extends Activity {
   private static final String APP_URL = "https://" + APP_HOST + "/";
   private static final int FILE_CHOOSER_REQUEST = 1001;
   private static final int REQUEST_MEDIA_PERMISSIONS = 1002;
+  private static final int REQUEST_LOCATION_PERMISSION = 1003;
+  private android.webkit.GeolocationPermissions.Callback pendingGeoCallback;
+  private String pendingGeoOrigin;
   private PermissionRequest pendingPermissionRequest;
   private String[] pendingAllowedResources;
   private WebView webView;
@@ -324,13 +327,26 @@ public class WebFallbackActivity extends Activity {
         } catch (Exception ignored) {
           // Invalid origin must never receive location.
         }
+        if (!trusted) {
+          callback.invoke(origin, false, false);
+          return;
+        }
         boolean locationGranted =
             checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
                 == android.content.pm.PackageManager.PERMISSION_GRANTED
             || checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION)
                 == android.content.pm.PackageManager.PERMISSION_GRANTED;
-        // Do not silently grant geolocation to arbitrary origins or before Android permission.
-        callback.invoke(origin, trusted && locationGranted, false);
+        if (locationGranted) {
+          callback.invoke(origin, true, false);
+          return;
+        }
+        // Ask Android only in response to an actual geolocation request from Thimar.
+        pendingGeoCallback = callback;
+        pendingGeoOrigin = origin;
+        requestPermissions(new String[] {
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION
+        }, REQUEST_LOCATION_PERMISSION);
       }
 
       @Override
@@ -402,6 +418,19 @@ public class WebFallbackActivity extends Activity {
       boolean granted = grantResults.length > 0
           && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED;
       PushBridge.handlePermissionResult(this, requestCode, granted);
+      return;
+    }
+    if (requestCode == REQUEST_LOCATION_PERMISSION) {
+      boolean granted =
+          checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
+              == android.content.pm.PackageManager.PERMISSION_GRANTED
+          || checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+              == android.content.pm.PackageManager.PERMISSION_GRANTED;
+      if (pendingGeoCallback != null) {
+        pendingGeoCallback.invoke(pendingGeoOrigin, granted, false);
+        pendingGeoCallback = null;
+        pendingGeoOrigin = null;
+      }
       return;
     }
     if (requestCode == REQUEST_MEDIA_PERMISSIONS) {
@@ -706,6 +735,11 @@ public class WebFallbackActivity extends Activity {
 
   @Override
   protected void onDestroy() {
+    if (pendingGeoCallback != null) {
+      pendingGeoCallback.invoke(pendingGeoOrigin, false, false);
+      pendingGeoCallback = null;
+      pendingGeoOrigin = null;
+    }
     unregisterConnectivityCallback();
     PushBridge.detach();
     if (webView != null) {
