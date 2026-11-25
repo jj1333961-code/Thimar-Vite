@@ -19,7 +19,6 @@ export type AdhanPermissionState = {
   fullScreenIntent?: boolean;
   exactAlarms?: boolean;
   batteryUnrestricted?: boolean;
-  overlay?: boolean;
   android?: number;
 };
 
