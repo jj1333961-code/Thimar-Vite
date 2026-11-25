@@ -10,7 +10,6 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Build;
 import android.os.PowerManager;
-import android.provider.Settings;
 import androidx.core.app.NotificationCompat;
 import java.io.File;
 import java.io.FileInputStream;
@@ -134,20 +133,10 @@ public class AdhanAlarmReceiver extends BroadcastReceiver {
     }
 
     /*
-     * أندرويد يمنع فتح الأنشطة من الخلفية منذ 10، باستثناء التطبيقات التي
-     * تملك إذن «الظهور فوق التطبيقات» وأذونات ملء الشاشة. نحاول الفتح المباشر
-     * عندما يكون مسموحًا (بالإضافة إلى إشعار ملء الشاشة) لزيادة الموثوقية.
+     * لا نطلب SYSTEM_ALERT_WINDOW ولا نحاول تجاوز قيود تشغيل الأنشطة من الخلفية.
+     * يعتمد العرض التلقائي على Full-screen notification عندما يسمح أندرويد،
+     * وإلا يبقى إشعار وقت الصلاة قابلًا للضغط لفتح شاشة الصلاة.
      */
-    boolean directAllowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
-        || hasOverlayPermission(context);
-    if (screen && directAllowed) {
-      try {
-        context.startActivity(screenIntent);
-        LaunchLog.add(context, "شاشة الصلاة: فتح مباشر من المستقبل");
-      } catch (Exception error) {
-        LaunchLog.add(context, "شاشة الصلاة: تعذّر الفتح المباشر — " + error.getMessage());
-      }
-    }
 
     boolean posted = false;
     if (!NotificationHelper.canPost(context)) {
@@ -205,15 +194,6 @@ public class AdhanAlarmReceiver extends BroadcastReceiver {
       AdhanAssets.syncAsync(context);
     } catch (Exception ignored) {
       // الملفات الحالية كافية.
-    }
-  }
-
-  private static boolean hasOverlayPermission(Context context) {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true;
-    try {
-      return Settings.canDrawOverlays(context);
-    } catch (Exception ignored) {
-      return false;
     }
   }
 
