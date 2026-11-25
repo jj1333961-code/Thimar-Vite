@@ -8,7 +8,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.os.Build;
 import android.os.PowerManager;
 import androidx.core.app.NotificationCompat;
 import java.io.File;
@@ -119,17 +118,8 @@ public class AdhanAlarmReceiver extends BroadcastReceiver {
       builder.setStyle(new NotificationCompat.BigTextStyle().bigText(details));
     }
     if (screen) {
-      /* ملء الشاشة: يعمل على شاشة القفل ويعود إلى إشعار عادي عند عدم توفّر الإذن. */
-      builder.setFullScreenIntent(screenPi, true)
-          .addAction(0, "عرض شاشة الصلاة", actionPi);
-      if (Build.VERSION.SDK_INT >= 34) {
-        NotificationManager permissionCheck =
-            (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        if (permissionCheck != null && !permissionCheck.canUseFullScreenIntent()) {
-          LaunchLog.add(context,
-              "شاشة الصلاة: إذن ملء الشاشة غير ممنوح — يظهر إشعار بالصورة ويمكن فتح الشاشة بالضغط");
-        }
-      }
+      // لا نطلب صلاحية ملء الشاشة الخاصة؛ يبقى الإشعار واضحًا وقابلًا للضغط لفتح شاشة الصلاة.
+      builder.addAction(0, "عرض شاشة الصلاة", actionPi);
     }
 
     /*
