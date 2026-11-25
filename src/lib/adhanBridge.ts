@@ -16,9 +16,7 @@ type NativeAdhan = {
 
 export type AdhanPermissionState = {
   notifications?: boolean;
-  fullScreenIntent?: boolean;
   exactAlarms?: boolean;
-  batteryUnrestricted?: boolean;
   android?: number;
 };
 
