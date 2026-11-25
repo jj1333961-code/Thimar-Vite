@@ -26,6 +26,7 @@ required=(
   "dist/quran/pages.json"
   "dist/quran/hafs/text.json.gz"
   "dist/quran/tajweed.json"
+  "dist/quran/search-index.json"
 )
 for rel in "${required[@]}"; do
   [ -f "$ROOT/$rel" ] || fail "بناء الواجهة ناقص: $rel"
@@ -55,14 +56,13 @@ PY
   rm -f "$WWW/quran/hafs/text.json.gz"
   echo "quran/hafs: فُكّ الضغط إلى text.json ($(stat -c%s "$WWW/quran/hafs/text.json") بايت)"
 fi
-# إن وُجد ملف PDF القرآني الأصلي في public/quran فسيُضمَّن كما هو بلا أي تعديل.
-for pdf in quran.pdf mushaf.pdf; do
-  if [ -f "$ROOT/public/quran/$pdf" ]; then
-    mkdir -p "$WWW/quran"
-    cp "$ROOT/public/quran/$pdf" "$WWW/quran/$pdf"
-    echo "PDF مضاف: $pdf ($(stat -c%s "$ROOT/public/quran/$pdf") بايت)"
-  fi
-done
+# aapt2 يعامل tajweed.json.gz كأنه tajweed.json (يفكّ ضغط .gz)، فوجودهما معًا
+# يُفشل mergeDebugAssets بـ«Duplicate resources». الواجهة تفضّل .json أصلًا،
+# لذا نُبقي .json ونحذف النسخة المضغوطة من الحزمة فقط.
+rm -f "$WWW/quran/tajweed.json.gz"
+
+# لا تُضمَّن ملفات PDF قديمة غير مستخدمة: نسخة المصحف المعتمدة نصية ومضمَّنة
+# أصلًا (pages.json + hafs + lines + tajweed)، وحجم PDF يقارب ٢٠٩ م.ب بلا فائدة.
 
 # أصول Gradle المدمجة تُحذف قبل البناء: بدون ذلك يعيد mergeReleaseAssets استخدام
 # نسخة قديمة ويخرج APK لا يطابق dist/.

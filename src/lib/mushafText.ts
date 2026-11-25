@@ -10,7 +10,6 @@
  * الآية التي تحتويها بدقة، بلا مستطيلات تقريبية ولا آيات مجاورة.
  */
 
-import { cachedFetch } from "./offlineCache";
 import { loadTajweed, tajweedText, TOTAL_PAGES } from "./tajweed";
 
 export type HafsAyah = {
@@ -39,7 +38,8 @@ export function ayahKey(surah: number, ayah: number): string {
 /** فهرس الصفحات كاملًا (٦٠٤ صفحة). */
 export function loadHafsPages(): Promise<Row[][]> {
   if (!rowsPromise) {
-    rowsPromise = cachedFetch(`${BASE}pages.json`)
+    /* الملف مضمَّن مع التطبيق/الموقع — لا نعيد تنزيله من الشبكة في كل فتح. */
+    rowsPromise = fetch(`${BASE}pages.json`, { cache: "force-cache" })
       .then((response) => {
         if (!response.ok) throw new Error("pages unavailable");
         return response.json() as Promise<{ pages?: Row[][] }>;
@@ -93,12 +93,12 @@ async function gunzipText(response: Response): Promise<string> {
  * تنجح محليًا بلا أي طلب شبكة؛ وعلى الويب تفشل ويردّ .gz المضغوط.
  */
 async function readHafsText(): Promise<string> {
-  const plain = await fetch(`${BASE}hafs/text.json`, { cache: "no-store" }).catch(() => null);
+  const plain = await fetch(`${BASE}hafs/text.json`, { cache: "force-cache" }).catch(() => null);
   if (plain && plain.ok) {
     const body = await plain.text();
     if (body.trimStart().startsWith("{")) return body;
   }
-  const response = await cachedFetch(`${BASE}hafs/text.json.gz`);
+  const response = await fetch(`${BASE}hafs/text.json.gz`, { cache: "force-cache" });
   if (!response.ok) throw new Error("text unavailable");
   return gunzipText(response);
 }

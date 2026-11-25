@@ -40,11 +40,21 @@ public class ThimarMessagingService extends FirebaseMessagingService {
         data.get("body"),
         shown != null ? shown.getBody() : null,
         "");
+    if (!PushBridge.messagePreviewEnabled()) body = "رسالة جديدة";
     String url = firstNonEmpty(data.get("url"), "/");
     String tag = firstNonEmpty(data.get("tag"), "thimar");
 
     if (title.isEmpty() && body.isEmpty()) {
       LaunchLog.add(this, "وصلت رسالة FCM بلا محتوى — تم تجاهلها");
+      return;
+    }
+
+    // تجنّب إشعار غير ضروري عندما يكون المستخدم يشاهد نفس المحادثة فعلاً.
+    String activeConversation = PushBridge.activeConversation();
+    String conversationId = extractConversationId(url);
+    if (activeConversation != null && !activeConversation.isEmpty()
+        && conversationId != null && conversationId.equals(activeConversation)) {
+      PushBridge.dispatch("pushReceived", messageEvent(title, body, url, tag));
       return;
     }
 
@@ -74,6 +84,26 @@ public class ThimarMessagingService extends FirebaseMessagingService {
       return payload.toString();
     } catch (Exception error) {
       return "{}";
+    }
+  }
+
+  private static String extractConversationId(String url) {
+    if (url == null) return null;
+    try {
+      android.net.Uri uri = android.net.Uri.parse(url);
+      String value = uri.getQueryParameter("c");
+      if (value == null || value.trim().isEmpty()) {
+        // fallback for paths like /messages?c=...
+        int index = url.indexOf("c=");
+        if (index >= 0) {
+          String tail = url.substring(index + 2);
+          int end = tail.indexOf('&');
+          value = end >= 0 ? tail.substring(0, end) : tail;
+        }
+      }
+      return value == null ? null : value.trim();
+    } catch (Exception ignored) {
+      return null;
     }
   }
 

@@ -1,5 +1,5 @@
 import { surahs } from "../data/surahs";
-import { loadTajweed, tajweedText } from "./tajweed";
+import { loadHafsPages, loadHafsText } from "./mushafText";
 
 /** معلومات سريعة عن كل آية: صفحتها في المصحف وسورتها ورقمها داخل السورة. */
 export type AyahInfo = {
@@ -16,23 +16,26 @@ export function surahNameOf(number: number): string {
   return SURAH_NAMES[number - 1] ?? `سورة ${number}`;
 }
 
-type Row = [number, number, number, number];
-
 let indexPromise: Promise<Map<number, AyahInfo>> | null = null;
 
-/** يبني فهرس الآيات من ملف المصحف المحلي (يعمل دون إنترنت). */
+/**
+ * يبني فهرس الآيات من ملفات المصحف المحلية (pages.json + نص حفص).
+ * لا يقرأ ملف التجويد الكبير (٣ م.ب) لأن الفهرس يحتاج النص فقط، فيسرع فتح القرآن.
+ */
 export function loadQuranIndex(): Promise<Map<number, AyahInfo>> {
   if (!indexPromise) {
-    indexPromise = Promise.all([
-      fetch("/quran/pages.json").then((response) => (response.ok ? response.json() : Promise.reject(new Error("no quran data")))),
-      loadTajweed().catch(() => null),
-    ])
-      .then(([payload, tajweed]: [{ pages?: Row[][] }, Awaited<ReturnType<typeof loadTajweed>> | null]) => {
+    indexPromise = Promise.all([loadHafsPages(), loadHafsText()])
+      .then(([pages, texts]) => {
         const map = new Map<number, AyahInfo>();
-        (payload.pages ?? []).forEach((rows, pageIndex) => {
+        pages.forEach((rows, pageIndex) => {
           rows.forEach(([surah, ayah, number, juz]) => {
-            const encoded = tajweed?.verses[`${surah}:${ayah}`] ?? "";
-            map.set(number, { page: pageIndex + 1, surah, ayah, juz, text: tajweedText(encoded) });
+            map.set(number, {
+              page: pageIndex + 1,
+              surah,
+              ayah,
+              juz,
+              text: texts[`${surah}:${ayah}`] ?? "",
+            });
           });
         });
         return map;

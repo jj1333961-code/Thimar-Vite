@@ -1,15 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  شاشة وقت الصلاة — تصميم إسلامي كامل الشاشة.
+  تعتمد على أوزان مرنة (layout_weight) وأبعاد في dimens.xml لتعمل على مختلف
+  أحجام الشاشات، مع تمرير احتياطي للشاشات القصيرة جدًا.
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:id="@+id/adhan_root"
   android:layout_width="match_parent"
   android:layout_height="match_parent"
-  android:background="@android:color/black"
-  android:keepScreenOn="true">
+  android:background="@color/adhan_ink"
+  android:keepScreenOn="true"
+  android:layoutDirection="rtl">
 
   <ImageView
-    android:id="@+id/adhan_background"
+    android:id="@+id/adhan_backdrop"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:alpha="0.38"
     android:importantForAccessibility="no"
     android:scaleType="centerCrop" />
 
@@ -18,78 +25,219 @@
     android:layout_height="match_parent"
     android:background="@drawable/adhan_scrim" />
 
-  <LinearLayout
+  <ScrollView
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:gravity="center"
-    android:orientation="vertical"
-    android:paddingLeft="28dp"
-    android:paddingRight="28dp">
+    android:fillViewport="true"
+    android:scrollbars="none">
 
-    <ImageView
-      android:id="@+id/adhan_logo"
-      android:layout_width="96dp"
-      android:layout_height="96dp"
-      android:contentDescription="@string/app_name"
-      android:src="@mipmap/ic_launcher" />
-
-    <TextView
-      android:id="@+id/adhan_app_name"
-      android:layout_width="wrap_content"
+    <LinearLayout
+      android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:layout_marginTop="12dp"
-      android:fontFamily="sans-serif-medium"
-      android:letterSpacing="0.08"
-      android:text="@string/app_name"
-      android:textColor="#FFFFFF"
-      android:textSize="20sp" />
+      android:gravity="center_horizontal"
+      android:minHeight="560dp"
+      android:orientation="vertical"
+      android:padding="@dimen/adhan_page_padding">
 
-    <TextView
-      android:id="@+id/adhan_prayer"
-      android:layout_width="wrap_content"
-      android:layout_height="wrap_content"
-      android:layout_marginTop="28dp"
-      android:fontFamily="sans-serif-medium"
-      android:gravity="center"
-      android:textColor="#FFFFFF"
-      android:textSize="34sp" />
+      <!-- الترويسة: الشعار واسم التطبيق وزر الإغلاق -->
+      <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
-    <TextView
-      android:id="@+id/adhan_time"
-      android:layout_width="wrap_content"
-      android:layout_height="wrap_content"
-      android:layout_marginTop="10dp"
-      android:fontFamily="sans-serif"
-      android:textColor="#F4E6C3"
-      android:textDirection="ltr"
-      android:textSize="44sp" />
+        <ImageView
+          android:id="@+id/adhan_logo"
+          android:layout_width="@dimen/adhan_logo_size"
+          android:layout_height="@dimen/adhan_logo_size"
+          android:contentDescription="@string/app_name"
+          android:src="@mipmap/ic_launcher" />
 
-    <TextView
-      android:id="@+id/adhan_date"
-      android:layout_width="wrap_content"
-      android:layout_height="wrap_content"
-      android:layout_marginTop="14dp"
-      android:gravity="center"
-      android:textColor="#E8E2D4"
-      android:textSize="16sp" />
+        <LinearLayout
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_marginStart="10dp"
+          android:layout_weight="1"
+          android:orientation="vertical">
 
-    <TextView
-      android:id="@+id/adhan_hijri"
-      android:layout_width="wrap_content"
-      android:layout_height="wrap_content"
-      android:layout_marginTop="4dp"
-      android:gravity="center"
-      android:textColor="#CFC7B6"
-      android:textSize="14sp" />
-  </LinearLayout>
+          <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.14"
+            android:text="@string/app_name"
+            android:textColor="@color/adhan_gold"
+            android:textSize="17sp" />
 
-  <TextView
-    android:id="@+id/adhan_hint"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:layout_gravity="bottom|center_horizontal"
-    android:layout_marginBottom="36dp"
-    android:text="@string/adhan_dismiss_hint"
-    android:textColor="#B3FFFFFF"
-    android:textSize="13sp" />
+          <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/adhan_screen_label"
+            android:textColor="@color/adhan_cream_muted"
+            android:textSize="11sp" />
+        </LinearLayout>
+
+        <ImageButton
+          android:id="@+id/adhan_close"
+          android:layout_width="@dimen/adhan_close_size"
+          android:layout_height="@dimen/adhan_close_size"
+          android:background="@drawable/adhan_circle_button"
+          android:contentDescription="@string/adhan_close"
+          android:padding="12dp"
+          android:src="@drawable/ic_adhan_close"
+          android:tint="@color/adhan_cream" />
+      </LinearLayout>
+
+      <!-- لوحة الصورة: تحفظ نسبة العمل الفني على كل الشاشات -->
+      <FrameLayout
+        android:id="@+id/adhan_art_frame"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="14dp"
+        android:layout_weight="1"
+        android:background="@drawable/adhan_art_frame"
+        android:clipToOutline="true"
+        android:minHeight="@dimen/adhan_art_min_height">
+
+        <ImageView
+          android:id="@+id/adhan_background"
+          android:layout_width="match_parent"
+          android:layout_height="match_parent"
+          android:importantForAccessibility="no"
+          android:scaleType="fitCenter" />
+      </FrameLayout>
+
+      <!-- معلومات الصلاة -->
+      <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <ImageView
+          android:layout_width="132dp"
+          android:layout_height="14dp"
+          android:importantForAccessibility="no"
+          android:src="@drawable/adhan_ornament" />
+
+        <TextView
+          android:id="@+id/adhan_prayer"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="6dp"
+          android:fontFamily="serif"
+          android:gravity="center"
+          android:textColor="@color/adhan_gold"
+          android:textSize="@dimen/adhan_prayer_size" />
+
+        <TextView
+          android:id="@+id/adhan_time"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:fontFamily="sans-serif-light"
+          android:letterSpacing="0.06"
+          android:textColor="@color/adhan_cream"
+          android:textDirection="ltr"
+          android:textSize="@dimen/adhan_time_size" />
+
+        <TextView
+          android:id="@+id/adhan_date"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:gravity="center"
+          android:textColor="@color/adhan_cream_muted"
+          android:textSize="13sp" />
+
+        <TextView
+          android:id="@+id/adhan_hijri"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="2dp"
+          android:gravity="center"
+          android:textColor="@color/adhan_gold_muted"
+          android:textSize="12sp" />
+
+        <TextView
+          android:id="@+id/adhan_phrase"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="8dp"
+          android:gravity="center"
+          android:lineSpacingExtra="3dp"
+          android:maxLines="3"
+          android:textColor="@color/adhan_cream_soft"
+          android:textSize="@dimen/adhan_phrase_size" />
+      </LinearLayout>
+
+      <!-- أدوات التحكم بالصوت والإغلاق -->
+      <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageButton
+          android:id="@+id/adhan_toggle"
+          android:layout_width="@dimen/adhan_control_size"
+          android:layout_height="@dimen/adhan_control_size"
+          android:background="@drawable/adhan_gold_button"
+          android:contentDescription="@string/adhan_pause"
+          android:padding="16dp"
+          android:src="@drawable/ic_adhan_pause"
+          android:tint="@color/adhan_ink" />
+
+        <LinearLayout
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_marginStart="14dp"
+          android:layout_marginEnd="12dp"
+          android:layout_weight="1"
+          android:orientation="vertical">
+
+          <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/adhan_volume"
+            android:textColor="@color/adhan_cream_muted"
+            android:textSize="11sp" />
+
+          <SeekBar
+            android:id="@+id/adhan_volume"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100"
+            android:paddingStart="0dp"
+            android:paddingEnd="0dp"
+            android:progress="90"
+            android:progressTint="@color/adhan_gold"
+            android:thumbTint="@color/adhan_gold" />
+        </LinearLayout>
+
+        <Button
+          android:id="@+id/adhan_stop"
+          android:layout_width="wrap_content"
+          android:layout_height="48dp"
+          android:backgroundTint="@color/adhan_stop"
+          android:minWidth="0dp"
+          android:paddingStart="18dp"
+          android:paddingEnd="18dp"
+          android:text="@string/adhan_stop"
+          android:textAllCaps="false"
+          android:textColor="@color/adhan_cream"
+          android:textSize="14sp" />
+      </LinearLayout>
+
+      <TextView
+        android:id="@+id/adhan_hint"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:gravity="center"
+        android:text="@string/adhan_dismiss_hint"
+        android:textColor="@color/adhan_cream_faint"
+        android:textSize="11sp" />
+    </LinearLayout>
+  </ScrollView>
 </FrameLayout>

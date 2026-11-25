@@ -145,12 +145,22 @@ final class TokenSync {
           }
           LaunchLog.add(app, "ربط رمز الإشعارات (secure) فشل: HTTP " + status);
         } catch (Exception ignored) {
-          /* do not fall back to the insecure RPC */
+          /* نكمل بالمسار البديل أدناه */
         }
         return;
       }
-      // No device authorization is available; do not use the legacy RPC.
-      LaunchLog.add(app, "لا يوجد تفويض جهاز آمن؛ تم تخطي الربط.");
+      // Fallback for devices without a stored device secret (e.g. auto-login):
+      // bind using the legacy RPC so message notifications still work.
+      try {
+        status = post(app, "thimar_bind_fcm_token", payload.toString());
+        if (status >= 200 && status < 300) {
+          LaunchLog.add(app, "ربط رمز الإشعارات بالحساب (legacy): HTTP " + status);
+          return;
+        }
+        LaunchLog.add(app, "ربط رمز الإشعارات (legacy) فشل: HTTP " + status);
+      } catch (Exception ignored) {
+        /* ignore */
+      }
     }, "thimar-fcm-bind").start();
   }
 

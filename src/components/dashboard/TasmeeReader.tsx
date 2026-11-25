@@ -1204,6 +1204,11 @@ export default function TasmeeReader({
             ))}
           </select>
         </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "8px 0", justifyContent: "center" }}>
+          <span>سرعة النطق</span>
+          <input type="range" min={0.5} max={2} step={0.05} value={playbackSpeed} onChange={(e) => setPlaybackSpeed(Number(e.target.value))} />
+          <span className="muted" style={{ fontSize: 12 }}>{playbackSpeed.toFixed(2)}×</span>
+        </div>
         <div className="tasmee-reciting-container" style={{ marginTop: 12 }}>
           {selectedAyahs.filter((ayah) => {
             const text = ayah.numberInSurah === 1 && ayah.surah !== 1 && ayah.surah !== 9 ? stripBismillah(ayah.text) : ayah.text;
@@ -1255,20 +1260,14 @@ export default function TasmeeReader({
                       {!before && !after ? <span className="muted">—</span> : null}
                       <button type="button" className="icon-button" onClick={() => {
                         const total = words.length || 1;
-                        const from = Math.max(0, idx - 1);
-                        const count = Math.min(total, idx + 2) - from;
-                        playWordSlice(e.globalAyah, from, total, count);
-                      }} aria-label="سماع الكلمة مع ما قبلها وما بعدها" title="سماع الكلمة مع التي قبلها والتي بعدها">
+                        playWordSlice(e.globalAyah, idx, total, 2);
+                      }} aria-label="سماع الكلمة مع التي تليها" title="سماع الكلمة مع التي تليها">
                         <Icon name="volume" size={14} />
                       </button>
                     </div>
                   </div>
                   {e.spoken ? <p className="muted" style={{ margin: "6px 0 0", fontSize: 13 }}>سمعت: «{e.spoken}»</p> : null}
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
-                    <span className="muted" style={{ fontSize: 12 }}>سرعة القارئ</span>
-                    <select value={playbackSpeed} onChange={(ev) => setPlaybackSpeed(Number(ev.target.value))} style={{ padding: "2px 6px", borderRadius: 6, fontSize: 12 }}>
-                      {[0.5, 0.75, 1, 1.25, 1.5, 2].map((s) => <option key={s} value={s}>{s}×</option>)}
-                    </select>
                     <button type="button" className="ghost-button" onClick={() => playAyahAudio(e.globalAyah)} style={{ fontSize: 12 }}>
                       الآية كاملة
                     </button>

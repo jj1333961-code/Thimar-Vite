@@ -18,13 +18,17 @@ function formatSize(bytes: number): string {
 /** بطاقة تحميل المصحف النصي كاملًا لتعمل القراءة دون إنترنت. */
 export default function MushafOfflineCard() {
   const [cached, setCached] = useState(0);
+  const [bundled, setBundled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(0);
   const [message, setMessage] = useState("");
   const stopRef = useRef(false);
 
   const refresh = () => {
-    void mushafOfflineStatus().then((status) => setCached(status.cached));
+    void mushafOfflineStatus().then((status) => {
+      setCached(status.cached);
+      setBundled(status.bundled);
+    });
   };
 
   useEffect(() => {
@@ -35,6 +39,7 @@ export default function MushafOfflineCard() {
   }, []);
 
   const start = async () => {
+    if (bundled) return;
     setBusy(true);
     setMessage("");
     stopRef.current = false;
@@ -72,48 +77,21 @@ export default function MushafOfflineCard() {
     setMessage("حُذفت صفحات المصحف من الجهاز.");
   };
 
-  /* تحميل تلقائي لمرة واحدة عند توفر الإنترنت، حتى لا يضطر المستخدم إلى طلبه. */
-  const autoStarted = useRef(false);
-  useEffect(() => {
-    if (autoStarted.current) return;
-    autoStarted.current = true;
-    let key = "";
-    try {
-      key = localStorage.getItem(AUTO_DOWNLOAD_KEY) ?? "";
-    } catch {
-      key = "";
-    }
-    // "running" قد تكون بقايا جلسة أُغلقت أو تعطلت؛ اسمح بمحاولة جديدة بدل قفل التحميل للأبد.
-    if (key === "done") return;
-    if (cached >= MUSHAF_TOTAL_PAGES) {
-      try {
-        localStorage.setItem(AUTO_DOWNLOAD_KEY, "done");
-      } catch {
-        /* ignore */
-      }
-      return;
-    }
-    if (typeof navigator !== "undefined" && !navigator.onLine) return;
-    try {
-      localStorage.setItem(AUTO_DOWNLOAD_KEY, "running");
-    } catch {
-      /* ignore */
-    }
-    void start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cached]);
+  /* لا تحميل تلقائي: ملفات المصحف مضمَّنة، والتنزيل اليدوي يبقى متاحًا فقط إن كانت ناقصة. */
 
   const complete = cached >= MUSHAF_TOTAL_PAGES;
 
   return (
     <SectionCard
-      title="تحميل المصحف كاملًا للعمل دون إنترنت"
-      subtitle="مصحف حفص النصي كاملًا (٦٠٤ صفحات) يُحفظ على الجهاز ولا يحتاج اتصالًا بعد ذلك"
+      title={bundled ? "المصحف مثبَّت مع التطبيق" : "تحميل المصحف كاملًا للعمل دون إنترنت"}
+      subtitle="مصحف حفص النصي كاملًا (٦٠٤ صفحات) — يفتح مباشرة دون تحميل"
     >
       <p className="muted">
-        {complete
-          ? `✅ المصحف محفوظ على الجهاز (${MUSHAF_TOTAL_PAGES} صفحة).`
-          : `المحفوظ الآن ${cached} من ${MUSHAF_TOTAL_PAGES} صفحة — الحجم الكامل ${formatSize(MUSHAF_TOTAL_PAGES * MUSHAF_PAGE_BYTES)} تقريبًا.`}
+        {bundled
+          ? `✅ ملفات المصحف (${MUSHAF_TOTAL_PAGES} صفحة) مضمَّنة داخل التطبيق وتعمل دون إنترنت بلا أي تحميل.`
+          : complete
+            ? `✅ المصحف محفوظ على الجهاز (${MUSHAF_TOTAL_PAGES} صفحة).`
+            : `المحفوظ الآن ${cached} من ${MUSHAF_TOTAL_PAGES} صفحة — الحجم الكامل ${formatSize(MUSHAF_TOTAL_PAGES * MUSHAF_PAGE_BYTES)} تقريبًا.`}
       </p>
       {busy ? (
         <div style={{ marginTop: 8, background: "#e5e7eb", borderRadius: 8, height: 8, overflow: "hidden" }}>
@@ -128,7 +106,7 @@ export default function MushafOfflineCard() {
         </div>
       ) : null}
       <div className="form-actions" style={{ marginTop: 10 }}>
-        {!busy ? (
+        {bundled ? null : !busy ? (
           <button type="button" className="primary-button" onClick={() => void start()}>
             <Icon name="download" size={16} /> {complete ? "إعادة التحميل" : "تحميل المصحف كاملًا"}
           </button>
@@ -143,7 +121,7 @@ export default function MushafOfflineCard() {
             إيقاف التحميل ({done}/{MUSHAF_TOTAL_PAGES})
           </button>
         )}
-        {cached > 0 && !busy ? (
+        {!bundled && cached > 0 && !busy ? (
           <button type="button" className="ghost-button" onClick={() => void remove()}>
 حذف نسخة المصحف من الجهاز
           </button>

@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { loadPageMap, loadTajweed, tajweedText, type PageMap, type TajweedData } from "../../lib/tajweed";
 import { surahs } from "../../data/surahs";
 import { useHistoryBack } from "../../lib/useHistoryBack";
@@ -6,7 +6,7 @@ import { ayahKey, loadHafsAyahs, type HafsAyah } from "../../lib/mushafText";
 import { loadPageLines } from "../../lib/quranPageLayout";
 import type { TasmeeWord, WordStatus } from "../../lib/mushafTasmee";
 import MushafAyahMenu from "./MushafAyahMenu";
-import MushafTasmeeSheet from "./MushafTasmeeSheet";
+const MushafTasmeeSheet = lazy(() => import("./MushafTasmeeSheet"));
 
 /*
  * مصحف التجويد الملوّن برواية حفص — نفس نسخة الموسوعة القرآنية (quranpedia.net)
@@ -58,6 +58,7 @@ export default function MushafPagesText({
   const stageRef = useRef<HTMLDivElement | null>(null);
   const pageRef = useRef<HTMLDivElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
+  const isSpecialPageRef = useRef(false);
   const pressRef = useRef<{
     key: string | null;
     x: number;
@@ -82,11 +83,9 @@ export default function MushafPagesText({
   const [fontPx, setFontPx] = useState(0);
   const [linesData, setLinesData] = useState<{ lines: number[][][]; lineNums: number[]; surahStarts: number[][] } | null>(null);
   const [tasmeeOpen, setTasmeeOpen] = useState(false);
-  const [tasmeeRevealVerses, setTasmeeRevealVerses] = useState(false);
   const [tasmeeWordsList, setTasmeeWordsList] = useState<TasmeeWord[]>([]);
   const [tasmeeStatuses, setTasmeeStatuses] = useState<WordStatus[]>([]);
   const [tasmeeCursor, setTasmeeCursor] = useState(0);
-  const [tasmeeRevealAll, setTasmeeRevealAll] = useState(false);
   const [tasmeeActive, setTasmeeActive] = useState(false);
   const [tasmeeAyahs, setTasmeeAyahs] = useState<HafsAyah[]>([]);
   const [toast, setToast] = useState("");
@@ -135,25 +134,6 @@ export default function MushafPagesText({
     setSelected([]);
     setMenu(null);
   }, [page]);
-
-  /*
-   * أثناء التسميع: إن اختار القارئ «عرض الآيات» تظل الآيات ظاهرة كما هي،
-   * وإن اختار «إخفاء الآيات» تُخفى وتُكشف كلمةً كلمة. بعد الانتهاء تُعاد دائمًا.
-   */
-  useEffect(() => {
-    if (!tasmeeOpen) return;
-    if (!tasmeeAyahs.length) return;
-    setHidden((current) => {
-      const next = new Set(current);
-      tasmeeAyahs.forEach((ayah) => {
-        const key = ayahKey(ayah.surah, ayah.ayah);
-        if (tasmeeActive && !tasmeeRevealVerses) next.add(key);
-        else next.delete(key);
-      });
-      writeHidden(next);
-      return next;
-    });
-  }, [tasmeeActive, tasmeeAyahs, tasmeeOpen, tasmeeRevealVerses]);
 
   /* بعد انتهاء التسميع: إعادة إظهار الآيات (إلغاء الإخفاء). */
   useEffect(() => {
@@ -247,8 +227,10 @@ export default function MushafPagesText({
       pageEl.style.setProperty("--qp-fs", `${size.toFixed(2)}px`);
     };
     /* رقم آخر آية في الصفحة يجب ألّا ينفرد في سطر وحده (كما في المصحف المطبوع).
-       كما ندمج ١–٣ كلمات منفردة في آخر سطر مع السطر الذي فوقه. */
+       كما ندمج ١–٣ كلمات منفردة في آخر سطر مع السطر الذي فوقه.
+       في صفحات الفاتحة وأول البقرة النص مُوسَّط، فلا نفرض تساوي الأسطر. */
     const endsCleanly = () => {
+      if (isSpecialPageRef.current) return true;
       const marks = bodyEl.querySelectorAll(".ayah-mark");
       const last = marks[marks.length - 1] as HTMLElement | undefined;
       const textEl = last?.parentElement?.querySelector(".qp-ayah-text") as HTMLElement | null;
@@ -313,8 +295,10 @@ export default function MushafPagesText({
 
   useEffect(() => {
     if (!data || !rows.length) return;
+    if (tasmeeOpen) return; // لا تغيير الخط أثناء عرض صفحة التسميع
     let frame = 0;
     const run = () => {
+      isSpecialPageRef.current = page === 1 || page === 2;
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => fitPage());
     };
@@ -343,7 +327,7 @@ export default function MushafPagesText({
       visualViewport?.removeEventListener("resize", onResize);
       resizeObserver?.disconnect();
     };
-  }, [data, rows, page, fitPage]);
+  }, [data, rows, page, fitPage, tasmeeOpen]);
 
   const syncSelected = (keys: string[]) => {
     if (!keys.length) {
@@ -414,6 +398,8 @@ export default function MushafPagesText({
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
+    /* منع تحديد النص (نسخ) عند الضغط المطوّل على الأجهزة. */
+    event.preventDefault();
     const target = event.target as HTMLElement | null;
     const ayahEl = target?.closest("a.ayah") as HTMLElement | null;
     const key = ayahEl?.dataset.key ?? null;
@@ -502,7 +488,7 @@ export default function MushafPagesText({
         onPointerCancel={onPointerCancel}
       >
         <div
-          className="qp-page"
+          className={`qp-page${page === 1 || page === 2 ? " qp-page--special" : ""}`}
           id={`page-${page}`}
           ref={pageRef}
           style={fontPx ? ({ "--qp-fs": `${fontPx.toFixed(2)}px` } as React.CSSProperties) : undefined}
@@ -544,7 +530,6 @@ export default function MushafPagesText({
                           const isHidden = hidden.has(key);
                           const inTasmee =
                             tasmeeActive &&
-                            isHidden &&
                             tasmeeAyahs.some((a) => a.surah === run.surah && a.ayah === run.ayah);
                           const isActive =
                             highlightGlobal != null &&
@@ -573,31 +558,25 @@ export default function MushafPagesText({
                                 openMenuFor(key, event.clientX, event.clientY);
                               }}
                             >
-                              {inTasmee ? (
-                                <span className="qp-ayah-text qp-tasmee-inline-words">
-                                  {run.wordIndexes.map((widx) => {
-                                    const ti = tasmeeWordIndex.get(`${run.surah}:${run.ayah}:${widx}`);
-                                    if (ti == null) return null;
-                                    const w = tasmeeWordsList[ti];
-                                    return (
-                                      <span
-                                        key={`tw-${ti}`}
-                                        className={`mushaf-tasmee-word is-${tasmeeStatuses[ti] ?? "pending"}${ti === tasmeeCursor && (tasmeeStatuses[ti] ?? "pending") === "pending" ? " is-current" : ""}${(tasmeeStatuses[ti] ?? "pending") === "pending" && tasmeeRevealAll ? " is-shown" : ""}`}
-                                      >
-                                        {w.text}
-                                        {tasmeeStatuses[ti] === "ok" ? <span className="mushaf-tasmee-tick" aria-hidden="true">✓</span> : null}
-                                      </span>
-                                    );
-                                  })}
-                                </span>
-                              ) : (
-                                <span className="qp-ayah-text">
-                                  {run.wordIndexes.map((widx) => {
-                                    const w = encoded ? tajweedText(encoded).split(/\s+/).filter(Boolean)[widx] : "";
-                                    return w ? <Fragment key={widx}>{w} </Fragment> : null;
-                                  })}
-                                </span>
-                              )}
+                              <span className="qp-ayah-text">
+                                {run.wordIndexes.map((widx) => {
+                                  const w = words[widx];
+                                  if (!w) return null;
+                                  /* أثناء التسميع: نفس الكلمات والخط والترتيب تمامًا،
+                                     مع خلفية خضراء للصحيحة وحمراء للخطأ فقط. */
+                                  const ti = inTasmee
+                                    ? tasmeeWordIndex.get(`${run.surah}:${run.ayah}:${widx}`)
+                                    : undefined;
+                                  if (ti == null) return <Fragment key={widx}>{w} </Fragment>;
+                                  const status = tasmeeStatuses[ti] ?? "pending";
+                                  const current = ti === tasmeeCursor && status === "pending";
+                                  return (
+                                    <Fragment key={widx}>
+                                      <span className={`mushaf-tasmee-inline-word is-${status}${current ? " is-current" : ""}`}>{w}</span>{" "}
+                                    </Fragment>
+                                  );
+                                })}
+                              </span>
                               {showMark ? (
                                 <span className="ayah-mark" data-len={String(arabicNumber(run.ayah)).length} aria-hidden="true">
                                   <img src={`${BASE}images/ayah-mark.svg`} alt="" draggable={false} />
@@ -627,29 +606,27 @@ export default function MushafPagesText({
           onToggleHidden={toggleHidden}
           onToast={setToast}
           onOpenPage={(next) => setPage(Math.min(TOTAL_PAGES, Math.max(1, next)))}
-          onStartTasmee={(revealVerses) => {
+          onStartTasmee={() => {
             setMenu(null);
-            setTasmeeRevealVerses(revealVerses);
             setTasmeeOpen(true);
           }}
         />
       ) : null}
 
       {tasmeeOpen ? (
+        <Suspense fallback={null}>
         <MushafTasmeeSheet
           inline
           page={page}
           pageKeys={pageKeys}
           selection={selected}
-          revealVerses={tasmeeRevealVerses}
-          onRevealVersesChange={setTasmeeRevealVerses}
           onClose={() => { setTasmeeOpen(false); setTasmeeActive(false); }}
           onAyahsChange={setTasmeeAyahs}
           onWordsChange={setTasmeeWordsList}
           onStatusesChange={(s, c) => { setTasmeeStatuses(s); setTasmeeCursor(c); }}
-          onRevealChange={setTasmeeRevealAll}
           onActiveChange={setTasmeeActive}
         />
+        </Suspense>
       ) : null}
 
       {toast ? <p className="mushaf-ayah-toast">{toast}</p> : null}

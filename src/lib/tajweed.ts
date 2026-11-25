@@ -30,19 +30,14 @@ let pagesPromise: Promise<PageMap> | null = null;
 export function loadTajweed(): Promise<TajweedData> {
   if (!tajweedPromise) {
     tajweedPromise = (async () => {
-      // 1) الملف الكامل (مستضاف عبر R2 — لا حد حجم). نتحقق من نوع المحتوى لتجنّب fallback HTML (SPA).
+      // 1) النسخة المضمَّنة مع التطبيق/الموقع أولًا: لا طلب شبكة ولا انتظار.
       try {
-        const res = await fetch(`${base}assets/large/tajweed.json`);
+        const res = await fetch(`${base}quran/tajweed.json`, { cache: "force-cache" });
         if (res.ok) return (await res.json()) as TajweedData;
       } catch { /* تجاهل */ }
-      // 1b) fallback للملف الكامل (التطوير/المحلي).
+      // 1b) النسخة المضغوطة للنشر (حد الرفع في الاستضافة): فكّ gzip في المتصفح.
       try {
-        const res = await fetch(`${base}quran/tajweed.json`);
-        if (res.ok) return (await res.json()) as TajweedData;
-      } catch { /* تجاهل */ }
-      // 1c) النسخة المضغوطة للنشر (حد الرفع في الاستضافة): فكّ gzip في المتصفح.
-      try {
-        const res = await fetch(`${base}quran/tajweed.json.gz`);
+        const res = await fetch(`${base}quran/tajweed.json.gz`, { cache: "force-cache" });
         if (res.ok && typeof DecompressionStream !== "undefined") {
           const buffer = await res.arrayBuffer();
           const head = new Uint8Array(buffer.slice(0, 2));
@@ -53,6 +48,11 @@ export function loadTajweed(): Promise<TajweedData> {
             return (await new Response(stream).json()) as TajweedData;
           }
         }
+      } catch { /* تجاهل */ }
+      // 1c) ملف كبير مستضاف (نسخ نشر قديمة).
+      try {
+        const res = await fetch(`${base}assets/large/tajweed.json`, { cache: "force-cache" });
+        if (res.ok) return (await res.json()) as TajweedData;
       } catch { /* تجاهل */ }
       // 2) ملفات مجزّأة (نسخ نشر قديمة). نجلب حتى توقف JSON (وليس HTML).
       const parts: TajweedData[] = [];
@@ -80,7 +80,7 @@ export function loadTajweed(): Promise<TajweedData> {
 
 export function loadPageMap(): Promise<PageMap> {
   if (!pagesPromise) {
-    pagesPromise = fetch(`${base}quran/pages.json`)
+    pagesPromise = fetch(`${base}quran/pages.json`, { cache: "force-cache" })
       .then((response) => {
         if (!response.ok) throw new Error("pages unavailable");
         return response.json() as Promise<{ v?: number; pages: Array<Array<[number, number, number?, number?]>> }>;

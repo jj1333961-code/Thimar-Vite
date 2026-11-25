@@ -67,6 +67,13 @@ public class WebFallbackActivity extends Activity {
     } catch (Exception ignored) {
       LaunchLog.add(this, "تعذّر تحديث رمز الإشعارات عند التشغيل");
     }
+    /* إعادة تثبيت منبهات الأذان عند كل تشغيل (بعد تحديث/إعادة تشغيل/تغيير توقيت). */
+    try {
+      AdhanScheduler.scheduleAll(this, true);
+      AdhanAssets.syncAsync(this);
+    } catch (Exception error) {
+      LaunchLog.add(this, "تعذّر استعادة جدولة الأذان: " + error.getMessage());
+    }
     try {
       startWebView();
       registerConnectivityCallback();

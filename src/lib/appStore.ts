@@ -19,6 +19,7 @@ export type Settings = {
   reciter: string;
   repeat: number;
   notifications: boolean;
+  messagePreview: boolean;
   notificationSound: boolean;
   vibration: boolean;
   adhanSound: boolean;
@@ -42,6 +43,7 @@ export const defaultSettings: Settings = {
   reciter: "ar.alafasy",
   repeat: 2,
   notifications: true,
+  messagePreview: true,
   notificationSound: true,
   vibration: true,
   adhanSound: true,
@@ -116,6 +118,8 @@ export type Conversation = {
   createdBy: string;
   createdAt: number;
   messages: ChatMessage[];
+  /** أعضاء كتموا إشعارات هذه المحادثة. */
+  mutedBy?: string[];
 };
 
 const CHAT_KEY = "thimar.chat.v1";
@@ -443,6 +447,44 @@ function saveNotifications(notifications: AppNotification[]) {
   if (removed.length) void deleteNotificationsFromCloud(removed);
 }
 
+/**
+ * يُشعر كل حسابات المسؤولين عند تسجيل معلم جديد. البيانات الكاملة تُرفع مع
+ * الحساب إلى السحابة، ويصل إشعار فوري إلى أجهزة المسؤولين (FCM/Web Push)
+ * إضافة إلى إشعار داخل التطبيق يستطيع كل مسؤول رؤيته.
+ */
+export function notifyAdminsOfTeacherApplication(account: Account): void {
+  if (account.type !== "teacher") return;
+  const admins = loadAccounts().filter(
+    (item) => item.type === "admin" && item.status === "active",
+  );
+  if (!admins.length) return;
+
+  // منع تكرار الإشعار إذا أعاد المستخدم المحاولة أو أُعيد تحميل الصفحة.
+  const marker = `thimar.teacherApplicationNotified.${account.id}`;
+  try {
+    if (localStorage.getItem(marker)) return;
+    localStorage.setItem(marker, "1");
+  } catch {
+    /* التخزين قد يكون معطلاً؛ نكمل الإرسال */
+  }
+
+  const title = "طلب اعتماد معلم جديد";
+  const body = `${account.fullName} (@${account.username}) — ${account.countryCode} ${account.phone} — ${account.email}`;
+  addNotification({
+    recipientId: "admins",
+    kind: "teacher",
+    title,
+    body: `${body}. راجع البيانات كاملة واعتمد الحساب أو ارفضه.`,
+    target: "settings",
+  });
+  void notifyAccounts(admins.map((admin) => admin.id), {
+    title,
+    body: `${account.fullName} (@${account.username}) قدّم طلب اعتماد. راجع طلبات المعلمين.`,
+    url: "/notifications",
+    tag: `teacher-application-${account.id}`,
+  });
+}
+
 export function addNotification(
   input: Omit<AppNotification, "id" | "createdAt" | "read">,
 ): void {
@@ -655,6 +697,16 @@ export function addHomework(input: Omit<Homework, "id" | "createdAt">): Homework
     body: `أسند إليك معلمك واجبًا جديدًا في سورة ${input.surah}.`,
     target: "homework",
   });
+  void notifyAccounts(
+    [input.studentId],
+    {
+      title: "واجب جديد",
+      body: `أسند إليك معلمك واجبًا جديدًا في سورة ${input.surah}.`,
+      url: "/homework",
+      tag: `homework-${homework.id}`,
+    },
+    { senderId: input.teacherId, kind: "homework" },
+  );
   return homework;
 }
 
@@ -696,6 +748,16 @@ export function gradeHomeworkSurah(
     body: `قيّم معلمك تسميعك في سورة ${surah}: ${score} من ٥ نجوم.`,
     target: "homework",
   });
+  void notifyAccounts(
+    [target.studentId],
+    {
+      title: `تقييم سورة ${surah}`,
+      body: `قيّم معلمك تسميعك في سورة ${surah}: ${score} من ٥ نجوم.`,
+      url: "/homework",
+      tag: `homework-${target.id}`,
+    },
+    { senderId: target.teacherId, kind: "homework" },
+  );
 }
 
 export function addSubmission(
@@ -1139,10 +1201,12 @@ export function sendChatMessage(
 
   // إشعار فوري على أجهزة بقية الأعضاء — يصل من الخادم حتى والتطبيق مغلق.
   // رسائل المكالمة تُحفظ بصمت لأن الطرفين داخل المكالمة أصلًا.
+  // تُحترم conversations mutedBy: الأعضاء الذين كتموا المحادثة لا يُخطَرون.
+  const muted = new Set(conv.mutedBy ?? []);
   const recipients = options.silent
     ? []
-    : conv.memberIds.filter((memberId) => memberId && memberId !== message.senderId);
-  if (recipients.length) {
+    : conv.memberIds.filter((memberId) => memberId && memberId !== message.senderId && !muted.has(memberId));
+  if (loadSettings().notifications !== false && recipients.length) {
     const sender = loadAccounts().find((item) => item.id === message.senderId);
     const preview =
       message.kind === "audio"
@@ -1150,16 +1214,27 @@ export function sendChatMessage(
         : message.kind === "file"
           ? `ملف: ${message.fileName ?? "مرفق"}`
           : String(message.text ?? "").slice(0, 120);
-    void notifyAccounts(recipients, {
-      title: conv.isGroup
-        ? `${sender?.fullName ?? "عضو"} • ${conv.title}`
-        : sender?.fullName ?? "ثمار",
-      body: preview || "رسالة جديدة",
-      // الضغط على الإشعار يفتح المحادثة نفسها لا الصفحة الرئيسية.
-      url: `/messages?c=${conv.id}`,
-      tag: `chat-${conv.id}`,
-    });
+    void notifyAccounts(
+      recipients,
+      {
+        title: conv.isGroup
+          ? `${sender?.fullName ?? "عضو"} • ${conv.title}`
+          : sender?.fullName ?? "ثمار",
+        body: loadSettings().messagePreview === false ? "رسالة جديدة" : (preview || "رسالة جديدة"),
+        // الضغط على الإشعار يفتح المحادثة نفسها لا الصفحة الرئيسية.
+        url: `/messages?c=${conv.id}`,
+        tag: `chat-${conv.id}`,
+      },
+      { senderId: message.senderId, kind: "chat", conversationId: conv.id },
+    );
   }
+}
+
+/* عدد الرسائل غير المقروءة في محادثة معيّنة (لحساب معيّن). */
+export function unreadMessagesForConversation(conversation: Conversation, accountId: string): number {
+  return conversation.messages.filter(
+    (message) => message.senderId !== accountId && !(message.readBy ?? []).includes(accountId),
+  ).length;
 }
 
 /* عدد الرسائل غير المقروءة لحساب: ما أرسله غيره ولم يُضَف بعد إلى قائمة من شاهدها. */
@@ -1244,6 +1319,18 @@ export function removeConversationMember(conversationId: string, memberId: strin
   if (!conv) return;
   conv.memberIds = conv.memberIds.filter((id) => id !== memberId);
   saveChats(conversations);
+}
+
+export function setConversationMuted(conversationId: string, userId: string, muted: boolean): void {
+  const conversations = loadChats();
+  const conv = conversations.find((item) => item.id === conversationId);
+  if (!conv) return;
+  const set = new Set(conv.mutedBy ?? []);
+  if (muted) set.add(userId);
+  else set.delete(userId);
+  conv.mutedBy = [...set];
+  saveChats(conversations);
+  void pushChats([conv]);
 }
 
 export function setConversationAdmin(conversationId: string, memberId: string, isAdmin: boolean): void {

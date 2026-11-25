@@ -12,8 +12,12 @@ public class AdhanBootReceiver extends BroadcastReceiver {
     if (Intent.ACTION_BOOT_COMPLETED.equals(action)
         || Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)
         || "android.intent.action.TIMEZONE_CHANGED".equals(action)
-        || "android.intent.action.TIME_SET".equals(action)) {
-      AdhanScheduler.scheduleAll(context);
+        || "android.intent.action.TIME_SET".equals(action)
+        || AdhanScheduler.ACTION_RESCHEDULE.equals(action)) {
+      /* بعد إعادة التشغيل تُفقد كل المنبهات، فإعادة الوضع إجبارية. */
+      AdhanScheduler.scheduleAll(context, true);
+      AdhanAssets.syncAsync(context);
+      LaunchLog.add(context, "إعادة جدولة الأذان بعد " + action);
     }
   }
 }

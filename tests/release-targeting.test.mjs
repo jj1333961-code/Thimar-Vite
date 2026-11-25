@@ -51,8 +51,13 @@ test("android metadata has required release fields", () => {
   assert.equal(meta.platform, "android");
   assert.equal(meta.available, true);
   assert.ok(Number.isInteger(meta.versionCode));
-  assert.ok(typeof meta.downloadUrl === "string" && meta.downloadUrl.length > 0);
-  assert.ok(typeof meta.sha256 === "string" && meta.sha256.length === 64);
+  const assetOnly = meta.assetOnly === true || meta.apkRequired === false;
+  if (assetOnly) {
+    assert.ok(Number.isInteger(meta.resourceVersionCode ?? meta.versionCode));
+  } else {
+    assert.ok(typeof meta.downloadUrl === "string" && meta.downloadUrl.length > 0);
+    assert.ok(typeof meta.sha256 === "string" && meta.sha256.length === 64);
+  }
   assert.ok(Array.isArray(meta.versionHistory) && meta.versionHistory.length > 0);
 });
 
@@ -77,7 +82,10 @@ test("old-version targeting falls back to version history name", () => {
 
 test("equal or newer installed versions are excluded", () => {
   const meta = readJson("public/updates/android.json");
-  const rows = [{ token: "t1", app_version_code: 27 }, { token: "t2", app_version_code: 100 }];
+  const rows = [
+    { token: "t1", app_version_code: meta.versionCode },
+    { token: "t2", app_version_code: meta.versionCode + 1 },
+  ];
   const eligible = eligibleRows(rows, meta);
   assert.equal(eligible.length, 0);
 });

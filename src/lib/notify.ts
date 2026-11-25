@@ -161,6 +161,10 @@ export async function showSystemNotification(
     const image = options.image;
     const url = options.url ?? "/";
     const tag = options.tag ?? "thimar-external";
+    try {
+      const active = (window as any).__thimarActiveConversation;
+      if (active && typeof url === "string" && url.includes(`c=${active}`)) return;
+    } catch { /* ignore */ }
     const registration = await navigator.serviceWorker?.getRegistration();
     if (registration) {
       try {

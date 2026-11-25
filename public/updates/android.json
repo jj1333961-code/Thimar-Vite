@@ -1,18 +1,15 @@
 {
   "platform": "android",
   "packageName": "app.thimar.quran",
-  "versionName": "1.11.5",
-  "versionCode": 27,
-  "resourceVersionName": "1.11.5",
-  "resourceVersionCode": 27,
+  "versionName": "1.11.6",
+  "versionCode": 28,
+  "resourceVersionName": "1.11.6",
+  "resourceVersionCode": 28,
   "minSupportedVersionCode": 1,
   "available": true,
-  "apkRequired": true,
-  "assetOnly": false,
+  "apkRequired": false,
+  "assetOnly": true,
   "assetManifestUrl": "https://thimar.freebuff.page/updates/web-manifest.json",
-  "fileName": "app-release.apk",
-  "fileSize": 282369502,
-  "sha256": "c6567bbb0bfe38633805498c7dcc059182651be0dfb7714d2f453b76ff969ef7",
   "versionHistory": [
     {
       "versionName": "1.9.5",
@@ -41,43 +38,45 @@
     {
       "versionName": "1.11.4",
       "versionCode": 26
+    },
+    {
+      "versionName": "1.11.5",
+      "versionCode": 27
     }
   ],
-  "releaseDate": "2026-11-22",
-  "publishedAt": "2026-11-22",
+  "releaseDate": "2026-11-25",
+  "publishedAt": "2026-11-25",
   "releaseNotes": {
     "ar": {
       "features": [
-        "محرك تسميع قرآني (ASR Small) مضمّن داخل التطبيق للعمل دون اتصال (لا حاجة لتنزيل نموذج).",
-        "شاشة صلاة (Adhan) بملء الشاشة عند دخول وقت الصلاة."
+        "ضبط طول رقم الهاتف تلقائياً حسب الدولة المختارة.",
+        "إشعار فوري للمسؤول عند تسجيل معلم جديد مع بيانات الطلب."
       ],
       "improvements": [
-        "تحسين أداء واجهة المصحف (تصيير الصفحات، التمرير).",
-        "تحسين كاش الأصول (Service Worker) لتسريع التحميل."
+        "تحديث الموارد التفاضلي لا ينزّل حزمة APK كاملة."
       ],
       "bugFixes": [
-        "إصلاحات استقرار في تشغيل الصوت (HLS/Cache)."
+        "توضيح حجم التحديث ومنع الاعتماد على ملف 269MB للتغييرات الصغيرة."
       ],
       "securityUpdates": []
     },
     "en": {
       "features": [
-        "Bundled Quran recitation engine (ASR Small) for offline recognition (no model download required).",
-        "Full-screen prayer (Adhan) screen when prayer time begins."
+        "Phone length now follows the selected country.",
+        "Admins receive an immediate notification for new teacher applications."
       ],
       "improvements": [
-        "Improved Mushaf UI performance (page rendering, scrolling).",
-        "Improved asset caching (Service Worker) for faster load."
+        "Differential asset updates avoid downloading a full APK for small changes."
       ],
       "bugFixes": [
-        "Stability fixes for audio playback (HLS/Cache)."
+        "Clarified update size and stopped relying on the 269MB package for small changes."
       ],
       "securityUpdates": []
     }
   },
   "shortDescription": {
-    "ar": "تحديث 1.11.3 — تلاوة دون اتصال وشاشة الصلاة.",
-    "en": "Update 1.11.3 — offline recitation and prayer screen."
+    "ar": "تحديث موارد صغير: ضبط رقم الهاتف حسب الدولة وإشعار المسؤول بطلب المعلم، دون تنزيل APK كامل.",
+    "en": "Small resource update: country-aware phone validation and admin teacher-application notifications, without a full APK download."
   },
-  "downloadUrl": "https://github.com/jj1333961-code/Thimar-Vite/releases/download/v1.11.5/app-release.apk"
+  "resourceSize": 4479936
 }

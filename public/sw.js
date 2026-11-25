@@ -1,10 +1,12 @@
 /* ثمار — عامل الخدمة: يشغّل التطبيق والمصحف والتحفة والأذكار والأحاديث دون إنترنت. */
-const VERSION = "v39";
+const VERSION = "v41";
 const SHELL_CACHE = `thimar-shell-${VERSION}`;
 const DATA_CACHE = "thimar-data-v1";
 const RUNTIME_CACHE = "thimar-runtime-v1";
 const MUSHAF_CACHE = "thimar-mushaf-pages-v3";
 const LARGE_CACHE = "thimar-large-v1";
+/* صور الصلوات والأذان: كاش ثابت لا يُحذف عند تحديث نسخة التطبيق. */
+const ADHAN_CACHE = "thimar-adhan-v1";
 
 const CORE = [
   "/",
@@ -13,6 +15,16 @@ const CORE = [
   "/icons/icon-192.png",
   "/icons/icon-512.png",
   "/icons/apple-touch-icon.png",
+];
+
+/* صور كل الصلوات + أذان افتراضي، لتظهر شاشة الصلاة وتُشغّل الصوت دون إنترنت. */
+const ADHAN_ASSETS = [
+  "/adhan/prayer/fajr.jpg",
+  "/adhan/prayer/dhuhr.jpg",
+  "/adhan/prayer/asr.jpg",
+  "/adhan/prayer/maghrib.jpg",
+  "/adhan/prayer/isha.jpg",
+  "/adhan/azan1.mp3",
 ];
 
 /** يجلب ملفات البناء المضفّرة (assets/*.js و*.css) من صفحة index. */
@@ -52,6 +64,7 @@ self.addEventListener("install", (event) => {
       // بعد أول زيارة (أو تحديث) — لا نعتمد على التخزين التلقائي فقط.
       const assets = await assetUrls();
       await addAllSafe(SHELL_CACHE, [...CORE, ...assets]);
+      await addAllSafe(ADHAN_CACHE, ADHAN_ASSETS);
       await self.skipWaiting();
     })(),
   );
@@ -70,6 +83,7 @@ self.addEventListener("activate", (event) => {
               key !== RUNTIME_CACHE &&
               key !== MUSHAF_CACHE &&
               key !== LARGE_CACHE &&
+              key !== ADHAN_CACHE &&
               key !== "thimar-quran-v1" &&
               key.startsWith("thimar-"),
           )
@@ -79,6 +93,26 @@ self.addEventListener("activate", (event) => {
     })(),
   );
 });
+
+/** يعرض النسخة المحفوظة فورًا ثم يحدّثها في الخلفية: لا تنزيل متكرر عند كل فتح. */
+async function staleWhileRevalidate(request, cacheName) {
+  const cache = await caches.open(cacheName);
+  const cached = await cache.match(request);
+  const update = fetch(request)
+    .then((response) => {
+      if (response.ok) {
+        cache.put(request, response.clone()).catch(() => {});
+      }
+      return response;
+    })
+    .catch(() => null);
+  if (cached) {
+    void update;
+    return cached;
+  }
+  const response = await update;
+  return response || new Response("", { status: 504 });
+}
 
 /** يستجيب من الكاش أولًا، ويحدّث النسخة في الخلفية. */
 async function cacheFirst(request, cacheName) {
@@ -219,35 +253,32 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  /* ملفات البناء المضفّرة: الشبكة أولًا حتى تصل أحدث نسخة فورًا، والكاش عند انقطاع الإنترنت. */
+  /* ملفات البناء المضفّرة: من الكاش فورًا مع تحديث في الخلفية (أو من الشبكة أول مرة). */
   if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/fonts/")) {
     const cacheName = url.pathname.startsWith("/assets/large/") ? LARGE_CACHE : SHELL_CACHE;
-    event.respondWith(
-      (async () => {
-        try {
-          const response = await fetch(request);
-          if (response.ok) {
-            const cache = await caches.open(cacheName);
-            cache.put(request, response.clone());
-          }
-          return response;
-        } catch {
-          const cached = await caches.match(request);
-          return cached || new Response("", { status: 504 });
-        }
-      })(),
-    );
+    event.respondWith(staleWhileRevalidate(request, cacheName));
     return;
   }
 
+  /* الأذان: من الكاش أولًا (يعمل دون إنترنت) ويُحدَّث في الخلفية عند توفره. */
+  if (url.pathname.startsWith("/adhan/")) {
+    event.respondWith(cacheFirst(request, ADHAN_CACHE));
+    return;
+  }
+
+  if (url.pathname.startsWith("/api/")) {
+    event.respondWith(networkFirst(request, SHELL_CACHE));
+    return;
+  }
+
+  /* بيانات المصحف والصور والأيقونات مثبَّتة مع التطبيق: تُعرض من الكاش فورًا
+     وتُحدَّث في الخلفية، فلا يُعاد تنزيل المصحف عند كل فتح. */
   if (
     url.pathname.startsWith("/icons/") ||
-    url.pathname.startsWith("/adhan/") ||
     url.pathname.startsWith("/quran/") ||
-    url.pathname.startsWith("/api/") ||
     url.pathname === "/manifest.webmanifest"
   ) {
-    event.respondWith(networkFirst(request, SHELL_CACHE));
+    event.respondWith(staleWhileRevalidate(request, SHELL_CACHE));
     return;
   }
 

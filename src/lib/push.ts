@@ -4,7 +4,8 @@
  * الاشتراك يُحفظ في جدول thimar_push_subscriptions على السحابة، فيستطيع الخادم
  * إرسال الإشعارات والرسائل والأذان والتذكير اليومي حتى لو كان التطبيق مغلقًا.
  */
-import { cloud } from "./cloud";
+import { cloud, SUPABASE_ANON_KEY, SUPABASE_URL } from "./cloud";
+import { nativePushToken } from "./nativePush";
 import { fallbackCities } from "./islamic";
 
 const TABLE = "thimar_push_subscriptions";
@@ -151,18 +152,60 @@ export async function serverTestPush(accountId: string): Promise<boolean> {
   }
 }
 
-/** يرسل إشعارات فورية إلى حسابات أخرى (مثل مستلمي رسالة في المحادثات). */
+/**
+ * يرسل إشعارات FCM فورية إلى حسابات أخرى (رسالة محادثة أو مهمة معلم).
+ *
+ * الإرسال لا يعتمد على `senderId` وحده: يُرفق رمز FCM المربوط بهذا الجهاز،
+ * وتتحقق دالة `thimar-notify` من أن الرمز يخص المرسل ومن صلاحيته على المستلمين.
+ * على الويب بلا رمز FCM يبقى الإشعار داخل التطبيق فقط.
+ */
 export async function notifyAccounts(
   accountIds: string[],
   payload: { title: string; body: string; url?: string; tag?: string },
+  options: { senderId?: string; kind?: "chat" | "homework"; conversationId?: string } = {},
 ): Promise<void> {
   const ids = [...new Set(accountIds.filter(Boolean))];
   if (!ids.length) return;
+  const senderToken = nativePushToken();
+
+  /* مسار الخادم الموقّع (FCM) — يتطلب رمز جهاز المرسل. */
+  if (options.senderId && options.kind && senderToken) {
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/thimar-notify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          senderId: options.senderId,
+          senderToken,
+          kind: options.kind,
+          conversationId: options.conversationId,
+          recipientIds: ids,
+          ...payload,
+        }),
+        keepalive: true,
+      });
+    } catch {
+      /* نكمل بالمسار البديل */
+    }
+  }
+
+  /* مسار بديل (نفس الأصل): يرسل FCM/Web Push للحسابات مباشرة.
+     يغطي المرسل من الويب (بلا رمز FCM) وحالات تعذّر المسار الموقّع. */
   try {
     await fetch("/api/push/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accountIds: ids, ...payload }),
+      body: JSON.stringify({
+        accountIds: ids,
+        title: payload.title,
+        body: payload.body,
+        url: payload.url,
+        tag: payload.tag,
+      }),
       keepalive: true,
     });
   } catch {

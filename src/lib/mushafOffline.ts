@@ -21,7 +21,31 @@ const DATA_URLS = [
   `${BASE}fonts/quran-basmalah.woff2`,
 ];
 
-export type MushafOfflineStatus = { cached: number; total: number; bytes: number };
+export type MushafOfflineStatus = { cached: number; total: number; bytes: number; bundled: boolean };
+
+let bundledPromise: Promise<boolean> | null = null;
+
+/**
+ * هل ملفات المصحف النصية مضمَّنة مع التطبيق نفسه؟
+ * في هذه الحالة لا حاجة لأي تنزيل: الصفحات والنص والتجويد تُقرأ من ملفات التطبيق.
+ */
+export function mushafIsBundled(): Promise<boolean> {
+  if (!bundledPromise) {
+    bundledPromise = (async () => {
+      try {
+        const pages = await fetch(`${QURAN}pages.json`, { cache: "force-cache" });
+        if (!pages.ok) return false;
+        const payload = (await pages.json()) as { pages?: unknown[] };
+        if (payload.pages?.length !== MUSHAF_TOTAL_PAGES) return false;
+        const chunk = await fetch(`${QURAN}lines/1-10.json`, { cache: "force-cache" });
+        return chunk.ok;
+      } catch {
+        return false;
+      }
+    })();
+  }
+  return bundledPromise;
+}
 
 async function cacheAsset(url: string, validate: (response: Response) => Promise<boolean>): Promise<number> {
   const response = await fetch(url, { cache: "no-store" });
@@ -30,9 +54,6 @@ async function cacheAsset(url: string, validate: (response: Response) => Promise
   }
   const cache = await caches.open(MUSHAF_PAGE_CACHE);
   await cache.put(url, response.clone());
-  // تُقرأ بعض ملفات المصحف عبر fetch مباشر؛ احفظها أيضًا في cache عامل الخدمة.
-  const shellCache = await caches.open("thimar-shell-v39");
-  await shellCache.put(url, response.clone());
   const length = Number(response.headers.get("content-length") || 0);
   return Number.isFinite(length) ? length : 0;
 }
@@ -72,6 +93,9 @@ async function isValidStored(url: string): Promise<boolean> {
 
 /** لا يُعلن اكتمال المصحف إلا بعد وجود كل أصول الصفحات والتجويد والخطوط. */
 export async function mushafOfflineStatus(): Promise<MushafOfflineStatus> {
+  if (await mushafIsBundled()) {
+    return { cached: MUSHAF_TOTAL_PAGES, total: MUSHAF_TOTAL_PAGES, bytes: 0, bundled: true };
+  }
   const checks = await Promise.all(DATA_URLS.map(async (url) => {
     const response = await isStored(url);
     return response && await isValidStored(url) ? response : null;
@@ -80,7 +104,7 @@ export async function mushafOfflineStatus(): Promise<MushafOfflineStatus> {
   const bytes = ready
     ? checks.reduce((sum, response) => sum + Number(response?.headers.get("content-length") || 0), 0)
     : 0;
-  return { cached: ready ? MUSHAF_TOTAL_PAGES : 0, total: MUSHAF_TOTAL_PAGES, bytes };
+  return { cached: ready ? MUSHAF_TOTAL_PAGES : 0, total: MUSHAF_TOTAL_PAGES, bytes, bundled: false };
 }
 
 /**
@@ -92,6 +116,11 @@ export async function downloadMushafPages(
   shouldStop: () => boolean,
 ): Promise<number> {
   onProgress(0, MUSHAF_TOTAL_PAGES);
+  /* النسخة المضمَّنة جاهزة داخل التطبيق — لا نعيد تنزيل ما هو موجود أصلًا. */
+  if (await mushafIsBundled()) {
+    onProgress(MUSHAF_TOTAL_PAGES, MUSHAF_TOTAL_PAGES);
+    return MUSHAF_TOTAL_PAGES;
+  }
   if (shouldStop() || typeof caches === "undefined") return 0;
 
   const baseReady = await preloadHafsMushaf();

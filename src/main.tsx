@@ -46,14 +46,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   </React.StrictMode>,
 );
 
-// يجهّز محرك التسميع المحلي بعد أول رسم دون تعطيل الإقلاع.
-const warmTilawa = () => {
-  void import("./lib/tilawaRecitation")
-    .then((module) => module.scheduleTilawaPreload())
-    .catch(() => undefined);
-};
-if (document.readyState === "complete") warmTilawa();
-else window.addEventListener("load", warmTilawa, { once: true });
+/* لا نُجهّز محرك التسميع تلقائيًا عند الإقلاع: تحميله يستهلك المعالج والذاكرة
+   ويبطئ التطبيق على الأجهزة المتوسطة. يُحمَّل عند فتح التسميع فقط. */
 
 /* Quran ASR Small يظل محليًا ويُجهّز فقط عند الحاجة ومع توفر الذاكرة. */
 const warmQuranAsr = () => {

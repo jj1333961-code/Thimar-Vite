@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { surahs } from "../../data/surahs";
 import type { Account } from "../../lib/auth";
 import {
@@ -18,7 +18,7 @@ import { fetchSurah, type Ayah } from "../../lib/quran";
 import { useRecorder } from "../../lib/recorder";
 import { celebrate } from "../../lib/celebrate";
 import { Icon, EmptyState, Stars, SectionCard } from "./ui";
-import TasmeeReader from "./TasmeeReader";
+const TasmeeReader = lazy(() => import("./TasmeeReader"));
 
 const METHOD_LABELS: Record<HomeworkMethod, string> = {
   live: "تسميع مباشر",
@@ -452,7 +452,9 @@ export default function HomeworkPage({ account }: { account: Account }) {
           </div>
           <button type="button" className="ghost-button" onClick={() => setInApp(null)}>رجوع</button>
         </div>
-        <TasmeeReader key={`${current.surah}-${current.fromAyah}-${inApp.index}`} preset={preset} onFinished={finishInApp} />
+        <Suspense fallback={<p className="muted">جارٍ فتح محرك التسميع…</p>}>
+          <TasmeeReader key={`${current.surah}-${current.fromAyah}-${inApp.index}`} preset={preset} onFinished={finishInApp} />
+        </Suspense>
       </div>
     );
   }

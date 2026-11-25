@@ -23,6 +23,7 @@
     "@capacitor/local-notifications": "^8.3.1",
     "@supabase/supabase-js": "^2.119.0",
     "@tilawa/core": "^1.0.0-rc.0",
+    "libphonenumber-js": "^1.11.18",
     "nace-sdk": "0.11.0",
     "onnxruntime-web": "^1.31.1",
     "pdfjs-dist": "^4.10.38",

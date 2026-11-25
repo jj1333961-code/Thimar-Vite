@@ -6,6 +6,7 @@ import { recordAdhan } from "../../lib/adhanLog";
 import { showSystemNotification } from "../../lib/notify";
 import { PRAYER_ART, prayerImageUrl, type PrayerKey } from "../../data/prayerImages";
 import { scheduleIosAdhan, registerAdhanTapHandler } from "../../lib/adhanNative";
+import { hasNativeAdhan, scheduleNativeAdhan, syncAdhanAssets } from "../../lib/adhanBridge";
 import { Icon } from "./ui";
 
 const PRAYERS: PrayerKey[] = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"];
@@ -22,8 +23,12 @@ let askedPrayerNotificationPermission = false;
 
 export default function AdhanNotifier() {
   const [screen, setScreen] = useState<AdhanScreen | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [volume, setVolume] = useState(0.9);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const triggeredRef = useRef<Set<string>>(new Set());
+  const lastNativeKeyRef = useRef("");
+  const lastNativeAtRef = useRef(0);
 
   useEffect(() => {
     void registerAdhanTapHandler();
@@ -50,6 +55,8 @@ export default function AdhanNotifier() {
         const now = new Date();
         const nowMin = now.getHours() * 60 + now.getMinutes();
         const timings = data.timings;
+        const nativeApp = hasNativeAdhan();
+
         for (const key of PRAYERS) {
           if (settings.adhanPrayerEnabled?.[key] === false) continue;
           const t = timings[key as keyof typeof timings];
@@ -69,13 +76,6 @@ export default function AdhanNotifier() {
           if (Math.abs(nowMin - pMin) <= 1 && !triggeredRef.current.has(dayKey)) {
             triggeredRef.current.add(dayKey);
             const adhan = getAdhan(settings.adhanByPrayer?.[key] || settings.adhanId);
-            if (settings.adhanSound) {
-              if (!audioRef.current) audioRef.current = new Audio();
-              const audio = audioRef.current;
-              audio.src = adhan.url;
-              audio.volume = Math.min(1, Math.max(0, settings.adhanVolume ?? 0.9));
-              audio.play().catch(() => {});
-            }
             recordAdhan({
               prayer: label,
               city: data.city || "موقعك",
@@ -83,50 +83,77 @@ export default function AdhanNotifier() {
               adhanId: adhan.id,
               adhanName: adhan.name,
             });
-            if (settings.adhanScreen !== false) setScreen({ key, time: t, city: data.city || "موقعك" });
-            if (settings.notifications) {
-              void showSystemNotification(`حان وقت ${art.label}`, art.phrase, {
-                image: prayerImageUrl(key),
-                tag: `adhan-${dayKey}`,
-              });
+            /* على أندرويد الأصلي: المنبه والشاشة والصوت تتولاها الطبقة الأصلية،
+               فلا نُشغّل صوتًا ثانيًا ولا نعرض نافذة مكررة. */
+            if (!nativeApp) {
+              if (settings.adhanSound) {
+                if (!audioRef.current) audioRef.current = new Audio();
+                const audio = audioRef.current;
+                audio.src = adhan.url;
+                audio.volume = Math.min(1, Math.max(0, settings.adhanVolume ?? 0.9));
+                audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+              }
+              if (settings.adhanScreen !== false) setScreen({ key, time: t, city: data.city || "موقعك" });
+              if (settings.notifications) {
+                void showSystemNotification(`حان وقت ${art.label}`, art.phrase, {
+                  image: prayerImageUrl(key),
+                  tag: `adhan-${dayKey}`,
+                });
+              }
             }
           }
         }
-      // جدولة أذان أندرويد أصلي (إن توفر الجسر).
-      try {
-        const nativeAdhan = (window as any).ThimarAdhan;
-        if (nativeAdhan && typeof nativeAdhan.scheduleAdhan === "function") {
-          const native = (window as any).ThimarNative;
-          if (!askedPrayerNotificationPermission && native?.permission?.() === "prompt") {
-            askedPrayerNotificationPermission = true;
-            native.requestPermission?.();
+
+        // جدولة أذان أندرويد أصلي (إن توفر الجسر).
+        try {
+          const nativeAdhan = (window as any).ThimarAdhan;
+          if (nativeAdhan && typeof nativeAdhan.scheduleAdhan === "function") {
+            const native = (window as any).ThimarNative;
+            if (!askedPrayerNotificationPermission && native?.permission?.() === "prompt") {
+              askedPrayerNotificationPermission = true;
+              native.requestPermission?.();
+            }
+            const times: Record<string, string> = {};
+            for (const key of PRAYERS) times[key] = timings[key as keyof typeof timings];
+            const urls = Object.fromEntries(
+              PRAYERS.map((key) => [key, getAdhan(settings.adhanByPrayer?.[key] || settings.adhanId).url]),
+            );
+            const payload = {
+              times,
+              master: settings.adhanSound,
+              screen: settings.adhanScreen !== false,
+              fajr: settings.adhanPrayerEnabled?.Fajr !== false,
+              dhuhr: settings.adhanPrayerEnabled?.Dhuhr !== false,
+              asr: settings.adhanPrayerEnabled?.Asr !== false,
+              maghrib: settings.adhanPrayerEnabled?.Maghrib !== false,
+              isha: settings.adhanPrayerEnabled?.Isha !== false,
+              urls,
+              defaultUrl: getAdhan(settings.adhanByPrayer?.[PRAYERS[0]] || settings.adhanId).url,
+              volume: settings.adhanVolume ?? 0.9,
+              imageUrls: Object.fromEntries(PRAYERS.map((key) => [key, prayerImageUrl(key)])),
+            };
+            const signature = JSON.stringify(payload);
+            const changed = signature !== lastNativeKeyRef.current;
+            const stale = Date.now() - lastNativeAtRef.current > 15 * 60 * 1000;
+            if (changed || stale) {
+              scheduleNativeAdhan(payload);
+              lastNativeKeyRef.current = signature;
+              lastNativeAtRef.current = Date.now();
+            }
+            if (changed) {
+              // تنزيل الصور والأذان المختار مسبقًا للاستخدام دون إنترنت.
+              syncAdhanAssets({ imageUrls: payload.imageUrls, urls, defaultUrl: payload.defaultUrl });
+            }
           }
-          const times: Record<string, string> = {};
-          for (const key of PRAYERS) times[key] = timings[key as keyof typeof timings];
-          const payload = JSON.stringify({
-            times,
-            master: settings.adhanSound,
-            screen: settings.adhanScreen !== false,
-            fajr: settings.adhanPrayerEnabled?.Fajr !== false,
-            dhuhr: settings.adhanPrayerEnabled?.Dhuhr !== false,
-            asr: settings.adhanPrayerEnabled?.Asr !== false,
-            maghrib: settings.adhanPrayerEnabled?.Maghrib !== false,
-            isha: settings.adhanPrayerEnabled?.Isha !== false,
-            urls: Object.fromEntries(PRAYERS.map((key) => [key, getAdhan(settings.adhanByPrayer?.[key] || settings.adhanId).url])),
-            defaultUrl: getAdhan(settings.adhanByPrayer?.[PRAYERS[0]] || settings.adhanId).url,
-            volume: settings.adhanVolume ?? 0.9,
-          });
-          nativeAdhan.scheduleAdhan(payload);
+        } catch {
+          /* ignore */
         }
-      } catch {
-        /* ignore */
-      }
-      // جدولة إشعارات iOS/التطبيقات المثبتة (Capacitor) — لا تعتمد على مؤقّتات المتصفح.
-      void scheduleIosAdhan(
-        Object.fromEntries(PRAYERS.map((key) => [key, timings[key as keyof typeof timings]])),
-        settings.adhanPrayerEnabled || {},
-        settings.adhanSound,
-      );
+        // جدولة إشعارات iOS/التطبيقات المثبتة (Capacitor) — لا تعتمد على مؤقّتات المتصفح.
+        void scheduleIosAdhan(
+          Object.fromEntries(PRAYERS.map((key) => [key, timings[key as keyof typeof timings]])),
+          settings.adhanPrayerEnabled || {},
+          settings.adhanSound,
+        );
       } catch {
         /* ignore */
       }
@@ -143,9 +170,30 @@ export default function AdhanNotifier() {
     };
   }, []);
 
-  const dismiss = () => {
+  const stopAudio = () => {
     audioRef.current?.pause();
     if (audioRef.current) audioRef.current.currentTime = 0;
+    setPlaying(false);
+  };
+
+  const toggleAudio = () => {
+    const audio = audioRef.current;
+    if (!audio || !screen) return;
+    if (audio.paused) {
+      audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+    } else {
+      audio.pause();
+      setPlaying(false);
+    }
+  };
+
+  const changeVolume = (value: number) => {
+    setVolume(value);
+    if (audioRef.current) audioRef.current.volume = value;
+  };
+
+  const dismiss = () => {
+    stopAudio();
     setScreen(null);
   };
 
@@ -155,20 +203,51 @@ export default function AdhanNotifier() {
 
   return (
     <div className="adhan-screen" role="dialog" aria-modal="true" aria-label={art.label}>
-      <img className="adhan-screen-image" src={art.image} alt={`${art.label} — ${art.phrase}`} draggable={false} />
-      <div className="adhan-screen-card">
-        <h2 className="adhan-screen-title">{art.label}</h2>
-        <p className="adhan-screen-time">{screen.time}</p>
-        <p className="adhan-screen-date">{today}</p>
-        <p className="adhan-screen-motivation">{art.phrase}</p>
-      </div>
-      <div className="adhan-screen-foot">
-        <span className="adhan-screen-meta">
-          {screen.time} • {screen.city}
-        </span>
-        <button type="button" className="adhan-screen-close" onClick={dismiss} aria-label="إغلاق">
-          <Icon name="x" size={16} /> ×
-        </button>
+      <div
+        className="adhan-screen-backdrop"
+        style={{ backgroundImage: `url(${art.image})` }}
+        aria-hidden="true"
+      />
+      <div className="adhan-screen-panel">
+        <div className="adhan-screen-top">
+          <span className="adhan-screen-app">ثمار — وقت الصلاة</span>
+          <button type="button" className="adhan-screen-close" onClick={dismiss} aria-label="إغلاق شاشة الصلاة">
+            <Icon name="x" size={16} />
+          </button>
+        </div>
+
+        <div className="adhan-screen-art">
+          <img src={art.image} alt={`${art.label} — ${art.phrase}`} draggable={false} />
+        </div>
+
+        <div className="adhan-screen-card">
+          <span className="adhan-screen-kicker">حان وقت الصلاة</span>
+          <h2 className="adhan-screen-title">{art.label}</h2>
+          <p className="adhan-screen-time">{screen.time}</p>
+          <p className="adhan-screen-date">
+            {today} • {screen.city}
+          </p>
+          <p className="adhan-screen-motivation">{art.phrase}</p>
+        </div>
+
+        <div className="adhan-screen-controls">
+          <button type="button" className="adhan-ctrl-primary" onClick={toggleAudio} aria-label={playing ? "إيقاف مؤقت" : "تشغيل"}>
+            {playing ? "إيقاف مؤقت" : "تشغيل"}
+          </button>
+          <label className="adhan-screen-volume">
+            <span>الصوت</span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={Math.round(volume * 100)}
+              onChange={(event) => changeVolume(Number(event.target.value) / 100)}
+            />
+          </label>
+          <button type="button" className="adhan-ctrl-stop" onClick={dismiss}>
+            إيقاف وإغلاق
+          </button>
+        </div>
       </div>
     </div>
   );

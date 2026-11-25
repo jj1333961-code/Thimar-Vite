@@ -218,7 +218,7 @@ export default function MushafAyahMenu({
     { key: "pin", label: "علامة مرجعية", run: handleBookmark, active: marked },
     { key: "note", label: "ملاحظة شخصية", run: openNotes },
     { key: "copy", label: "نسخ الآيات", run: () => void handleCopy() },
-    { key: "mic", label: "تسميع الآيات", run: () => (onStartTasmee ? setPanel("tasmee") : setSheet("recite")) },
+    { key: "mic", label: "تسميع الآيات", run: () => (onStartTasmee ? onStartTasmee(false) : setSheet("recite")) },
   ];
 
   return (
@@ -281,34 +281,7 @@ export default function MushafAyahMenu({
             </div>
             <p className="mushaf-ayah-sheet-sub">{title}</p>
 
-            {panel === "tasmee" ? (
-              <div className="ayah-tasmee-choice">
-                <p className="mushaf-ayah-sheet-note">اختر طريقة عرض الآيات أثناء التسميع:</p>
-                <button
-                  type="button"
-                  className="primary-button"
-                  onClick={() => {
-                    setPanel(null);
-                    onStartTasmee?.(true);
-                  }}
-                >
-                  عرض الآيات — تظل ظاهرة كما هي
-                </button>
-                <button
-                  type="button"
-                  className="primary-button"
-                  onClick={() => {
-                    setPanel(null);
-                    onStartTasmee?.(false);
-                  }}
-                >
-                  إخفاء الآيات — تُكشف كلمةً كلمة
-                </button>
-                <button type="button" className="ghost-button" onClick={() => setPanel(null)}>
-                  رجوع
-                </button>
-              </div>
-            ) : panel === "tafsir" ? (
+            {panel === "tafsir" ? (
               tafsirLoading ? (
                 <p className="mushaf-ayah-sheet-note">جارٍ تحميل التفسير…</p>
               ) : tafsirError ? (

@@ -1,4 +1,13 @@
 <resources>
   <color name="thimar_green">#0F5F4E</color>
   <color name="thimar_cream">#FAF7F1</color>
+  <!-- ألوان شاشة وقت الصلاة -->
+  <color name="adhan_ink">#08120F</color>
+  <color name="adhan_gold">#E7C784</color>
+  <color name="adhan_gold_muted">#CCBFA272</color>
+  <color name="adhan_cream">#F7F1E3</color>
+  <color name="adhan_cream_soft">#D9F7F1E3</color>
+  <color name="adhan_cream_muted">#B3F7F1E3</color>
+  <color name="adhan_cream_faint">#80F7F1E3</color>
+  <color name="adhan_stop">#9F2A2A</color>
 </resources>

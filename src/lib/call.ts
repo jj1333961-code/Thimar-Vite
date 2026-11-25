@@ -93,37 +93,70 @@ export async function getLocalStream(mode: CallMode): Promise<MediaStream> {
   });
 }
 
+/**
+ * وسائط المكالمة تمر عبر خادم TURN فقط، فلا يُكشف عنوان IP للطرف الآخر
+ * ولا يعتمد الاتصال على نجاح الاتصال المباشر بين الشبكتين.
+ */
+export const CALL_ICE_TRANSPORT_POLICY: RTCIceTransportPolicy = "relay";
+
+let iceCache: { servers: RTCIceServer[]; expiresAt: number } | null = null;
+let iceRequest: Promise<RTCIceServer[]> | null = null;
+
+/** يجلب مرشحات TURN ويخزّنها مؤقتًا لتقليل زمن بدء المكالمة. */
 export async function getIceServers(): Promise<RTCIceServer[]> {
-  try {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/thimar-turn`, {
-      method: "GET",
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      },
-      cache: "no-store",
-    });
-    if (!response.ok) return ICE_SERVERS;
-    const data = await response.json();
-    if (Array.isArray(data?.iceServers) && data.iceServers.length) {
-      return data.iceServers as RTCIceServer[];
+  if (iceCache && iceCache.expiresAt > Date.now()) return iceCache.servers;
+  if (iceRequest) return iceRequest;
+
+  iceRequest = (async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4500);
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/thimar-turn`, {
+        method: "GET",
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      if (!response.ok) return ICE_SERVERS;
+      const data = await response.json();
+      const servers = Array.isArray(data?.iceServers) && data.iceServers.length
+        ? (data.iceServers as RTCIceServer[])
+        : ICE_SERVERS;
+      iceCache = { servers, expiresAt: Date.now() + 10 * 60 * 1000 };
+      return servers;
+    } catch {
+      return ICE_SERVERS;
+    } finally {
+      clearTimeout(timer);
     }
-    return ICE_SERVERS;
-  } catch {
-    return ICE_SERVERS;
+  })();
+
+  try {
+    return await iceRequest;
+  } finally {
+    iceRequest = null;
   }
+}
+
+function getSessionToken(): string | null {
+  try { return localStorage.getItem("thimar_session_token"); } catch { return null; }
 }
 
 export async function callServer(action: string, payload: Record<string, unknown> = {}): Promise<any> {
   try {
+    const token = getSessionToken();
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token || SUPABASE_ANON_KEY}`,
+    };
     const response = await fetch(`${SUPABASE_URL}/functions/v1/thimar-calls`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      },
-      body: JSON.stringify({ action, ...payload }),
+      headers,
+      body: JSON.stringify({ action, token: token ?? undefined, ...payload }),
     });
     return await response.json().catch(() => ({}));
   } catch (err) {

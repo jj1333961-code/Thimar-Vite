@@ -22,6 +22,8 @@ type NativeBridge = {
   register: () => void;
   token: () => string;
   takePendingUrl?: () => string;
+  setActiveConversation?: (conversationId: string) => void;
+  setMessagePreviewEnabled?: (enabled: boolean) => void;
   setAccount: (accountId: string) => void;
   setAccountSecret?: (secret: string) => void;
   clearAccount: () => void;
@@ -52,6 +54,18 @@ let currentAccount: string | null = null;
 /** هل يعمل التطبيق داخل الغلاف الأصلي؟ */
 export function isNativeApp(): boolean {
   return typeof window !== "undefined" && Boolean(window.ThimarNative);
+}
+
+/** رمز FCM الحالي للجهاز — يُستخدم كإثبات هوية عند إرسال إشعار.
+ *  لا يُسجَّل في السجلات ولا يُرسل إلا إلى دالة ثمار الخادمية. */
+export function nativePushToken(): string | null {
+  try {
+    const native = bridge();
+    const token = native?.token?.() || localStorage.getItem(STORAGE_KEY) || "";
+    return token || null;
+  } catch {
+    return null;
+  }
 }
 
 function resolveBridge(raw: any): any {
@@ -340,4 +354,18 @@ function installDeepLinkHandler() {
 /** يفتح صفحة إعدادات إشعارات النظام (عند رفض الإذن نهائيًا). */
 export function openNotificationSettings(): void {
   bridge()?.openNotificationSettings?.();
+}
+
+/** يزامن تفضيل معاينة الرسالة إلى الغلاف الأصلي. */
+export function setNativeMessagePreview(enabled: boolean): void {
+  try { bridge()?.setMessagePreviewEnabled?.(enabled); } catch { /* ignore */ }
+}
+
+/** يُعلِم الغلاف الأصلي بالمحادثة المفتوحة (لتجنب إشعارات غير ضرورية). */
+export function setActiveConversation(conversationId: string | null): void {
+  try {
+    bridge()?.setActiveConversation?.(conversationId ?? "");
+  } catch {
+    /* ignore */
+  }
 }

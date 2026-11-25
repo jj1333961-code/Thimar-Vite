@@ -13,6 +13,11 @@
   <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
   <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
   <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+  <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+  <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
   <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
   <uses-feature android:name="android.hardware.camera" android:required="false" />
   <application
@@ -50,12 +55,17 @@
       android:screenOrientation="portrait"
       android:showWhenLocked="true"
       android:turnScreenOn="true"
+      android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
       android:theme="@style/AdhanScreenTheme" />
     <activity
       android:name=".DiagnosticsActivity"
       android:exported="false"
       android:label="@string/diagnostics_label"
       android:theme="@style/AppTheme" />
+    <service
+      android:name=".AdhanService"
+      android:exported="false"
+      android:foregroundServiceType="mediaPlayback" />
     <service
       android:name=".ThimarMessagingService"
       android:exported="false">

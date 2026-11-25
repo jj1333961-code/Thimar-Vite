@@ -1,13 +1,13 @@
 {
   "platform": "web",
-  "versionName": "1.11.5",
-  "versionCode": 27,
-  "resourceVersion": "1.11.5",
-  "resourceVersionCode": 27,
-  "nativeVersionCode": 27,
-  "nativeVersionName": "1.11.5",
+  "versionName": "1.11.6",
+  "versionCode": 28,
+  "resourceVersion": "1.11.6",
+  "resourceVersionCode": 28,
+  "nativeVersionCode": 28,
+  "nativeVersionName": "1.11.6",
   "baseUrl": "/",
-  "generatedAt": "2026-11-24T06:51:12.717Z",
+  "generatedAt": "2026-11-25T20:11:30.204Z",
   "files": [
     {
       "path": "adhan/afasy-fajr.mp3",
@@ -41,28 +41,28 @@
     },
     {
       "path": "adhan/prayer/asr.jpg",
-      "bytes": 78338,
-      "sha256": "b31b15e4e92b4bd7d56d3947e273104aac94d497825a329e94ff0eb2fb1fbfa5"
+      "bytes": 298395,
+      "sha256": "f3e9b50d4fa33be525db0f75d345b41c82504697a812ea8f716f52c9f0c2fc3c"
     },
     {
       "path": "adhan/prayer/dhuhr.jpg",
-      "bytes": 89811,
-      "sha256": "edbba01adbe55c81f7a4004e3d5e0c3e2287d29a499c7cc05cbe463c1a55bb5b"
+      "bytes": 341316,
+      "sha256": "75cddb18958599a518c06a6b14d4d1d4594d594a0dec24fbb21ddccabe6d7dc5"
     },
     {
       "path": "adhan/prayer/fajr.jpg",
-      "bytes": 93335,
-      "sha256": "d878c8bb4586152fe928bce9f3e5cb3612ad73f9b933ca7290c3290c85434d4f"
+      "bytes": 245986,
+      "sha256": "3965ef5fe43ac98c23d60d7de93ed67b65228fe1bb01578ed89a87da4a9fa6b5"
     },
     {
       "path": "adhan/prayer/isha.jpg",
-      "bytes": 83311,
-      "sha256": "20c0a2f90006ee20844d15f8c0f572ef27d840d98bb2837caaddefccf4197afb"
+      "bytes": 284861,
+      "sha256": "73a4f88d4046a33db4c18c266a139afbb91999d981c24b53b0c86245642608ed"
     },
     {
       "path": "adhan/prayer/maghrib.jpg",
-      "bytes": 84585,
-      "sha256": "10013940b6cd27db84a6bf718f8ed75985b069e645be204874007651b07a3ecf"
+      "bytes": 210969,
+      "sha256": "3f3a16497fc4e012d9f16826e553f44fa9901175779d37575c5360ac2d33f5c8"
     },
     {
       "path": "adhan-hero.svg",
@@ -70,14 +70,39 @@
       "sha256": "b4b3c75cfe65a93dd56ead63dae638fb84bdfb1ced5193c7b78431281c919513"
     },
     {
-      "path": "assets/esm-D0L1kdMb.js",
-      "bytes": 599,
-      "sha256": "b7899af01ebd0d6c3f5b44a54cc4dd6ce61f97070536cdc5e1837c2e7fb717d2"
+      "path": "assets/MushafTasmeeSheet-DxkyjLS_.js",
+      "bytes": 23865,
+      "sha256": "98c69d538075ee294ab580670b34af6fff88cb7737f99b359b5caffa68bab52d"
     },
     {
-      "path": "assets/index-CyV3rYRf.css",
-      "bytes": 256720,
-      "sha256": "9da551fe2940159fd668f3aed18ec7c92502162ac2f9abd4ecc197c566fd0b41"
+      "path": "assets/TasmeeReader-405wUkQK.js",
+      "bytes": 29000,
+      "sha256": "81f517bb2e7c91fcc94ae92afd6dbb6b124e7a92eab891ee63573c3c61648683"
+    },
+    {
+      "path": "assets/TuhfaTasmeeReader-Ci0VxjNU.js",
+      "bytes": 25150,
+      "sha256": "0d8ec03d215d0e0164475a29c2047c9a209c05df50808b997348f3aaca95c3cc"
+    },
+    {
+      "path": "assets/dialect-4WXjo_u_.js",
+      "bytes": 2484,
+      "sha256": "e8aff53f78f5ad63707ef5bbd910d298b27199d229f7fb7c97f1a26ed3b52503"
+    },
+    {
+      "path": "assets/esm-DfKbXyvN.js",
+      "bytes": 599,
+      "sha256": "cca5c9cda48d9726c4b4514bd832c0334a42da1e88ca4988d764182aa63a8859"
+    },
+    {
+      "path": "assets/index-BgXq6AeN.css",
+      "bytes": 274991,
+      "sha256": "cb2c59dc51d558d33938af99a1d72726c9c803e7429363cf42a82a058e4bc4b1"
+    },
+    {
+      "path": "assets/index-C9LYLZt9.js",
+      "bytes": 1272360,
+      "sha256": "83a0438b89d227652102a8887e4c0ea8641ab092106e6ce0f1a71364c8107414"
     },
     {
       "path": "assets/ort.bundle.min-B0peBxyq.js",
@@ -85,9 +110,24 @@
       "sha256": "02124e23f8e5bb503e638fdc84febbad20ef3ea89b83f5f1d2cd2a85ac9544a8"
     },
     {
-      "path": "assets/web-CbptSU7K.js",
+      "path": "assets/quranAsrSmall-CblCl2ji.js",
+      "bytes": 8912,
+      "sha256": "129587c3429646e630c04df353411a2187978853580b14902dacbbf86d53a05f"
+    },
+    {
+      "path": "assets/tasmeeEngines-DhdBBq57.js",
+      "bytes": 13674,
+      "sha256": "3dae8d1b18275f69ba2f31e2428e62f7c874e4925d0f06b64e5ce192f2e7edd0"
+    },
+    {
+      "path": "assets/tilawaRecitation-C882TdZZ.js",
+      "bytes": 1052777,
+      "sha256": "71d5dc6321853955d8ae7bcba1d2a9ac9c731eeff17468ae0f6e7a1e9497ee25"
+    },
+    {
+      "path": "assets/web-BFcaBa7_.js",
       "bytes": 4591,
-      "sha256": "53816e50dc7d23f7ea596eea2b47061684440f42578474c3db0be1327d11e8e8"
+      "sha256": "f7d6ec1e0954d8d9e2eddeb291ac53ec74378ae25c5ab26860ded0c99f45a156"
     },
     {
       "path": "fonts/UthmanicHafs-v3.woff2",
@@ -147,7 +187,7 @@
     {
       "path": "index.html",
       "bytes": 2483,
-      "sha256": "eefee3760be0e0839892031f4c62cff999e9053522aacb6bb50b89837c098dfc"
+      "sha256": "5f16d24c091403aef075866b226915524c4aed43030eaf638e2443ce1f047958"
     },
     {
       "path": "licenses/THIRD_PARTY_NOTICES.md",
@@ -490,9 +530,14 @@
       "sha256": "6f66995b142feca29a9a1ada2d6957a6194aec39b0bd0f0cf2cd4cb1f2eae5f9"
     },
     {
+      "path": "quran/tajweed.json.gz",
+      "bytes": 374316,
+      "sha256": "e72c2cde54d0417676130f10ec684544de124e0b14988acc2d9713e224654aef"
+    },
+    {
       "path": "sw.js",
-      "bytes": 11829,
-      "sha256": "39f6950a51778705242b2732d9c7435a8eb72e804ade1774a6dd7ac174001fcb"
+      "bytes": 13207,
+      "sha256": "bfdbfb6af2c48103de25a95a5065f9976447851e43e2c9aae0347627b0942fc6"
     }
   ]
 }

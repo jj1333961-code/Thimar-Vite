@@ -21,6 +21,8 @@ type AndroidMetadata = {
   fileName?: string;
   fileSize?: number;
   sha256?: string;
+  resourceVersionCode?: number;
+  resourceSize?: number;
   versionHistory?: { versionName?: string; versionCode?: number }[];
 };
 
@@ -29,11 +31,29 @@ type IOSMetadata = {
   url?: string;
 };
 
+/** إصدار موارد الويب المثبت حالياً (0 إن لم يُثبّت تحديث موارد بعد). */
+export function installedResourceVersion(): number | null {
+  try {
+    const updater = (window as any).ThimarAssetUpdater;
+    if (!updater || typeof updater.getInstalledVersion !== "function") return null;
+    const raw = String(updater.getInstalledVersion() || "");
+    const match = raw.match(/\((\d+)\)\s*$/);
+    return match ? Number(match[1]) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Reject incomplete, stale, or off-site APK metadata before starting a native update. */
 function isValidAndroidRelease(meta: AndroidMetadata | null | undefined): meta is AndroidMetadata {
   if (!meta || meta.available !== true || meta.packageName !== "app.thimar.quran") return false;
   if (!Number.isSafeInteger(meta.versionCode) || Number(meta.versionCode) < 1) return false;
   if (typeof meta.versionName !== "string" || !meta.versionName.trim()) return false;
+  const assetOnly = meta.assetOnly === true || meta.apkRequired === false;
+  if (assetOnly) {
+    // تحديث موارد فقط: لا يوجد APK ولا حاجة إلى حجم/بصمة/رابط تنزيل.
+    return Number.isSafeInteger(meta.resourceVersionCode ?? meta.versionCode);
+  }
   if (typeof meta.fileName !== "string" || !/^[a-zA-Z0-9._-]+\.apk$/i.test(meta.fileName)) return false;
   if (!Number.isSafeInteger(meta.fileSize) || Number(meta.fileSize) < 1024 * 1024) return false;
   if (typeof meta.sha256 !== "string" || !/^[a-f0-9]{64}$/i.test(meta.sha256)) return false;
@@ -125,9 +145,14 @@ export default function UpdatePrompt() {
           if (!isValidAndroidRelease(meta)) return;
           const latest = Number(meta.versionCode);
           const current = installed ?? null;
-          if (current !== null && latest > current) {
+          const assetOnly = meta.assetOnly === true || meta.apkRequired === false;
+          const latestResource = Number(meta.resourceVersionCode ?? latest);
+          const currentResource = installedResourceVersion();
+          const needsAssetUpdate = assetOnly && (currentResource === null || latestResource > currentResource);
+          if ((current !== null && latest > current) || needsAssetUpdate) {
             setAvailableVersion(latest);
             if (typeof meta.fileSize === "number") setAvailableSize(meta.fileSize);
+            else if (typeof meta.resourceSize === "number") setAvailableSize(meta.resourceSize);
             const sd =
               (meta as any)?.shortDescription ??
               (meta as any)?.releaseNotes?.ar?.shortDescription ??
@@ -207,8 +232,10 @@ export default function UpdatePrompt() {
             setBusy(false);
             return;
           }
-          // No differential updater bridge (e.g. older 1.10.1 install):
-          // fall through to the one-time compatible APK upgrade below.
+          // نسخة قديمة جداً بلا محدّث موارد: لا نُنزّل APK غير موجود في بيانات الموارد.
+          setStatus("هذا الإصدار يحتاج تحديث التطبيق مرة واحدة من المتجر/الرابط الرسمي.");
+          setBusy(false);
+          return;
         }
         // Download the complete APK, not a separate/incremental resource patch.
         // Its bundled assets always belong to the same release as the installed binary.

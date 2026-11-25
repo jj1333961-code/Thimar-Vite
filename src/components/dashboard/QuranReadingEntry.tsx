@@ -1,23 +1,23 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "react";
 import { surahs } from "../../data/surahs";
 import { juzStarts, surahAyahCounts } from "../../data/juzSurahs";
 import { fetchSurah, type Ayah } from "../../lib/quran";
-import { cachedFetch } from "../../lib/offlineCache";
+
 import { useHistoryBack } from "../../lib/useHistoryBack";
 import { loadQuranIndex, surahNameOf, type AyahInfo } from "../../lib/quranIndex";
+import {
+  buildNormalized,
+  loadQuranSearchIndex,
+  matchRange,
+  normalizeQuery,
+  searchQuran,
+  type QuranSearchHit,
+} from "../../lib/quranSearch";
 import MushafPages from "./MushafPages";
 import MushafTasmeeArchive from "./MushafTasmeeArchive";
 import { Icon, type IconName } from "./ui";
 
 type Tab = "juz" | "surah" | "marks" | "khatmah" | "notes" | "records";
-
-type SearchMatch = {
-  number: number;
-  text: string;
-  numberInSurah: number;
-  surah: { number: number; name: string };
-  page?: number;
-};
 
 type LastRead = { page: number; at: number; surah?: string; juz?: number };
 
@@ -39,43 +39,9 @@ const PLACEHOLDERS: Record<Tab, string> = {
   records: "ابحث في سجلات التسميع…",
 };
 
-/* ---------- تطبيع عربي وتظليل نتيجة البحث داخل الآية ---------- */
+/* ---------- تظليل نتيجة البحث داخل الآية ---------- */
 
-const DIACRITICS = /[\u0610-\u061A\u064B-\u065F\u0670\u0640\u06D6-\u06ED]/;
-const LETTER = /[\u0621-\u064Aa-z0-9]/;
-const SEPARATOR = /[\s،؛.,:!?؟\-–—_"'«»()[\]{}]+/;
-
-function buildNormalized(text: string): { n: string; map: number[] } {
-  let n = "";
-  const map: number[] = [];
-  for (let i = 0; i < text.length; i += 1) {
-    const raw = text[i];
-    if (DIACRITICS.test(raw)) continue;
-    let ch = raw;
-    if (ch === "أ" || ch === "إ" || ch === "آ" || ch === "ٱ") ch = "ا";
-    else if (ch === "ؤ") ch = "و";
-    else if (ch === "ئ" || ch === "ى") ch = "ي";
-    else if (ch === "ة") ch = "ه";
-    if (SEPARATOR.test(raw) || !LETTER.test(ch)) {
-      if (n && !n.endsWith(" ")) {
-        n += " ";
-        map.push(i);
-      }
-      continue;
-    }
-    n += ch.toLowerCase();
-    map.push(i);
-  }
-  if (n.endsWith(" ")) {
-    n = n.slice(0, -1);
-    map.pop();
-  }
-  return { n, map };
-}
-
-function normalizeQuery(input: string): string {
-  return buildNormalized(input).n;
-}
+const SEARCH_PAGE_SIZE = 40;
 
 function highlightMatch(text: string, map: number[], startNorm: number, endNorm: number): ReactNode {
   if (startNorm < 0 || endNorm <= startNorm || map.length === 0) return text;
@@ -91,20 +57,6 @@ function highlightMatch(text: string, map: number[], startNorm: number, endNorm:
   );
 }
 
-/** يعيد نطاق أول تطابق للكلمة/العبارة داخل النص المطبَّع. */
-function matchRange(hay: string, needle: string): { start: number; end: number } | null {
-  if (!needle) return null;
-  const at = hay.indexOf(needle);
-  if (at < 0) return null;
-  const before = at === 0 || hay[at - 1] === " ";
-  const after = at + needle.length === hay.length || hay[at + needle.length] === " ";
-  if (!before || !after) {
-    // مطابقة داخل الكلمة مقبولة أيضًا كعرض نتيجة.
-    return { start: at, end: at + needle.length };
-  }
-  return { start: at, end: at + needle.length };
-}
-
 export default function QuranReadingEntry({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<Tab>("surah");
   const [query, setQuery] = useState("");
@@ -114,8 +66,12 @@ export default function QuranReadingEntry({ onBack }: { onBack: () => void }) {
   const [surahSearch, setSurahSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [results, setResults] = useState<SearchMatch[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchJuz, setSearchJuz] = useState(0);
+  const [searchSurah, setSearchSurah] = useState(0);
+  const [searchIndex, setSearchIndex] = useState<QuranSearchHit[] | null>(null);
+  const [searchIndexProgress, setSearchIndexProgress] = useState(0);
+  const [searchIndexError, setSearchIndexError] = useState(false);
+  const [searchLimit, setSearchLimit] = useState(SEARCH_PAGE_SIZE);
   const [openPage, setOpenPage] = useState<number | null>(null);
   const [highlight, setHighlight] = useState<number | null>(null);
   const [index, setIndex] = useState<Map<number, AyahInfo>>(new Map());
@@ -183,36 +139,44 @@ export default function QuranReadingEntry({ onBack }: { onBack: () => void }) {
     return () => controller.abort();
   }, [openSurah]);
 
-  /* البحث في آيات القرآن. */
+  /* فهرس البحث: يُحمَّل فقط عند فتح صفحة البحث، من ملف مضمَّن، فلا يتجمد التطبيق عند الدخول. */
   useEffect(() => {
-    const value = searchQuery.trim();
-    if (!value) {
-      setResults([]);
-      setSearchLoading(false);
-      return;
-    }
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      setSearchLoading(true);
-      cachedFetch(`https://api.alquran.cloud/v1/search/${encodeURIComponent(value)}/all/quran-uthmani`)
-        .then(async (response) => {
-          if (!response.ok) throw new Error("search failed");
-          const payload = (await response.json()) as { data?: { matches?: SearchMatch[] } };
-          if (controller.signal.aborted) return;
-          setResults(payload.data?.matches ?? []);
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) setResults([]);
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setSearchLoading(false);
-        });
-    }, 350);
+    if (!searchOpen || searchIndex) return;
+    let cancelled = false;
+    setSearchIndexError(false);
+    loadQuranSearchIndex((done, total) => {
+      if (!cancelled) setSearchIndexProgress(total ? Math.round((done / total) * 100) : 0);
+    })
+      .then((value) => {
+        if (!cancelled) setSearchIndex(value);
+      })
+      .catch(() => {
+        if (!cancelled) setSearchIndexError(true);
+      });
     return () => {
-      window.clearTimeout(timer);
-      controller.abort();
+      cancelled = true;
     };
-  }, [searchQuery]);
+  }, [searchOpen, searchIndex]);
+
+  useEffect(() => {
+    setSearchLimit(SEARCH_PAGE_SIZE);
+  }, [searchQuery, searchSurah, searchJuz]);
+
+  /* إدخال البحث مؤجَّل حتى يبقى الكتابة سلسة، والنتائج محدودة بصفحات. */
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const searchResults = useMemo(() => {
+    if (!searchIndex || !deferredSearchQuery.trim()) return [];
+    return searchQuran(searchIndex, deferredSearchQuery, searchSurah, searchJuz);
+  }, [deferredSearchQuery, searchIndex, searchSurah, searchJuz]);
+  const visibleSearchResults = useMemo(
+    () => searchResults.slice(0, searchLimit),
+    [searchResults, searchLimit],
+  );
+  const searchLoading = searchOpen && !searchIndex && !searchIndexError;
+  const normalizedSearchQuery = useMemo(
+    () => normalizeQuery(deferredSearchQuery),
+    [deferredSearchQuery],
+  );
 
   const openMushaf = (page: number, ayah?: number | null) => {
     setOpenPage(page);
@@ -222,6 +186,16 @@ export default function QuranReadingEntry({ onBack }: { onBack: () => void }) {
   const pageOfAyah = (global: number): number | null => index.get(global)?.page ?? null;
 
   const normalizedQuery = normalizeQuery(query);
+
+  const firstPageByJuz = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const info of index.values()) {
+      if (!map.has(info.juz) || info.page < (map.get(info.juz) ?? Infinity)) {
+        map.set(info.juz, info.page);
+      }
+    }
+    return map;
+  }, [index]);
 
   const surahList = useMemo(() => {
     const digits = query.trim();
@@ -302,12 +276,16 @@ export default function QuranReadingEntry({ onBack }: { onBack: () => void }) {
       <div className="page standalone-page quran-hub-page">
         <div className="quran-hub-box">
           <div className="quran-hub-head">
-            <button type="button" className="quran-hub-back" onClick={dismissSearch} aria-label="رجوع">
-              <Icon name="arrow-right" size={18} />
+            <button type="button" className="quran-hub-back" onClick={dismissSearch} aria-label="إغلاق">
+              <Icon name="x" size={18} />
             </button>
             <strong>البحث في القرآن الكريم</strong>
             <span className="muted quran-hub-count">
-              {searchLoading ? "جارٍ البحث…" : `${results.length} نتيجة`}
+              {searchLoading
+                ? searchIndexProgress
+                  ? `تجهيز البحث… ${searchIndexProgress}%`
+                  : "جارٍ تجهيز البحث…"
+                : `${searchResults.length} نتيجة`}
             </span>
           </div>
 
@@ -327,14 +305,42 @@ export default function QuranReadingEntry({ onBack }: { onBack: () => void }) {
             ) : null}
           </div>
 
+          <div className="quran-hub-filters">
+            <select
+              className="quran-hub-filter"
+              value={searchSurah}
+              onChange={(event) => setSearchSurah(Number(event.target.value))}
+              aria-label="تصفية حسب السورة"
+            >
+              <option value={0}>كل السور</option>
+              {surahs.map((s) => (
+                <option key={s.n} value={s.n}>{s.n}. {s.name}</option>
+              ))}
+            </select>
+            <select
+              className="quran-hub-filter"
+              value={searchJuz}
+              onChange={(event) => setSearchJuz(Number(event.target.value))}
+              aria-label="تصفية حسب الجزء"
+            >
+              <option value={0}>كل الأجزاء</option>
+              {Array.from({ length: 30 }, (_, i) => i + 1).map((j) => (
+                <option key={j} value={j}>الجزء {j}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="quran-hub-content">
-            {!searchLoading && searchQuery.trim() && results.length === 0 ? (
+            {searchIndexError ? (
+              <p className="quran-hub-empty">تعذّر تجهيز البحث في المصحف. أغلق الصفحة وأعد المحاولة.</p>
+            ) : null}
+            {!searchLoading && !searchIndexError && searchQuery.trim() && searchResults.length === 0 ? (
               <p className="quran-hub-empty">لا توجد نتائج مطابقة لـ «{searchQuery.trim()}».</p>
             ) : null}
-            {results.map((match) => {
+            {visibleSearchResults.map((match) => {
               const page = match.page ?? pageOfAyah(match.number);
-              const { n, map } = buildNormalized(match.text);
-              const range = matchRange(n, normalizeQuery(searchQuery));
+              const range = matchRange(match.norm, normalizedSearchQuery);
+              const map = range ? buildNormalized(match.text).map : [];
               return (
                 <button
                   key={`${match.number}-${match.surah.number}-${match.numberInSurah}`}
@@ -354,6 +360,15 @@ export default function QuranReadingEntry({ onBack }: { onBack: () => void }) {
                 </button>
               );
             })}
+            {visibleSearchResults.length < searchResults.length ? (
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => setSearchLimit((value) => value + SEARCH_PAGE_SIZE)}
+              >
+                عرض المزيد ({searchResults.length - visibleSearchResults.length} نتيجة متبقية)
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
@@ -472,7 +487,7 @@ export default function QuranReadingEntry({ onBack }: { onBack: () => void }) {
           <Icon name="search" size={18} />
           <span className="quran-hub-search-hint">ابحث في القرآن الكريم بحرف أو كلمة أو آية…</span>
           <span className="quran-hub-search-go" aria-hidden="true">
-            <Icon name="search" size={18} />
+            <Icon name="x" size={18} />
           </span>
         </button>
 
@@ -543,7 +558,7 @@ export default function QuranReadingEntry({ onBack }: { onBack: () => void }) {
             <div className="quran-hub-list">
               {juzList.length === 0 ? <p className="quran-hub-empty">لا يوجد جزء بهذا الرقم.</p> : null}
               {juzList.map((item) => {
-                const firstPage = [...index.values()].find((info) => info.juz === item.juz)?.page ?? null;
+                const firstPage = firstPageByJuz.get(item.juz) ?? null;
                 return (
                   <button
                     key={item.juz}

@@ -1,0 +1,10 @@
+<resources>
+  <dimen name="adhan_page_padding">44dp</dimen>
+  <dimen name="adhan_logo_size">56dp</dimen>
+  <dimen name="adhan_close_size">52dp</dimen>
+  <dimen name="adhan_control_size">68dp</dimen>
+  <dimen name="adhan_art_min_height">280dp</dimen>
+  <dimen name="adhan_prayer_size">40sp</dimen>
+  <dimen name="adhan_time_size">60sp</dimen>
+  <dimen name="adhan_phrase_size">19sp</dimen>
+</resources>

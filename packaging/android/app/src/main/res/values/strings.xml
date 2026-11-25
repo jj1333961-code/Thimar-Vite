@@ -2,5 +2,11 @@
   <string name="app_name">ثمار</string>
   <string name="diagnostics_label">تشخيص تشغيل التطبيق</string>
   <string name="diagnostics_short">تشخيص</string>
-  <string name="adhan_dismiss_hint">اضغط على الشاشة للإغلاق</string>
+  <string name="adhan_screen_label">أذان — وقت الصلاة</string>
+  <string name="adhan_dismiss_hint">يُغلق تلقائيًا بعد ٩٠ ثانية — أو استخدم زر الإغلاق</string>
+  <string name="adhan_stop">إيقاف الأذان</string>
+  <string name="adhan_close">إغلاق</string>
+  <string name="adhan_pause">إيقاف مؤقت</string>
+  <string name="adhan_resume">استئناف</string>
+  <string name="adhan_volume">مستوى صوت الأذان</string>
 </resources>

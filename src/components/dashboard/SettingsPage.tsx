@@ -3,6 +3,7 @@ import MushafOfflineCard from "./MushafOfflineCard";
 import FatwaOfflineCard from "./FatwaOfflineCard";
 import AppFilesCard from "./AppFilesCard";
 import { loadAccounts, setAccountStatus, loadComplaints, resolveComplaint, createAccount, deleteAccount, banAccount, unbanAccount, changePassword as changeAccountPassword, type Account, type Complaint } from "../../lib/auth";
+import { verifyPassword } from "../../lib/password";
 import {
   loadSettings,
   saveSettings,
@@ -25,7 +26,9 @@ import {
 } from "../../lib/notify";
 import { serverTestPush, subscribeToPush } from "../../lib/push";
 
-import { adhanOptions } from "../../data/adhan";
+import { adhanOptions, getAdhan } from "../../data/adhan";
+import { PRAYER_KEYS, prayerImageUrl } from "../../data/prayerImages";
+import AdhanPermissionsCard from "./AdhanPermissionsCard";
 import { applyVibrationSetting, installVibrationGate } from "../../lib/sound";
 import { reciters as quranReciters, ayahAudioUrl, reciterBitrate } from "../../data/reciters";
 import { tuhfaVerseReciters } from "../../data/tuhfaVerseAudio";
@@ -47,8 +50,8 @@ import {
   type AiConfig,
 } from "../../lib/ai";
 import { Icon, EmptyState, SectionCard } from "./ui";
-import { loadTilawa, checkTilawaReadiness, type TilawaReadinessState } from "../../lib/tilawaRecitation";
-import { detectPlatform, ANDROID_UPDATE_METADATA_URL, IOS_UPDATE_METADATA_URL } from "../UpdatePrompt";
+import type { TilawaReadinessState } from "../../lib/tilawaRecitation";
+import { detectPlatform, installedResourceVersion, ANDROID_UPDATE_METADATA_URL, IOS_UPDATE_METADATA_URL } from "../UpdatePrompt";
 import { getInstalledVersionCode } from "../../lib/nativePush";
 
 const QURAN_AUDIO_CACHE = "thimar-audio-v1";
@@ -123,6 +126,10 @@ export default function SettingsPage({
   const settingsGroupLabel = (id: string) =>
     ({ appearance: "المظهر", sounds: "الأذان", downloads: "التحميل", updates: "التحديثات", approvals: "الاعتماد والشكاوى", users: "المستخدمين", password: "تغير الرقم السري", ai: "الذكاء الاصطناعي" } as Record<string, string>)[id] ?? "الإعدادات";
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [viewUser, setViewUser] = useState<Account | null>(null);
+  const [viewUserPassword, setViewUserPassword] = useState("");
+  const [viewUserError, setViewUserError] = useState("");
+  const [viewUserVerified, setViewUserVerified] = useState(false);
   const [newUser, setNewUser] = useState({ fullName: "", username: "", password: "", type: "student" as Account["type"], birthDate: "" });
   const [newUserMsg, setNewUserMsg] = useState("");
   const [complaints, setComplaints] = useState<Complaint[]>([]);
@@ -219,6 +226,7 @@ export default function SettingsPage({
     let cancelled = false;
     (async () => {
       try {
+        const { checkTilawaReadiness } = await import("../../lib/tilawaRecitation");
         const r = await checkTilawaReadiness();
         if (cancelled) return;
         setAsrReadiness(r.state);
@@ -604,6 +612,35 @@ export default function SettingsPage({
     setAdminResetMessage(removed ? `تم حذف ${target.fullName} (@${target.username}).` : "تعذّر حذف المستخدم.");
   };
 
+  const openViewUser = (target: Account) => {
+    setViewUser(target);
+    setViewUserPassword("");
+    setViewUserError("");
+    setViewUserVerified(false);
+  };
+
+  const closeViewUser = () => {
+    setViewUser(null);
+    setViewUserPassword("");
+    setViewUserError("");
+    setViewUserVerified(false);
+  };
+
+  const verifyViewUser = async () => {
+    const target = viewUser;
+    if (!target) return;
+    // التحقق من هوية المسؤول (وليس المستخدم المُعرض).
+    const valid = account.passwordHash && account.passwordSalt
+      ? await verifyPassword(viewUserPassword, account.passwordSalt, account.passwordHash)
+      : account.password !== undefined && account.password === viewUserPassword;
+    if (!valid) {
+      setViewUserError("كلمة المرور غير صحيحة.");
+      return;
+    }
+    setViewUserVerified(true);
+    setViewUserError("");
+  };
+
   const removeMyAccount = () => {
     if (deleteConfirm.trim() !== "حذف") {
       setDeleteMessage("اكتب كلمة «حذف» للتأكيد.");
@@ -710,12 +747,23 @@ export default function SettingsPage({
           setUpdateMessage(isArabic ? "تعذر تحديد إصدار التطبيق المثبت. أعد المحاولة." : "Could not determine the installed app version. Try again.");
           return;
         }
-        if (available > installedCode) {
+        const availableResource = Number(metadata.resourceVersionCode ?? available);
+        const installedResource = installedResourceVersion();
+        const needsResource = assetOnly && (installedResource === null || availableResource > installedResource);
+        if (available > installedCode || needsResource) {
           setUpdateStatus("available");
           setUpdateVersion(String(metadata.versionName ?? metadata.versionCode));
           setUpdateReleaseNotes(metadata.releaseNotes ?? null);
-          setUpdateFileSize(typeof metadata.fileSize === "number" ? metadata.fileSize : null);
-          setUpdateMessage(isArabic ? "يتوفر تحديث جديد لثمار" : "A new update is available for Thimar");
+          setUpdateFileSize(
+            typeof metadata.fileSize === "number" && metadata.fileSize > 0
+              ? metadata.fileSize
+              : (typeof metadata.resourceSize === "number" ? metadata.resourceSize : null),
+          );
+          setUpdateMessage(
+            assetOnly
+              ? (isArabic ? "يتوفر تحديث موارد صغير (بدون تنزيل APK)" : "A small resource update is available (no APK download)")
+              : (isArabic ? "يتوفر تحديث جديد لثمار" : "A new update is available for Thimar"),
+          );
         } else if (available === installedCode) {
           setUpdateStatus("latest");
           setUpdateMessage(isArabic ? "أنت تستخدم أحدث إصدار من تطبيق ثمار." : "You are using the latest version of Thimar.");
@@ -944,6 +992,13 @@ export default function SettingsPage({
             <select value={settings.notifications ? "yes" : "no"} onChange={(event) => update("notifications", event.target.value === "yes")}>
               <option value="yes">مفعّلة</option>
               <option value="no">معطّلة</option>
+            </select>
+          </label>
+          <label>
+            <span>معاينة الرسالة في الإشعار</span>
+            <select value={settings.messagePreview ? "yes" : "no"} onChange={(event) => update("messagePreview", event.target.value === "yes")}>
+              <option value="yes">إظهار</option>
+              <option value="no">إخفاء (رسالة جديدة)</option>
             </select>
           </label>
           <div className="settings-notify">
@@ -1180,6 +1235,13 @@ export default function SettingsPage({
             </ul>
           </div>
         </div>
+        <AdhanPermissionsCard
+          imageUrls={Object.fromEntries(PRAYER_KEYS.map((key) => [key, prayerImageUrl(key)]))}
+          audioUrls={Object.fromEntries(
+            PRAYER_KEYS.map((key) => [key, getAdhan(settings.adhanByPrayer?.[key] || settings.adhanId).url]),
+          )}
+          defaultAudioUrl={getAdhan(settings.adhanByPrayer?.Fajr || settings.adhanId).url}
+        />
       </SectionCard>
       )}
 
@@ -1566,6 +1628,7 @@ export default function SettingsPage({
               setAsrProgress(0);
               try {
                 setAsrReadiness("downloading");
+                const { loadTilawa, checkTilawaReadiness } = await import("../../lib/tilawaRecitation");
                 await loadTilawa((p) => setAsrProgress(p.fraction ?? 0));
                 setAsrReadiness("verifying");
                 const r = await checkTilawaReadiness();
@@ -1693,6 +1756,14 @@ export default function SettingsPage({
                   <span className={`badge badge-${item.status === "active" ? "success" : item.status === "pending" ? "warning" : "danger"}`}>
                     {item.banned ? "محظور" : item.status}
                   </span>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    style={{ padding: "4px 10px", fontSize: 12 }}
+                    onClick={() => openViewUser(item)}
+                  >
+                    عرض الملف
+                  </button>
                   {account.type === "admin" && item.id !== account.id && item.type !== "admin" ? (
                     <div className="form-actions" style={{ display: "flex", gap: 6 }}>
                       {item.banned ? (
@@ -1839,6 +1910,73 @@ export default function SettingsPage({
                 إلغاء
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {viewUser ? (
+        <div className="modal-backdrop" onClick={closeViewUser} style={{ overflowY: "auto" }}>
+          <div className="modal" onClick={(event) => event.stopPropagation()} style={{ maxWidth: 640, width: "94%", maxHeight: "90vh", overflowY: "auto", position: "relative" }}>
+            <button type="button" onClick={closeViewUser} aria-label="إغلاق" style={{ position: "sticky", top: 0, alignSelf: "flex-end", background: "transparent", border: "none", fontSize: 26, lineHeight: 1, cursor: "pointer", color: "var(--text)" }}>×</button>
+            <h3>عرض ملف المستخدم — {viewUser.fullName}</h3>
+            {!viewUserVerified ? (
+              <>
+                <p className="muted">أدخل كلمة مرور المسؤول لتأكيد الهوية.</p>
+                <label>
+                  <span>كلمة المرور</span>
+                  <input
+                    type="password"
+                    value={viewUserPassword}
+                    onChange={(e) => setViewUserPassword(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") void verifyViewUser(); }}
+                    autoFocus
+                  />
+                </label>
+                {viewUserError ? <p className="game-error">{viewUserError}</p> : null}
+                <div className="form-actions">
+                  <button type="button" className="primary-button" onClick={() => void verifyViewUser()}>
+                    تحقق
+                  </button>
+                  <button type="button" className="ghost-button" onClick={closeViewUser}>
+                    إلغاء
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div style={{ display: "grid", gap: 8 }}>
+                <p><strong>الاسم:</strong> {viewUser.fullName}</p>
+                <p><strong>اسم المستخدم:</strong> {viewUser.username}</p>
+                <p><strong>النوع:</strong> {viewUser.type}</p>
+                <p><strong>الحالة:</strong> {viewUser.banned ? "محظور" : viewUser.status}</p>
+                <p><strong>البلد:</strong> {viewUser.countryCode}</p>
+                <p><strong>الهاتف:</strong> {viewUser.phone || "—"}</p>
+                <p><strong>البريد:</strong> {viewUser.email || "—"}</p>
+                <p><strong>تاريخ الإنشاء:</strong> {new Date(viewUser.createdAt).toLocaleString("ar")}</p>
+                {viewUser.student ? (
+                  <div>
+                    <strong>بيانات الطالب:</strong>
+                    <pre style={{ whiteSpace: "pre-wrap", fontSize: 12 }}>{JSON.stringify(viewUser.student, null, 2)}</pre>
+                  </div>
+                ) : null}
+                {viewUser.teacher ? (
+                  <div>
+                    <strong>بيانات المعلم:</strong>
+                    <pre style={{ whiteSpace: "pre-wrap", fontSize: 12 }}>{JSON.stringify(viewUser.teacher, null, 2)}</pre>
+                  </div>
+                ) : null}
+                {viewUser.guardian ? (
+                  <div>
+                    <strong>بيانات ولي الأمر:</strong>
+                    <pre style={{ whiteSpace: "pre-wrap", fontSize: 12 }}>{JSON.stringify(viewUser.guardian, null, 2)}</pre>
+                  </div>
+                ) : null}
+                <div className="form-actions">
+                  <button type="button" className="ghost-button" onClick={closeViewUser}>
+                    إغلاق
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : null}

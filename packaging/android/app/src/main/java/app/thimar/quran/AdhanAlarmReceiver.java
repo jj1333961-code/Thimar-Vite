@@ -8,12 +8,12 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.media.AudioAttributes;
-import android.media.MediaPlayer;
-import android.net.Uri;
 import android.os.Build;
 import android.os.PowerManager;
+import android.provider.Settings;
 import androidx.core.app.NotificationCompat;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -23,6 +23,7 @@ public class AdhanAlarmReceiver extends BroadcastReceiver {
   private static final String CHANNEL_ID = "thimar_adhan_channel";
   private static final int SCREEN_REQUEST_CODE = 4000;
   private static final int ACTION_REQUEST_CODE = 4001;
+  private static final String[] PRAYER_KEYS = { "fajr", "dhuhr", "asr", "maghrib", "isha" };
 
   @Override
   public void onReceive(Context context, Intent intent) {
@@ -41,11 +42,23 @@ public class AdhanAlarmReceiver extends BroadcastReceiver {
      * منع تكرار تشغيل نفس الصلاة في نفس اليوم (وبالتالي شاشة واحدة لكل صلاة).
      * لا نستخدم java.time هنا لأن minSdk هو 23 وjava.time متاح من 26 دون desugaring.
      */
+    boolean force = intent.getBooleanExtra("force", false);
     String todayKey = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date()) + "-" + prayer;
-    if (todayKey.equals(AdhanScheduler.prefs(context).getString(AdhanScheduler.KEY_LAST_PLAYED, ""))) {
+    String lastPlayed = AdhanScheduler.prefs(context).getString(AdhanScheduler.KEY_LAST_PLAYED, "");
+    long lastPlayedAt = AdhanScheduler.prefs(context).getLong(AdhanScheduler.KEY_LAST_PLAYED_AT, 0);
+    /*
+     * منع التكرار: نفس الصلاة في نفس اليوم تُعرض مرة واحدة، وأي إعادة خلال
+     * دقيقتين من المحاولة السابقة تُهمَل (يمنع أذانين متزامنين عند تكرار المنبه).
+     * المحاولة القسرية (زر التجربة) تتجاوز الفحصين.
+     */
+    if (!force && todayKey.equals(lastPlayed)) {
+      LaunchLog.add(context, "AdhanAlarmReceiver: تم تجاهل " + prayer + " (شُغِّل مسبقًا اليوم)");
       return;
     }
-    AdhanScheduler.prefs(context).edit().putString(AdhanScheduler.KEY_LAST_PLAYED, todayKey).apply();
+    if (!force && System.currentTimeMillis() - lastPlayedAt < 120_000L) {
+      LaunchLog.add(context, "AdhanAlarmReceiver: تم تجاهل " + prayer + " (منبه مكرر خلال دقيقتين)");
+      return;
+    }
 
     // Wake lock قصير يكفي لبناء الشاشة وتشغيل الأذان.
     PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
@@ -73,6 +86,9 @@ public class AdhanAlarmReceiver extends BroadcastReceiver {
     screenIntent.putExtra("prayer", prayer);
     if (name != null) screenIntent.putExtra("name", name);
     screenIntent.putExtra("time", shownTime);
+    screenIntent.putExtra("url", url);
+    screenIntent.putExtra("volume", volume);
+    screenIntent.putExtra("sound", sound);
     PendingIntent screenPi = PendingIntent.getActivity(context, SCREEN_REQUEST_CODE, screenIntent,
         PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     PendingIntent actionPi = PendingIntent.getActivity(context, ACTION_REQUEST_CODE, screenIntent,
@@ -118,43 +134,58 @@ public class AdhanAlarmReceiver extends BroadcastReceiver {
     }
 
     /*
-     * لا نحاول فتح النشاط من الخلفية: أندرويد يمنعه منذ 10، وقد يُسقِط الإشعار
-     * معه. الإشعار يحمل زرًا صريحًا لفتح شاشة الصلاة، ويُفتح بالنقر أيضًا.
+     * أندرويد يمنع فتح الأنشطة من الخلفية منذ 10، باستثناء التطبيقات التي
+     * تملك إذن «الظهور فوق التطبيقات» وأذونات ملء الشاشة. نحاول الفتح المباشر
+     * عندما يكون مسموحًا (بالإضافة إلى إشعار ملء الشاشة) لزيادة الموثوقية.
      */
+    boolean directAllowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
+        || hasOverlayPermission(context);
+    if (screen && directAllowed) {
+      try {
+        context.startActivity(screenIntent);
+        LaunchLog.add(context, "شاشة الصلاة: فتح مباشر من المستقبل");
+      } catch (Exception error) {
+        LaunchLog.add(context, "شاشة الصلاة: تعذّر الفتح المباشر — " + error.getMessage());
+      }
+    }
+
+    boolean posted = false;
     if (!NotificationHelper.canPost(context)) {
       LaunchLog.add(context, "إشعار وقت الصلاة لم يُعرض: إذن الإشعارات غير ممنوح");
     } else {
       NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
       if (nm != null) {
         try {
-          nm.notify((int) System.currentTimeMillis(), builder.build());
+          nm.notify(notificationId(prayer), builder.build());
+          posted = true;
+          LaunchLog.add(context, "إشعار وقت الصلاة معروض: " + prayer);
         } catch (SecurityException error) {
           LaunchLog.add(context, "تعذّر عرض إشعار وقت الصلاة: " + error.getMessage());
         }
       }
     }
 
-    // تشغيل الصوت (إن وُجد وكان مفعّلًا).
+    // تشغيل الصوت عبر خدمة أمامية: يستمر والتطبيق مغلق، ويُوقف من الشاشة/الإشعار.
     if (sound && url != null && !url.trim().isEmpty()) {
       try {
-        MediaPlayer player = new MediaPlayer();
-        player.setAudioAttributes(new AudioAttributes.Builder()
-          .setUsage(AudioAttributes.USAGE_ALARM)
-          .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-          .build());
-        player.setVolume(volume, volume);
-        if (url.startsWith("http")) {
-          player.setDataSource(url);
+        Intent service = AdhanService.startIntent(context, prayer, name, shownTime, url, volume);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+          context.startForegroundService(service);
         } else {
-          player.setDataSource(context, Uri.parse(url));
+          context.startService(service);
         }
-        player.setOnCompletionListener(MediaPlayer::release);
-        player.setOnErrorListener((mp, what, extra) -> { mp.release(); return true; });
-        player.prepareAsync();
-        player.setOnPreparedListener(MediaPlayer::start);
-      } catch (Exception e) {
-        // تجاهل — الإشعار كافٍ.
+      } catch (Exception error) {
+        LaunchLog.add(context, "تعذّر بدء خدمة الأذان: " + error.getMessage());
       }
+    }
+
+    /* نُعلّم «تم التشغيل» فقط عند نجاح عرض الإشعار أو بدء الصوت،
+       حتى تتمكن المحاولة التالية (إن فشلت) من إعادة التشغيل. */
+    if (posted || (sound && url != null && !url.trim().isEmpty())) {
+      AdhanScheduler.prefs(context).edit()
+          .putString(AdhanScheduler.KEY_LAST_PLAYED, todayKey)
+          .putLong(AdhanScheduler.KEY_LAST_PLAYED_AT, System.currentTimeMillis())
+          .apply();
     }
 
     if (wl != null && wl.isHeld()) wl.release();
@@ -164,18 +195,59 @@ public class AdhanAlarmReceiver extends BroadcastReceiver {
      * (قد يفقده مانع البطارية)، فتظل صلاة الغد مجدولة على أي حال.
      */
     try {
-      AdhanScheduler.scheduleAll(context);
+      AdhanScheduler.scheduleAll(context, true);
     } catch (Exception ignored) {
       // الجدولة الحالية تبقى صالحة.
     }
+
+    /* تحديث النسخ المحلية في الخلفية استعدادًا للمرة القادمة (بلا شبكة = لا شيء). */
+    try {
+      AdhanAssets.syncAsync(context);
+    } catch (Exception ignored) {
+      // الملفات الحالية كافية.
+    }
   }
 
-  /** يقرأ صورة الصلاة من أصول الحزمة (دون شبكة) لعرضها داخل الإشعار. */
-  private static Bitmap prayerImage(Context context, String prayer) {
-    String[] keys = { "fajr", "dhuhr", "asr", "maghrib", "isha" };
+  private static boolean hasOverlayPermission(Context context) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true;
+    try {
+      return Settings.canDrawOverlays(context);
+    } catch (Exception ignored) {
+      return false;
+    }
+  }
+
+  /** رقم إشعار ثابت لكل صلاة: إعادة المحاولة تستبدل الإشعار بدل تكراره. */
+  private static int notificationId(String prayer) {
     String key = prayer == null ? "" : prayer.trim().toLowerCase(Locale.US);
+    for (int i = 0; i < PRAYER_KEYS.length; i++) {
+      if (PRAYER_KEYS[i].equals(key)) return 4200 + i;
+    }
+    return 4299;
+  }
+
+  /** يقرأ صورة الصلاة المحمّلة أو المضمَّنة (دون شبكة) لعرضها داخل الإشعار. */
+  private static Bitmap prayerImage(Context context, String prayer) {
+    String key = prayer == null ? "" : prayer.trim().toLowerCase(Locale.US);
+    File local = AdhanAssets.imageFile(context, key);
+    if (local != null) {
+      try {
+        BitmapFactory.Options bounds = new BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(local.getAbsolutePath(), bounds);
+        int widest = Math.max(bounds.outWidth, bounds.outHeight);
+        int sample = 1;
+        while (widest > 0 && widest / sample > 1080) sample *= 2;
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inSampleSize = sample;
+        Bitmap bitmap = BitmapFactory.decodeFile(local.getAbsolutePath(), options);
+        if (bitmap != null) return bitmap;
+      } catch (Exception ignored) {
+        // نرجع إلى الأصل المضمَّن.
+      }
+    }
     boolean known = false;
-    for (String item : keys) {
+    for (String item : PRAYER_KEYS) {
       if (item.equals(key)) {
         known = true;
         break;

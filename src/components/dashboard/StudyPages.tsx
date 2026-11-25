@@ -1,13 +1,14 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { fetchSurah, fetchTafsir, type Ayah, type TafsirEntry } from "../../lib/quran";
 import { surahs } from "../../data/surahs";
 import type { Settings } from "../../lib/appStore";
-import TasmeeReader from "./TasmeeReader";
+/* محرك التسميع ثقيل ويُفتح عند الحاجة فقط، فلا يبطئ بدء التطبيق ولا فتح المصحف. */
+const TasmeeReader = lazy(() => import("./TasmeeReader"));
 import MushafPages from "./MushafPages";
 import QuranReadingEntry from "./QuranReadingEntry";
 import TuhfaMushaf from "./TuhfaMushaf";
 import MushafTasmeeArchive from "./MushafTasmeeArchive";
-import TuhfaTasmeeReader from "./TuhfaTasmeeReader";
+const TuhfaTasmeeReader = lazy(() => import("./TuhfaTasmeeReader"));
 import HadithWidget from "./HadithWidget";
 import HadithSearchPage from "./HadithSearchPage";
 import QiblaWidget from "./QiblaWidget";
@@ -101,7 +102,9 @@ export function QuranPage({ onBack, onOpenSettings }: { settings: Settings; onBa
           </button>
         ) : null}
         {mode === "tasmee" ? (
-          <TasmeeReader initialPhase={tasmeeInitialPhase} onOpenSettings={onOpenSettings} />
+          <Suspense fallback={<p className="muted">جارٍ فتح محرك التسميع…</p>}>
+            <TasmeeReader initialPhase={tasmeeInitialPhase} onOpenSettings={onOpenSettings} />
+          </Suspense>
         ) : (
           <QuranReadingEntry onBack={dismissMode} />
         )}
@@ -216,7 +219,9 @@ export function TuhfaPage({ onBack, onOpenSettings }: { onBack: () => void; onOp
         <button type="button" className="standalone-close" onClick={() => setMode(null)} aria-label="إغلاق" title="إغلاق">
           ×
         </button>
-        <TuhfaTasmeeReader initialPhase={tasmeeInitialPhase} onOpenSettings={onOpenSettings} />
+        <Suspense fallback={<p className="muted">جارٍ فتح محرك التسميع…</p>}>
+          <TuhfaTasmeeReader initialPhase={tasmeeInitialPhase} onOpenSettings={onOpenSettings} />
+        </Suspense>
       </div>
     );
   }

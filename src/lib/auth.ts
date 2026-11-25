@@ -71,7 +71,7 @@ export function accountTypeLabel(type: AccountType): string {
 }
 
 // Supabase integration
-import { cloud, pushAccount, removeAccountFromCloud } from "./cloud";
+import { cloud, pushAccount, removeAccountFromCloud, SUPABASE_URL, SUPABASE_ANON_KEY } from "./cloud";
 import { authorizeDevice } from "./nativePush";
 import { clearRememberedDevice, getRememberedAccountId, rememberThisDevice } from "./rememberedDevice.mjs";
 export { rememberThisDevice };
@@ -79,7 +79,6 @@ import { hashPassword, newPasswordSalt, verifyPassword } from "./password";
 import {
   changePasswordViaRpc,
   loginViaRpc,
-  rpcAuthEnabled,
   type RpcAccountRow,
 } from "./authRpc";
 
@@ -312,29 +311,51 @@ function mergeRpcAccount(row: RpcAccountRow): Account {
   return merged;
 }
 
-export async function login(username: string, password: string, remember = false): Promise<{ status: "ok" | "pending" | "error"; account?: Account; message?: string }> {
-  /* التفعيل الاختياري لمسار الخادم: لا يشتغل إلا بعد نشر دالتي RPC وضبط المفتاح. */
-  if (rpcAuthEnabled()) {
-    const viaRpc = await loginViaRpc(username, password);
-    if (viaRpc.status === "error") return { status: "error", message: viaRpc.message };
-    if (viaRpc.status === "ok") {
-      const account = mergeRpcAccount(viaRpc.account);
-      if (account.status === "pending") return { status: "pending", account, message: "حسابك قيد المراجعة." };
-      if (account.banned) return { status: "error", message: "تم حظر حسابك من قبل المسؤول." };
-      if (account.status === "rejected") return { status: "error", message: "تم رفض حسابك من قبل المسؤول." };
-      if (remember) {
-        rememberThisDevice(account.id);
-      } else {
-        clearRememberedDevice();
-      }
-      const nativeDeviceId = (window as any)?.ThimarNative?.deviceId?.();
-      if (typeof nativeDeviceId === "string" && nativeDeviceId) {
-        void authorizeDevice(account.id, password);
-      }
-      return { status: "ok", account };
+/** يطلب رمز جلسة موقّع من الخادم ويحفظه محليًا (للمكالمات/العمليات المحمية). */
+async function issueSessionToken(username: string, password: string): Promise<void> {
+  try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/thimar-session`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!response.ok) return;
+    const data = await response.json().catch(() => ({}));
+    if (data?.token) {
+      try { localStorage.setItem("thimar_session_token", String(data.token)); } catch { /* ignore */ }
     }
-    /* unavailable: الدالتان غير منشورتين — نكمل بالمسار المحلي كما هو. */
+  } catch {
+    /* الشبكة غير متاحة — تبقى الجلسة بدون رمز (توافق). */
   }
+}
+
+export async function login(username: string, password: string, remember = false): Promise<{ status: "ok" | "pending" | "error"; account?: Account; message?: string }> {
+  /* التحقق على الخادم (RPC) — محاولة أولًا (لا يُعطل الدخول إذا كانت الدالة غير منشورة). */
+  const viaRpc = await loginViaRpc(username, password);
+  if (viaRpc.status === "error") return { status: "error", message: viaRpc.message };
+  if (viaRpc.status === "ok") {
+    const account = mergeRpcAccount(viaRpc.account);
+    if (account.status === "pending") return { status: "pending", account, message: "حسابك قيد المراجعة." };
+    if (account.banned) return { status: "error", message: "تم حظر حسابك من قبل المسؤول." };
+    if (account.status === "rejected") return { status: "error", message: "تم رفض حسابك من قبل المسؤول." };
+    if (remember) {
+      rememberThisDevice(account.id);
+    } else {
+      clearRememberedDevice();
+    }
+      const nativeDeviceId = (window as any)?.ThimarNative?.deviceId?.();
+  if (typeof nativeDeviceId === "string" && nativeDeviceId) {
+    void authorizeDevice(account.id, password);
+  }
+  // إصدار رمز جلسة موقّع من الخادم (للمكالمات والعمليات المحمية).
+  void issueSessionToken(username, password);
+  return { status: "ok", account };
+    }
+  /* unavailable: الدالتان غير منشورتين — نكمل بالمسار المحلي (توافق). */
   const accounts = loadAccounts();
   const normalized = username.trim().toLowerCase();
   const account = accounts.find((a) => a.username.trim().toLowerCase() === normalized);
@@ -366,6 +387,8 @@ export async function login(username: string, password: string, remember = false
   if (typeof nativeDeviceId === "string" && nativeDeviceId) {
     void authorizeDevice(account.id, password);
   }
+  // إصدار رمز جلسة موقّع من الخادم.
+  void issueSessionToken(username, password);
   return { status: "ok", account };
 }
 

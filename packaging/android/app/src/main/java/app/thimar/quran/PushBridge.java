@@ -29,6 +29,8 @@ public class PushBridge {
   private static String pendingUrl = null;
   /** لا تُتاح الوظائف الحساسة إلا عندما تكون الصفحة على نطاق ثمار. */
   private static volatile boolean trustedOrigin = false;
+  private static volatile String activeConversationId = null;
+  private static volatile boolean messagePreviewEnabled = true;
   private static final Handler MAIN = new Handler(Looper.getMainLooper());
 
   private final Activity activity;
@@ -222,6 +224,26 @@ public class PushBridge {
   public void openNotificationSettings() {
     if (!allowed()) return;
     NotificationHelper.openSettings(activity);
+  }
+
+  @JavascriptInterface
+  public void setActiveConversation(String conversationId) {
+    if (!allowed()) return;
+    activeConversationId = (conversationId == null || conversationId.trim().isEmpty()) ? null : conversationId.trim();
+  }
+
+  public static String activeConversation() {
+    return activeConversationId;
+  }
+
+  @JavascriptInterface
+  public void setMessagePreviewEnabled(boolean enabled) {
+    if (!allowed()) return;
+    messagePreviewEnabled = enabled;
+  }
+
+  public static boolean messagePreviewEnabled() {
+    return messagePreviewEnabled;
   }
 
   @JavascriptInterface

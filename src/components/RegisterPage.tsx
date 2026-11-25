@@ -14,7 +14,8 @@ import {
   type Track,
 } from "../lib/auth";
 import CountrySelect from "./CountrySelect";
-import { requestTeacherLink } from "../lib/appStore";
+import { notifyAdminsOfTeacherApplication, requestTeacherLink } from "../lib/appStore";
+import { phoneRule, validateNationalPhone } from "../lib/phone";
 import {
   BackIcon,
   BrandMark,
@@ -124,6 +125,7 @@ export default function RegisterPage({
   const country = findCountry(base.countryCode);
   const dial = country?.dial ?? "+966";
   const phoneDigits = base.phone.replace(/\D/g, "");
+  const phoneSpec = phoneRule(base.countryCode);
 
   const stepLabels =
     type === "teacher"
@@ -209,9 +211,8 @@ export default function RegisterPage({
       if (!base.countryCode) {
         next.countryCode = "اختر الدولة.";
       }
-      if (phoneDigits.length < 6 || phoneDigits.length > 15) {
-        next.phone = "أدخل رقم هاتف صحيحًا بدون كود الدولة.";
-      }
+      const phoneError = validateNationalPhone(base.countryCode, base.phone);
+      if (phoneError) next.phone = phoneError;
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(base.email.trim())) {
         next.email = "أدخل بريدًا إلكترونيًا صحيحًا للتواصل.";
       }
@@ -284,6 +285,11 @@ export default function RegisterPage({
       return;
     }
     setCreated(result.account);
+    // إشعار المسؤول فوراً بطلب اعتماد المعلم؛ تُرفع بيانات الحساب كاملة إلى السحابة
+    // ويستطيع المسؤول مراجعتها من قسم طلبات المعلمين.
+    if (result.account.type === "teacher") {
+      notifyAdminsOfTeacherApplication(result.account);
+    }
     // إرسال طلب الربط الحقيقي للمعلم المختار ليصله إشعار الموافقة أو الرفض.
     if (
       result.account.type === "student" &&
@@ -465,8 +471,14 @@ export default function RegisterPage({
                   id="reg-country"
                   value={base.countryCode}
                   onChange={(code) => {
-                    setBase((prev) => ({ ...prev, countryCode: code }));
+                    setBase((prev) => ({
+                      ...prev,
+                      countryCode: code,
+                      // لا نُبقي أرقاماً تتجاوز طول الرقم في الدولة الجديدة.
+                      phone: prev.phone.replace(/\D/g, "").slice(0, phoneRule(code).length),
+                    }));
                     clearError("countryCode");
+                    clearError("phone");
                   }}
                 />
               </Field>
@@ -475,7 +487,7 @@ export default function RegisterPage({
                 label="رقم الهاتف"
                 htmlFor="reg-phone"
                 error={errors.phone}
-                hint={`كود ${country?.ar ?? "الدولة"}: ${dial}`}
+                hint={`${phoneSpec.length} أرقام بعد كود ${country?.ar ?? "الدولة"}: ${dial}`}
               >
                 <div className="phone-wrap">
                   <span className="phone-prefix" dir="ltr">
@@ -487,12 +499,18 @@ export default function RegisterPage({
                     type="tel"
                     inputMode="tel"
                     dir="ltr"
-                    placeholder="5X XXX XXXX"
+                    placeholder={phoneSpec.placeholder}
                     value={base.phone}
+                    maxLength={phoneSpec.length}
+                    pattern="[0-9]*"
+                    autoComplete="tel-national"
                     onChange={(event) => {
                       setBase((prev) => ({
                         ...prev,
-                        phone: event.target.value.replace(/[^\d\s]/g, ""),
+                        // الأرقام فقط، وبحد أقصى طول الجوال في الدولة المختارة.
+                        phone: event.target.value
+                          .replace(/\D/g, "")
+                          .slice(0, phoneSpec.length),
                       }));
                       clearError("phone");
                     }}
@@ -609,6 +627,9 @@ export default function RegisterPage({
                   سيُضاف كود {country?.ar ?? "الدولة"} تلقائيًا
                   <bdi dir="ltr"> {dial}</bdi> قبل رقم هاتفك:{" "}
                   <bdi dir="ltr">{dial} {base.phone || "…"}</bdi>
+                  {base.phone && base.phone.length !== phoneSpec.length ? (
+                    <span className="muted"> — أكمل {phoneSpec.length} أرقام</span>
+                  ) : null}
                 </span>
               </div>
             </div>
@@ -1061,11 +1082,14 @@ export default function RegisterPage({
           aria-live="assertive"
           style={{
             position: "fixed",
-            bottom: 24,
+            top: "calc(12px + env(safe-area-inset-top))",
             left: "50%",
             transform: "translateX(-50%)",
             zIndex: 10000,
+            width: "max-content",
             maxWidth: "calc(100vw - 32px)",
+            maxHeight: "calc(100dvh - 80px)",
+            overflowY: "auto",
             padding: "12px 20px",
             borderRadius: 14,
             background: "rgba(180, 72, 60, 0.96)",

@@ -1,0 +1,1 @@
+-- Per-conversation mute support for push notifications.\nalter table if exists public.thimar_conversations\n  add column if not exists muted_by text[] not null default '{}';\n

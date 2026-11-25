@@ -27,15 +27,11 @@ import {
 import type { EngineEvent } from "@tilawa/core";
 import {
   TASMEE_CAPTURE_MAX_SECONDS,
-  TASMEE_ENGINE_MODES,
   TasmeeOrchestrator,
   modeUsesQuranAsr,
   modeUsesTilawa,
-  readTasmeeEngineMode,
   startTasmeeMicCapture,
   tasmeeAssessmentAyahs,
-  tasmeeMemoryRisk,
-  writeTasmeeEngineMode,
   type TasmeeAssessmentRun,
   type TasmeeEngineMode,
   type TasmeeMicCapture,
@@ -102,8 +98,6 @@ export default function MushafTasmeeSheet({
   selection,
   onClose,
   inline = false,
-  revealVerses = false,
-  onRevealVersesChange,
   onAyahsChange,
   onWordsChange,
   onStatusesChange,
@@ -145,18 +139,41 @@ export default function MushafTasmeeSheet({
   const [engineLoading, setEngineLoading] = useState(false);
   const [micPaused, setMicPaused] = useState(false);
   const [engineStatus, setEngineStatus] = useState(getTilawaPreloadSnapshot);
-  const [engineMode, setEngineMode] = useState<TasmeeEngineMode>(() => readTasmeeEngineMode());
+  /* وضع واحد ثابت: التتبّع أثناء القراءة (أُزيلت خيارات الأوضاع من الواجهة). */
+  const [engineMode] = useState<TasmeeEngineMode>("tilawa");
+  const [speaking, setSpeaking] = useState(false);
+  const speakTimerRef = useRef<number | null>(null);
   const [qaPhase, setQaPhase] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [qaRun, setQaRun] = useState<TasmeeAssessmentRun | null>(null);
   const [qaError, setQaError] = useState("");
   const [qaNote, setQaNote] = useState("");
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+
+  const resolveAudioUrl = (globalAyah: number) => ayahAudioUrl(reciterId, globalAyah);
+
+  const playWordSlice = async (globalAyah: number, wordIndex: number, totalWords: number, count = 1) => {
+    const url = resolveAudioUrl(globalAyah);
+    const audio = new Audio(url);
+    audio.playbackRate = playbackSpeed;
+    const onMeta = () => {
+      const dur = audio.duration || 0;
+      if (!dur || !isFinite(dur)) { audio.play().catch(() => {}); return; }
+      const per = dur / Math.max(1, totalWords);
+      const start = Math.max(0, wordIndex * per);
+      const len = per * Math.max(1, count);
+      audio.currentTime = start;
+      audio.play().catch(() => {});
+      window.setTimeout(() => { try { audio.pause(); } catch { /* ignore */ } }, Math.max(200, len * 1000));
+    };
+    if (audio.readyState >= 1) onMeta();
+    else audio.addEventListener("loadedmetadata", onMeta, { once: true });
+  };
   const orchestratorRef = useRef<TasmeeOrchestrator | null>(null);
   const tapUnsubRef = useRef<(() => void) | null>(null);
   const asrMicRef = useRef<TasmeeMicCapture | null>(null);
   const runAyahsRef = useRef<HafsAyah[]>([]);
   const engineModeRef = useRef(engineMode);
   engineModeRef.current = engineMode;
-  const memoryRisk = useMemo(() => tasmeeMemoryRisk(), []);
 
   const recognitionRef = useRef<RecognitionLike | null>(null);
   const micRef = useRef<Microphone | null>(null);
@@ -182,9 +199,13 @@ export default function MushafTasmeeSheet({
 
   /* حالة المحرك المشترك: جاهز/جارٍ/خطأ، دون بدء تجهيز جديد من هذه الشاشة. */
   useEffect(() => subscribeTilawaPreload(setEngineStatus), []);
-  useEffect(() => {
-    writeTasmeeEngineMode(engineMode);
-  }, [engineMode]);
+
+  /* كشف النشاط الصوتي: يُخفي شريط التحكم أثناء الكلام ويعيده عند السكون. */
+  const bumpSpeaking = () => {
+    setSpeaking(true);
+    if (speakTimerRef.current) window.clearTimeout(speakTimerRef.current);
+    speakTimerRef.current = window.setTimeout(() => setSpeaking(false), 850);
+  };
 
   /* إبلاغ الصفحة الأم بحالة التسميع (للعرض inline على المصحف). */
   useEffect(() => {
@@ -267,6 +288,7 @@ export default function MushafTasmeeSheet({
         audio.pause();
         audio.src = "";
       }
+      if (speakTimerRef.current) window.clearTimeout(speakTimerRef.current);
     },
     [],
   );
@@ -485,6 +507,7 @@ export default function MushafTasmeeSheet({
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.onresult = (event) => {
+      bumpSpeaking();
       let draft = "";
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
         const result = event.results[index];
@@ -562,7 +585,14 @@ export default function MushafTasmeeSheet({
     if (mode === "quran-asr") {
       try {
         setEngineLoading(true);
-        const capture = await startTasmeeMicCapture((samples) => orchestrator.tap(samples));
+        const capture = await startTasmeeMicCapture((samples) => {
+          orchestrator.tap(samples);
+          if (samples.length) {
+            let sum = 0;
+            for (let i = 0; i < samples.length; i += 1) sum += samples[i] * samples[i];
+            if (Math.sqrt(sum / samples.length) > 0.02) bumpSpeaking();
+          }
+        });
         asrMicRef.current = capture;
         setUsingOffline(true);
         setListening(true);
@@ -607,7 +637,12 @@ export default function MushafTasmeeSheet({
           }
         }
       });
-      const mic = await tilawa.listen(active, { prepared, onLevel: () => undefined });
+      const mic = await tilawa.listen(active, {
+        prepared,
+        onLevel: (db) => {
+          if (db > -38) bumpSpeaking();
+        },
+      });
       micRef.current = mic;
       prepared = undefined;
       setUsingOffline(true);
@@ -709,6 +744,7 @@ export default function MushafTasmeeSheet({
     const audio = audioRef.current ?? new Audio();
     audioRef.current = audio;
     audio.src = ayahAudioUrl(reciterId, global);
+    audio.playbackRate = playbackSpeed;
     audio.currentTime = 0;
     void audio.play().catch(() => setError("تعذّر تشغيل التلاوة. تحقّق من الاتصال."));
   };
@@ -719,7 +755,7 @@ export default function MushafTasmeeSheet({
   /* أثناء التسميع على المصحف: مستطيل صغير في الأسفل (إنهاء + إيقاف/تشغيل الميكروفون). */
   if (phase === "reciting" && inline) {
     return (
-      <div className="tasmee-recorder-wrap" role="group" aria-label="تسميع">
+      <div className={`tasmee-recorder-wrap${speaking ? " is-speaking" : ""}`} role="group" aria-label="تسميع">
         <div className="tasmee-recorder-bar">
           <button
             type="button"
@@ -759,26 +795,8 @@ export default function MushafTasmeeSheet({
         {phase === "config" ? (
           <div className="mushaf-tasmee-config">
             <p className="mushaf-tasmee-hint">
-              {revealVerses
-                ? "اختر نطاق التسميع ثم ابدأ؛ ستظل الآيات ظاهرة كما هي أثناء التسميع."
-                : "اختر نطاق التسميع ثم ابدأ؛ ستُخفى الآيات وتُكشف كلمةً كلمة أثناء النطق."}
+              {"اختر نطاق التسميع ثم ابدأ؛ ستُخفى الآيات وتُكشف كلمةً كلمة أثناء النطق."}
             </p>
-            <div className="mushaf-tasmee-scopes" role="group" aria-label="طريقة التسميع">
-              {TASMEE_ENGINE_MODES.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  className={`mushaf-tasmee-scope${engineMode === option.id ? " is-active" : ""}`}
-                  onClick={() => setEngineMode(option.id)}
-                  title={option.hint}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-            {engineMode === "combined" && memoryRisk.level !== "ok" ? (
-              <p className="mushaf-tasmee-error">{memoryRisk.message}</p>
-            ) : null}
             <div className="mushaf-tasmee-scopes" role="group" aria-label="نطاق التسميع">
               {([
                 { id: "page", label: `الصفحة ${arabicNumber(page)}`, disabled: false },
@@ -797,22 +815,6 @@ export default function MushafTasmeeSheet({
               ))}
             </div>
 
-            <div className="mushaf-tasmee-scopes" role="group" aria-label="عرض الآيات أثناء التسميع">
-              <button
-                type="button"
-                className={`mushaf-tasmee-scope${!revealVerses ? " is-active" : ""}`}
-                onClick={() => onRevealVersesChange?.(false)}
-              >
-                إخفاء الآيات
-              </button>
-              <button
-                type="button"
-                className={`mushaf-tasmee-scope${revealVerses ? " is-active" : ""}`}
-                onClick={() => onRevealVersesChange?.(true)}
-              >
-                عرض الآيات
-              </button>
-            </div>
 
             <label className="mushaf-tasmee-field">
               <span>أقصى عدد للأخطاء</span>
@@ -949,6 +951,11 @@ export default function MushafTasmeeSheet({
                 ))}
               </select>
             </label>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "8px 0" }}>
+              <span className="mushaf-tasmee-hint">سرعة النطق</span>
+              <input type="range" min={0.5} max={2} step={0.05} value={playbackSpeed} onChange={(e) => setPlaybackSpeed(Number(e.target.value))} />
+              <span className="mushaf-tasmee-hint">{playbackSpeed.toFixed(2)}×</span>
+            </div>
             <h4>الكلمات التي أخطأ فيها</h4>
             {session.mistakes.length ? (
               <ul className="mushaf-tasmee-mistakes">
@@ -959,8 +966,26 @@ export default function MushafTasmeeSheet({
                       {`${surahNameOfNumber(item.surah)} ${arabicNumber(item.ayah)}`}
                     </span>
                     {item.spoken ? <span className="mushaf-tasmee-mistake-spoken">{`سمعت: ${item.spoken}`}</span> : null}
-                    <button type="button" className="mushaf-tasmee-play" onClick={() => playCorrect(item.global)}>
-                      النطق الصحيح
+                    <button type="button" className="mushaf-tasmee-play" onClick={() => {
+                      const a = ayahs.find((x) => x.surah === item.surah && x.ayah === item.ayah) || ayahs.find((x) => x.global === item.global);
+                      const total = a ? a.text.split(/\s+/).filter(Boolean).length : 1;
+                      const words = a ? a.text.split(/\s+/).filter(Boolean) : [];
+                      const idx = Math.max(0, words.findIndex((w) => w === item.word));
+                      void playWordSlice(item.global, idx >= 0 ? idx : 0, total, 1);
+                    }} title="سماع الكلمة وحدها">
+                      الكلمة
+                    </button>
+                    <button type="button" className="mushaf-tasmee-play" onClick={() => {
+                      const a = ayahs.find((x) => x.surah === item.surah && x.ayah === item.ayah) || ayahs.find((x) => x.global === item.global);
+                      const total = a ? a.text.split(/\s+/).filter(Boolean).length : 1;
+                      const words = a ? a.text.split(/\s+/).filter(Boolean) : [];
+                      const idx = Math.max(0, words.findIndex((w) => w === item.word));
+                      void playWordSlice(item.global, idx >= 0 ? idx : 0, total, 2);
+                    }} title="سماع الكلمة مع التي تليها">
+                      + التالية
+                    </button>
+                    <button type="button" className="mushaf-tasmee-play" onClick={() => playCorrect(item.global)} title="سماع الآية كاملة">
+                      الآية
                     </button>
                   </li>
                 ))}
@@ -979,6 +1004,9 @@ export default function MushafTasmeeSheet({
                   <>
                     <p className="mushaf-tasmee-summary">
                       {`كلمات منطوقة ${arabicNumber(qaRun.transcription.words.length)} • محاذاة ${arabicNumber(Math.round(qaRun.assessment.accuracy * 100))}% • ثقة ${qaRun.assessment.meanConfidence.toFixed(2)}`}
+                    </p>
+                    <p className="mushaf-tasmee-hint">
+                      {`صحيح ${arabicNumber(qaRun.assessment.counts.match)} • استبدال ${arabicNumber(qaRun.assessment.counts.substitution)} • حذف ${arabicNumber(qaRun.assessment.counts.omission)} • تكرار ${arabicNumber(qaRun.assessment.counts.repetition)} • غير مؤكد ${arabicNumber(qaRun.assessment.uncertain)}`}
                     </p>
                     <p className="mushaf-tasmee-hint">
                       {`مؤكد ${arabicNumber(qaRun.assessment.confirmedErrors)} • غير مؤكد ${arabicNumber(qaRun.assessment.uncertain)} • ${arabicNumber(Math.round(qaRun.timing.transcribeMs))} م.ث • نموذج ${arabicNumber(Math.round(qaRun.engine.modelBytes / 1048576))} م.ب`}

@@ -16,12 +16,15 @@ import {
   addConversationMember,
   removeConversationMember,
   setConversationAdmin,
+  setConversationMuted,
   loadSubmissions,
   evaluateSubmission,
   markChatRead,
+  unreadMessagesForConversation,
   type Conversation,
 } from "../../lib/appStore";
-import { uploadChatMedia } from "../../lib/cloud";
+import { uploadChatMedia, pullCloud } from "../../lib/cloud";
+import { setActiveConversation } from "../../lib/nativePush";
 import { aiChat, buildCompanionMessages, offlineCompanionReply } from "../../lib/ai";
 import { createChannel, subscribeChannel, sendSignal, userChannelName, callServer, type CallMode, type CallSignal } from "../../lib/call";
 import CallOverlay from "./CallOverlay";
@@ -98,6 +101,7 @@ export default function MessagesPage({
     setAiOpen(false);
     setSelectedId(initialConversationId);
     refresh();
+    void pullCloud().then(() => refresh());
   }, [initialConversationId, account.id]);
 
   /* استقبال المكالمات الواردة عبر قناة المستخدم الخاصة. */
@@ -201,6 +205,18 @@ export default function MessagesPage({
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account.id]);
+
+  /* تحديث قائمة المحادثات (وشارات غير المقروء) عند مزامنة السحابة (رسائل جديدة). */
+  useEffect(() => {
+    const handler = () => refresh();
+    window.addEventListener("thimar:cloud", handler);
+    return () => window.removeEventListener("thimar:cloud", handler);
+  }, []);
+
+  useEffect(() => {
+    setActiveConversation(selectedId);
+    try { (window as any).__thimarActiveConversation = selectedId; } catch { /* ignore */ }
+  }, [selectedId]);
 
   useEffect(() => {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
@@ -432,8 +448,36 @@ export default function MessagesPage({
                     className={`conversation-item ${!aiOpen && selectedId === conversation.id ? "active" : ""}`}
                     onClick={() => { setAiOpen(false); setSelectedId(conversation.id); }}
                   >
-                    <div className="conversation-avatar">
+                    <div className="conversation-avatar" style={{ position: "relative" }}>
                       {conversation.isGroup ? "ج" : nameOf(conversation.memberIds.find((id) => id !== account.id) ?? "").charAt(0)}
+                      {(() => {
+                        const unread = unreadMessagesForConversation(conversation, account.id);
+                        if (unread <= 0) return null;
+                        return (
+                          <span
+                            aria-label={`${unread} رسائل غير مقروءة`}
+                            style={{
+                              position: "absolute",
+                              top: -4,
+                              insetInlineEnd: -4,
+                              minWidth: 18,
+                              height: 18,
+                              padding: "0 5px",
+                              borderRadius: 999,
+                              background: "#dc2626",
+                              color: "#fff",
+                              fontSize: 11,
+                              fontWeight: 800,
+                              display: "grid",
+                              placeItems: "center",
+                              lineHeight: 1,
+                              boxShadow: "0 1px 3px rgba(0,0,0,.25)",
+                            }}
+                          >
+                            {unread > 99 ? "99+" : unread}
+                          </span>
+                        );
+                      })()}
                     </div>
                     <div className="conversation-meta">
                       <strong>{conversationTitle(conversation)}</strong>
@@ -548,6 +592,21 @@ export default function MessagesPage({
                   <button type="button" className="icon-button chat-back" onClick={() => setSelectedId(null)} aria-label="إغلاق المحادثة">
                     ×
                   </button>
+                  {selected ? (
+                    <button
+                      type="button"
+                      className="icon-button"
+                      onClick={() => {
+                        const muted = (selected.mutedBy ?? []).includes(account.id);
+                        setConversationMuted(selected.id, account.id, !muted);
+                        refresh();
+                      }}
+                      aria-label="كتم الإشعارات"
+                      title={(selected.mutedBy ?? []).includes(account.id) ? "إلغاء كتم الإشعارات" : "كتم الإشعارات"}
+                    >
+                      {(selected.mutedBy ?? []).includes(account.id) ? "🔕" : "🔔"}
+                    </button>
+                  ) : null}
                   {selected.isGroup ? (
                     <button type="button" className="icon-button" onClick={() => setShowMembers((value) => !value)} aria-label="أعضاء المجموعة">
                       <Icon name="group" size={18} />

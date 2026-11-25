@@ -19,7 +19,6 @@ import QuranReadingEntry from "./dashboard/QuranReadingEntry";
 import AdhanNotifier from "./dashboard/AdhanNotifier";
 import DailyReminder from "./dashboard/DailyReminder";
 import AdhanLogPage from "./dashboard/AdhanLogPage";
-import { preloadQuranOffline } from "../lib/preloadQuran";
 import MemorizationPathPage from "./dashboard/MemorizationPathPage";
 import { applyTheme, childrenOfGuardian, loadChats, loadSettings, migrateLegacyGameProgress, recordLoginDay, unreadCount, type Settings } from "../lib/appStore";
 import { t } from "../lib/i18n";
@@ -29,7 +28,7 @@ import { ensureChatSeeds, ensureHomeworkSeeds, ensureNotificationSeeds, logLogin
 import { loadAccounts } from "../lib/auth";
 import { CLOUD_EVENT } from "../lib/cloud";
 import { syncPushSubscription } from "../lib/push";
-import { registerNativePush } from "../lib/nativePush";
+import { registerNativePush, setNativeMessagePreview } from "../lib/nativePush";
 
 
 export default function Dashboard({ account, onLogout }: { account: ReturnType<typeof loadAccounts>[number]; onLogout: () => void }) {
@@ -66,6 +65,7 @@ export default function Dashboard({ account, onLogout }: { account: ReturnType<t
     applyTheme(settings);
     document.documentElement.lang = settings.language;
     document.documentElement.dir = settings.language === "ar" ? "rtl" : "ltr";
+    setNativeMessagePreview(settings.messagePreview);
   }, [settings]);
 
   /* متابعة تغيير theme النظام في الوضع التلقائي. */
@@ -94,10 +94,6 @@ export default function Dashboard({ account, onLogout }: { account: ReturnType<t
     if (account.type === "student") migrateLegacyGameProgress(account.id);
     logLogin(account);
   }, [account.id]);
-  useEffect(() => {
-    preloadQuranOffline();
-  }, []);
-
   useEffect(() => {
     const handler = () => setSettings(loadSettings());
     window.addEventListener("thimar:settings", handler);

@@ -1,46 +1,27 @@
 /**
- * مصحف محلي داخل التطبيق: ملف واحد يحوي 6236 آية في 604 صفحات.
- * يسمح بعرض المصحف والبحث والقراءة دون إنترنت بعد أول تحميل.
+ * مصحف محلي داخل التطبيق: 6236 آية في 604 صفحات من ملفات مضمَّنة.
+ * يسمح بعرض المصحف والقراءة دون إنترنت بلا أي تنزيل.
  */
 import { surahs } from "../data/surahs";
-import { loadTajweed, tajweedText } from "./tajweed";
+import { loadHafsPages, loadHafsText } from "./mushafText";
 
 export type LocalAyahRow = [number, number, number, number, string];
 
-const DATA_URL = "/quran/pages.json";
-const DATA_CACHE = "thimar-data-v1";
 const SURAH_NAMES = surahs.map((surah) => surah.name);
 
 let pagesPromise: Promise<LocalAyahRow[][]> | null = null;
+let pageIndexPromise: Promise<Map<number, number>> | null = null;
 
 async function readData(): Promise<LocalAyahRow[][]> {
-  let response: Response | undefined;
-  try {
-    const cache = await caches.open(DATA_CACHE);
-    response = await cache.match(DATA_URL);
-    if (!response) {
-      response = await fetch(DATA_URL);
-      if (response.ok) void cache.put(DATA_URL, response.clone());
-    }
-  } catch {
-    response = undefined;
-  }
-  if (!response || !response.ok) {
-    response = await fetch(DATA_URL);
-  }
-  if (!response.ok) throw new Error("تعذّر تحميل بيانات المصحف.");
-  const payload = (await response.json()) as { pages?: Array<Array<[number, number, number, number]>> };
-  if (!payload.pages?.length) throw new Error("بيانات المصحف غير مكتملة.");
-  /* ملف الصفحات يحمل أرقام الآيات فقط؛ النص يأتي من ملف المصحف الملوّن
-     نفسه فلا تُخزَّن نسختان من نص القرآن. */
-  const tajweed = await loadTajweed().catch(() => null);
-  return payload.pages.map((rows) =>
+  /* نفس ملفات المصحف المضمَّنة المستخدمة في العرض والبحث — بلا نسخ إضافي. */
+  const [pages, texts] = await Promise.all([loadHafsPages(), loadHafsText()]);
+  return pages.map((rows) =>
     rows.map(([surah, ayahInSurah, number, juz]) => [
       surah,
       ayahInSurah,
       number,
       juz,
-      tajweed ? tajweedText(tajweed.verses[`${surah}:${ayahInSurah}`] ?? "") : "",
+      texts[`${surah}:${ayahInSurah}`] ?? "",
     ] as LocalAyahRow),
   );
 }
@@ -53,6 +34,18 @@ function pages(): Promise<LocalAyahRow[][]> {
     });
   }
   return pagesPromise;
+}
+
+/** خريطة رقم الآية العام → رقم الصفحة، تُبنى مرة واحدة بدل كل طلب. */
+function loadPageIndex(data: LocalAyahRow[][]): Promise<Map<number, number>> {
+  if (!pageIndexPromise) {
+    const map = new Map<number, number>();
+    data.forEach((rows, index) => {
+      rows.forEach((row) => map.set(row[2], index + 1));
+    });
+    pageIndexPromise = Promise.resolve(map);
+  }
+  return pageIndexPromise;
 }
 
 function surahName(number: number): string {
@@ -113,12 +106,8 @@ export async function localQuranResponse(url: string): Promise<Response | null> 
   if (!search && !ayahMatch && !pageMatch && !juzMatch && !surahMatch && !all) return null;
 
   const data = await pages();
-
   /* خريطة رقم الآية العام → رقم الصفحة، ليعمل الانتقال إلى السورة/الآية دون إنترنت. */
-  const pageIndex = new Map<number, number>();
-  data.forEach((rows, index) => {
-    rows.forEach((row) => pageIndex.set(row[2], index + 1));
-  });
+  const pagesOf = await loadPageIndex(data);
 
   if (search) {
     const query = decodeURIComponent(search[1]).trim();
@@ -128,7 +117,7 @@ export async function localQuranResponse(url: string): Promise<Response | null> 
     const matches: unknown[] = [];
     for (const page of data) {
       for (const row of page) {
-        if (normalize(row[4]).includes(needle)) matches.push(ayahPayload(row, pageIndex.get(row[2])));
+        if (normalize(row[4]).includes(needle)) matches.push(ayahPayload(row, pagesOf.get(row[2])));
       }
     }
     return jsonResponse({ count: matches.length, matches });
@@ -141,7 +130,7 @@ export async function localQuranResponse(url: string): Promise<Response | null> 
       for (const row of page) {
         const [, numberInSurah, number] = row;
         const hit = second === null ? number === first : row[0] === first && numberInSurah === second;
-        if (hit) return jsonResponse(ayahPayload(row, pageIndex.get(number)));
+        if (hit) return jsonResponse(ayahPayload(row, pagesOf.get(number)));
       }
     }
     return new Response(JSON.stringify({ code: 404, status: "NOT_FOUND" }), { status: 404 });
@@ -153,7 +142,7 @@ export async function localQuranResponse(url: string): Promise<Response | null> 
     if (!rows) return new Response(JSON.stringify({ code: 404, status: "NOT_FOUND" }), { status: 404 });
     return jsonResponse({
       number: pageNumber,
-      ayahs: rows.map((row) => ayahPayload(row, pageIndex.get(row[2]))),
+      ayahs: rows.map((row) => ayahPayload(row, pagesOf.get(row[2]))),
       surahs: Object.fromEntries(
         [...new Set(rows.map((row) => row[0]))].map((number) => [number, surahName(number)]),
       ),
@@ -167,7 +156,7 @@ export async function localQuranResponse(url: string): Promise<Response | null> 
     if (!rows.length) return new Response(JSON.stringify({ code: 404, status: "NOT_FOUND" }), { status: 404 });
     return jsonResponse({
       number: juz,
-      ayahs: rows.map((row) => ayahPayload(row, pageIndex.get(row[2]))),
+      ayahs: rows.map((row) => ayahPayload(row, pagesOf.get(row[2]))),
       edition: { identifier: "quran-uthmani", language: "ar" },
     });
   }
@@ -180,7 +169,7 @@ export async function localQuranResponse(url: string): Promise<Response | null> 
       number: surah,
       name: surahName(surah),
       englishName: "",
-      ayahs: rows.map((row) => ayahPayload(row, pageIndex.get(row[2]))),
+      ayahs: rows.map((row) => ayahPayload(row, pagesOf.get(row[2]))),
       edition: { identifier: "quran-uthmani", language: "ar" },
     });
   }

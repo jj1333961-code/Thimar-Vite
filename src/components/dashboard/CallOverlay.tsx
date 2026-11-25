@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  CALL_ICE_TRANSPORT_POLICY,
   getIceServers,
   callChannelName,
   closeCall,
@@ -171,10 +172,27 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
     setTimeout(() => onClose(), 900);
   };
 
+  /* لا نعرض أو نشغّل وسائط الطرف الآخر إلا بعد اكتمال الاتصال الفعلي. */
+  const attachRemoteMedia = () => {
+    const element = remoteVideoRef.current;
+    const stream = remoteStreamRef.current;
+    if (!element || !stream.getTracks().length) return;
+    if (element.srcObject !== stream) element.srcObject = stream;
+    element.muted = false;
+    void element.play().catch(() => undefined);
+  };
+
   const ensurePeer = async () => {
     if (pcRef.current) return pcRef.current;
     const iceServers = await getIceServers();
-    const pc = new RTCPeerConnection({ iceServers });
+    const pc = new RTCPeerConnection({
+      iceServers,
+      // TURN فقط: لا اتصال مباشر بين المستخدمين ولا كشف لعناوين IP.
+      iceTransportPolicy: CALL_ICE_TRANSPORT_POLICY,
+      // جمع المرشحات مسبقًا يقلل زمن الربط عند بدء المكالمة.
+      iceCandidatePoolSize: 4,
+      bundlePolicy: "max-bundle",
+    });
     pcRef.current = pc;
     // نجهّز مسار فيديو احتياطيًا حتى يمكن مشاركة الشاشة لاحقًا في المكالمة الصوتية دون تفاوض جديد.
     if (mode === "audio") {
@@ -198,10 +216,7 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
       if (!remoteStream.getTracks().some((track) => track.id === event.track.id)) {
         remoteStream.addTrack(event.track);
       }
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = remoteStream;
-        void remoteVideoRef.current.play().catch(() => undefined);
-      }
+      if (pc.connectionState === "connected") attachRemoteMedia();
     };
     pc.onicecandidate = (event) => {
       if (event.candidate && channelRef.current) {
@@ -218,6 +233,7 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === "connected") {
         setStatus("active");
+        attachRemoteMedia();
       }
       if (pc.connectionState === "failed") {
         void callServer("failed", { callerId: selfId, callId, reason: "ice_failed" });
@@ -697,7 +713,7 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
         {mode === "video" || screenSharing ? (
           <video ref={localVideoRef} className="call-local" autoPlay playsInline muted />
         ) : (
-          <audio ref={localVideoRef as unknown as React.RefObject<HTMLAudioElement>} autoPlay />
+          <audio ref={localVideoRef as unknown as React.RefObject<HTMLAudioElement>} autoPlay muted />
         )}
         <div className="call-top">
           <strong>{peerName}</strong>

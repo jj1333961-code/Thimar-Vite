@@ -5,6 +5,7 @@ import FeedbackPage from "./components/FeedbackPage";
 import LoginPage from "./components/LoginPage";
 import { PendingScreen } from "./components/Portal";
 import RegisterPage from "./components/RegisterPage";
+import InternetStatusIndicator from "./components/InternetStatusIndicator";
 import { restoreRememberedAccount, signOut, type Account } from "./lib/auth";
 import { celebrate, celebrateOnce } from "./lib/celebrate";
 import { pullCloud, startCloudSync } from "./lib/cloud";
@@ -16,18 +17,6 @@ type View = "login" | "register" | "app" | "pending" | "feedback";
 export default function App() {
   // ندخل مباشرةً بالحساب المحفوظ دون انتظار الشبكة؛ التطبيق يعمل دون إنترنت.
   const [view, setView] = useState<View>(() => (restoreRememberedAccount() ? "app" : "login"));
-  const [isOffline, setIsOffline] = useState<boolean>(() =>
-    typeof navigator === "undefined" ? false : !navigator.onLine,
-  );
-  useEffect(() => {
-    const update = () => setIsOffline(!navigator.onLine);
-    window.addEventListener("online", update);
-    window.addEventListener("offline", update);
-    return () => {
-      window.removeEventListener("online", update);
-      window.removeEventListener("offline", update);
-    };
-  }, []);
   const [account, setAccount] = useState<Account | null>(() => restoreRememberedAccount());
   const [pendingAccount, setPendingAccount] = useState<Account | null>(null);
 
@@ -106,25 +95,7 @@ export default function App() {
 
   return (
     <>
-      {isOffline && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            zIndex: 9999,
-            background: "#2F5C4A",
-            color: "#fff",
-            textAlign: "center",
-            padding: "6px 12px",
-            fontSize: "13px",
-            direction: "rtl",
-          }}
-        >
-          أنت الآن في وضع عدم الاتصال
-        </div>
-      )}
+      <InternetStatusIndicator />
       {content}
       <Celebration />
       <UpdatePrompt />
