@@ -14,7 +14,9 @@
     "test:offline-cache": "node --test tests/offline-cache.test.mjs",
     "test:offline-integrity": "node --test tests/offline-package.test.mjs tests/offline-packages.test.mjs tests/tilawa-integrity.test.mjs",
     "test:release-targeting": "node --test tests/release-targeting.test.mjs tests/metadata-display.test.mjs",
-    "test:admin-diagnostics": "node --test tests/admin-diagnostics.test.mjs"
+    "test:admin-diagnostics": "node --test tests/admin-diagnostics.test.mjs",
+    "test:android-security": "node --test tests/android-security.test.mjs",
+    "build:quran-search-index": "node scripts/build-quran-search-index.mjs"
   },
   "dependencies": {
     "@capacitor/cli": "^8.6.2",
@@ -33,9 +35,9 @@
   "devDependencies": {
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.3",
+    "@vitejs/plugin-react": "4.3.4",
     "typescript": "^5.6.3",
-    "vite": "^5.4.10"
+    "vite": "6.4.6"
   },
   "allowScripts": {
     "esbuild@0.21.5": true,

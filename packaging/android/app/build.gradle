@@ -28,10 +28,18 @@ android {
 
   signingConfigs {
     release {
-      storeFile file(System.getenv('THIMAR_KEYSTORE') ?: '')
-      storePassword System.getenv('THIMAR_KEYSTORE_PASSWORD') ?: (System.getenv('THIMAR_STORE_PASS') ?: '')
-      keyAlias System.getenv('THIMAR_KEY_ALIAS') ?: ''
-      keyPassword System.getenv('THIMAR_KEY_PASSWORD') ?: (System.getenv('THIMAR_KEY_PASS') ?: '')
+      // Debug builds and CI security checks must not require or fabricate a release key.
+      // Release tasks are separately gated by verifySigningConfig below.
+      def releaseKeystorePath = System.getenv('THIMAR_KEYSTORE')
+      if (releaseKeystorePath?.trim()) {
+        storeFile file(releaseKeystorePath)
+      }
+      def releaseStorePassword = System.getenv('THIMAR_KEYSTORE_PASSWORD') ?: System.getenv('THIMAR_STORE_PASS')
+      def releaseAlias = System.getenv('THIMAR_KEY_ALIAS')
+      def releaseKeyPassword = System.getenv('THIMAR_KEY_PASSWORD') ?: System.getenv('THIMAR_KEY_PASS')
+      if (releaseStorePassword) storePassword releaseStorePassword
+      if (releaseAlias) keyAlias releaseAlias
+      if (releaseKeyPassword) keyPassword releaseKeyPassword
     }
   }
 

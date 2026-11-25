@@ -9,7 +9,6 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
-import android.os.PowerManager;
 import android.provider.Settings;
 
 import androidx.core.app.ActivityCompat;
@@ -20,9 +19,7 @@ import org.json.JSONObject;
 /**
  * أذونات نظام أندرويد اللازمة لشاشة الصلاة والأذان:
  *  - إشعارات (أندرويد 13+).
- *  - ملء الشاشة (أندرويد 14+).
  *  - المنبهات الدقيقة (أندرويد 12+).
- *  - استثناء من تحسين البطارية.
  *
  * كل إذن يُشرح في شاشة الإعدادات ويُفتح بطلب صريح من المستخدم — لا نفتح
  * شاشات النظام تلقائيًا عند كل جدولة. لا نتجاوز أي قيد أمني في أندرويد.
@@ -39,18 +36,6 @@ public final class AdhanPermissions {
     return am != null && am.canScheduleExactAlarms();
   }
 
-  public static boolean ignoresBatteryOptimizations(Context context) {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true;
-    PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
-    return pm != null && pm.isIgnoringBatteryOptimizations(context.getPackageName());
-  }
-
-  public static boolean canUseFullScreenIntent(Context context) {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return true;
-    NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-    return nm != null && nm.canUseFullScreenIntent();
-  }
-
   public static boolean notificationsEnabled(Context context) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
       return ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)
@@ -65,9 +50,7 @@ public final class AdhanPermissions {
     JSONObject json = new JSONObject();
     try {
       json.put("notifications", notificationsEnabled(context));
-      json.put("fullScreenIntent", canUseFullScreenIntent(context));
       json.put("exactAlarms", canScheduleExact(context));
-      json.put("batteryUnrestricted", ignoresBatteryOptimizations(context));
       json.put("android", Build.VERSION.SDK_INT);
       json.put("screenOnWhenLocked", true);
     } catch (Exception ignored) {
@@ -97,23 +80,9 @@ public final class AdhanPermissions {
         open(context, new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
             .putExtra(Settings.EXTRA_APP_PACKAGE, context.getPackageName()));
         return;
-      case "fullScreenIntent":
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-          open(context, new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
-              .setData(Uri.parse("package:" + context.getPackageName())));
-        } else {
-          openSettings(context, "notifications");
-        }
-        return;
       case "exactAlarms":
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
           open(context, new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
-              .setData(Uri.parse("package:" + context.getPackageName())));
-        }
-        return;
-      case "batteryUnrestricted":
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-          open(context, new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
               .setData(Uri.parse("package:" + context.getPackageName())));
         }
         return;
@@ -130,19 +99,10 @@ public final class AdhanPermissions {
       openSettings(context, "notifications");
       return;
     }
-    if (!canUseFullScreenIntent(context) && !prefs.getBoolean("asked_fullscreen", false)) {
-      prefs.edit().putBoolean("asked_fullscreen", true).apply();
-      openSettings(context, "fullScreenIntent");
-      return;
-    }
     if (!canScheduleExact(context) && !prefs.getBoolean("asked_exact", false)) {
       prefs.edit().putBoolean("asked_exact", true).apply();
       openSettings(context, "exactAlarms");
       return;
-    }
-    if (!ignoresBatteryOptimizations(context) && !prefs.getBoolean("asked_battery", false)) {
-      prefs.edit().putBoolean("asked_battery", true).apply();
-      openSettings(context, "batteryUnrestricted");
     }
   }
 

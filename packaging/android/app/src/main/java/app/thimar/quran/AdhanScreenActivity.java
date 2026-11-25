@@ -1,7 +1,6 @@
 package app.thimar.quran;
 
 import android.app.Activity;
-import android.app.KeyguardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
@@ -162,7 +161,6 @@ public class AdhanScreenActivity extends Activity {
       }
     }
 
-    requestDismissKeyguard();
     resetDismissTimer();
     handler.post(playbackWatcher);
     updateToggleIcon();
@@ -201,22 +199,6 @@ public class AdhanScreenActivity extends Activity {
     toggleButton.setContentDescription(getString(paused ? R.string.adhan_resume : R.string.adhan_pause));
   }
 
-  /** يكسر شاشة القفل حيث يسمح النظام حتى تظهر الشاشة كاملة. */
-  private void requestDismissKeyguard() {
-    try {
-      KeyguardManager keyguard = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
-      /* على القفل الآمن (PIN/بصمة) لا نطلب إلغاء القفل حتى لا تظهر شاشة الإدخال
-         فوق شاشة الصلاة؛ showWhenLocked يكفي للعرض. */
-      if (keyguard != null && keyguard.isKeyguardLocked()
-          && !keyguard.isDeviceSecure()
-          && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        keyguard.requestDismissKeyguard(this, null);
-      }
-    } catch (Exception ignored) {
-      // تبقى الشاشة فوق القفل عبر showWhenLocked.
-    }
-  }
-
   /** يضمن تشغيل الأذان حتى لو تعذّر على المستقبل بدء الخدمة (مثلاً فتح الشاشة يدويًا). */
   private void ensureAdhanPlaying(Intent intent) {
     if (intent == null) return;
@@ -250,12 +232,11 @@ public class AdhanScreenActivity extends Activity {
     } else {
       getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
           | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
-          | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
+          );
     }
     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
         | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
-        | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
-        | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
+        | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED);
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
       getWindow().setDecorFitsSystemWindows(false);
     }
