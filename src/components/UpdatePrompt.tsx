@@ -258,8 +258,14 @@ export default function UpdatePrompt() {
           setBusy(false);
           return;
         }
-        setStatus("جارٍ تنزيل APK…");
-        window.location.assign(metadata.downloadUrl!);
+        const nativeUpdater = (window as any).ThimarUpdater;
+        if (nativeUpdater && typeof nativeUpdater.downloadUpdate === "function") {
+          setStatus("بدأ تنزيل التحديث داخل ثمار. عند انقطاع الإنترنت سيُحفظ التقدم ويُستكمل تلقائيًا عند عودة الاتصال.");
+          nativeUpdater.downloadUpdate(METADATA_URL);
+          setBusy(false);
+          return;
+        }
+        setStatus("هذا الإصدار لا يدعم التنزيل المستأنف. حدّث التطبيق من قناة التوزيع الرسمية.");
         setBusy(false);
         return;
       } else if (platform === "electron") {
