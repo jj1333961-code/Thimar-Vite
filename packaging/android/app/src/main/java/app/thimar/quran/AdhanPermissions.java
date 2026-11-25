@@ -23,7 +23,6 @@ import org.json.JSONObject;
  *  - ملء الشاشة (أندرويد 14+).
  *  - المنبهات الدقيقة (أندرويد 12+).
  *  - استثناء من تحسين البطارية.
- *  - الظهور فوق التطبيقات (اختياري: يجعل فتح شاشة الصلاة من الخلفية أكثر موثوقية).
  *
  * كل إذن يُشرح في شاشة الإعدادات ويُفتح بطلب صريح من المستخدم — لا نفتح
  * شاشات النظام تلقائيًا عند كل جدولة. لا نتجاوز أي قيد أمني في أندرويد.
@@ -52,16 +51,6 @@ public final class AdhanPermissions {
     return nm != null && nm.canUseFullScreenIntent();
   }
 
-  /** الظهور فوق التطبيقات: يسمح بفتح شاشة الصلاة من الخلفية على أندرويد 10+. */
-  public static boolean canDrawOverlays(Context context) {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true;
-    try {
-      return Settings.canDrawOverlays(context);
-    } catch (Exception ignored) {
-      return false;
-    }
-  }
-
   public static boolean notificationsEnabled(Context context) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
       return ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)
@@ -79,7 +68,6 @@ public final class AdhanPermissions {
       json.put("fullScreenIntent", canUseFullScreenIntent(context));
       json.put("exactAlarms", canScheduleExact(context));
       json.put("batteryUnrestricted", ignoresBatteryOptimizations(context));
-      json.put("overlay", canDrawOverlays(context));
       json.put("android", Build.VERSION.SDK_INT);
       json.put("screenOnWhenLocked", true);
     } catch (Exception ignored) {
@@ -126,12 +114,6 @@ public final class AdhanPermissions {
       case "batteryUnrestricted":
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
           open(context, new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-              .setData(Uri.parse("package:" + context.getPackageName())));
-        }
-        return;
-      case "overlay":
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-          open(context, new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
               .setData(Uri.parse("package:" + context.getPackageName())));
         }
         return;
