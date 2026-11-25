@@ -232,7 +232,7 @@ public class AdhanScreenActivity extends Activity {
     } else {
       getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
           | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
-          | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
+          );
     }
     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
         | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
