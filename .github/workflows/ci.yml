@@ -40,6 +40,8 @@ jobs:
         run: npm run test:admin-diagnostics
       - name: TypeScript validation
         run: npm run typecheck
+      - name: Generate Quran search index
+        run: npm run build:quran-search-index
       - name: Production Vite build
         run: npm run build
 
@@ -68,6 +70,8 @@ jobs:
         run: npm run test:android-security
       - name: TypeScript validation
         run: npm run typecheck
+      - name: Generate Quran search index
+        run: npm run build:quran-search-index
       - name: Build web assets
         run: npm run build
       - name: Fetch verified offline assets
