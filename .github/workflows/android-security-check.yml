@@ -1,0 +1,68 @@
+name: Android security build
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packaging/android/**'
+      - 'src/components/dashboard/AdhanPermissionsCard.tsx'
+      - 'src/lib/adhanBridge.ts'
+      - 'tests/android-security.test.mjs'
+      - 'scripts/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/android-security-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-security-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools platforms;android-34 build-tools;34.0.0
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run Android security regression tests
+        run: npm run test:android-security
+      - name: TypeScript validation
+        run: npm run typecheck
+      - name: Build web assets
+        run: npm run build
+      - name: Fetch verified offline assets
+        run: bash scripts/fetch-offline-assets.sh
+      - name: Bundle Android web assets
+        run: bash scripts/bundle-android-assets.sh
+      - name: Build unsigned debug APK
+        working-directory: packaging/android
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --no-daemon
+      - name: Verify final APK permissions
+        working-directory: packaging/android
+        run: |
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          AAPT="$ANDROID_HOME/build-tools/34.0.0/aapt"
+          test -f "$APK"
+          "$AAPT" dump permissions "$APK" | tee /tmp/thimar-apk-permissions.txt
+          if grep -E 'SYSTEM_ALERT_WINDOW|USE_FULL_SCREEN_INTENT|REQUEST_IGNORE_BATTERY_OPTIMIZATIONS|DISABLE_KEYGUARD|USE_EXACT_ALARM' /tmp/thimar-apk-permissions.txt; then
+            echo "A restricted/unnecessary permission remains in the final merged APK." >&2
+            exit 1
+          fi
+          "$AAPT" dump badging "$APK" | grep -F "package: name='app.thimar.quran'"
