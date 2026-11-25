@@ -28,7 +28,7 @@ jobs:
       - name: Verify clean install and security checks
         run: |
           npm ci
-          npm audit --audit-level=high
+          npm audit --audit-level=moderate
           npm run test:android-security
           npm run typecheck
           npm run build:quran-search-index
