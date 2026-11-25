@@ -286,13 +286,13 @@ public class ThimarAssetUpdater {
       int manifestCode = conn.getResponseCode();
       Log.d(TAG, "manifest fetch " + url + " -> HTTP " + manifestCode);
       if (manifestCode != 200) return null;
-      StringBuilder sb = new StringBuilder();
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
       try (InputStream in = conn.getInputStream()) {
         byte[] buf = new byte[8192];
         int n;
-        while ((n = in.read(buf)) > 0) sb.append(new String(buf, 0, n, "UTF-8"));
+        while ((n = in.read(buf)) > 0) baos.write(buf, 0, n);
       }
-      return new JSONObject(sb.toString());
+      return new JSONObject(baos.toString("UTF-8"));
     } catch (Exception e) {
       Log.e(TAG, "fetchJson failed", e);
       return null;
