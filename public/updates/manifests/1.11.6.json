@@ -7,7 +7,7 @@
   "nativeVersionCode": 28,
   "nativeVersionName": "1.11.6",
   "baseUrl": "/",
-  "generatedAt": "2026-11-25T20:18:07.176Z",
+  "generatedAt": "2026-11-25T22:34:38.185Z",
   "files": [
     {
       "path": "adhan/afasy-fajr.mp3",
@@ -70,19 +70,19 @@
       "sha256": "b4b3c75cfe65a93dd56ead63dae638fb84bdfb1ced5193c7b78431281c919513"
     },
     {
-      "path": "assets/MushafTasmeeSheet-D0uDMt8r.js",
+      "path": "assets/MushafTasmeeSheet-CyGlBp8E.js",
       "bytes": 23865,
-      "sha256": "7f8869b2cb763ef043119b5370d11a70e3b50b4fbd654adaf5f6a71d80e3004b"
+      "sha256": "291dc4463e64e450e4a5defa455b6f4492e668aa38fa2a3032bdc4bd51637b28"
     },
     {
-      "path": "assets/TasmeeReader-COxM6HIl.js",
+      "path": "assets/TasmeeReader-CRkBm3QV.js",
       "bytes": 29000,
-      "sha256": "316d04192ea0f97c2c4d3c766262c521a94d1bc1915652cc9b30bcaf80524066"
+      "sha256": "139f47a15514f1ff5484d98d48ca1ddd395cc5d09cd21315a472aed4eeef838e"
     },
     {
-      "path": "assets/TuhfaTasmeeReader-BpOb3E2t.js",
+      "path": "assets/TuhfaTasmeeReader-xTsiXp7R.js",
       "bytes": 25150,
-      "sha256": "dee3ea03634a50cbdab2cc00b759a80e3ea601f7cf359be69737ccfc3392af17"
+      "sha256": "420dcef6168567e97c43382999d575dc2fdbc99fd09c7689db55f941d3c50f2b"
     },
     {
       "path": "assets/dialect-4WXjo_u_.js",
@@ -90,9 +90,9 @@
       "sha256": "e8aff53f78f5ad63707ef5bbd910d298b27199d229f7fb7c97f1a26ed3b52503"
     },
     {
-      "path": "assets/esm-Ckv6ylXT.js",
+      "path": "assets/esm-QBgPdwRB.js",
       "bytes": 599,
-      "sha256": "3ede185ac811dc56706a42e9231203a79061542b1de8b3a71b3135341b534439"
+      "sha256": "e88900f8dc6b38c3c2e6da3100a4fc7722f8b59112ea2874f919eebfc1d15678"
     },
     {
       "path": "assets/index-BgXq6AeN.css",
@@ -100,34 +100,29 @@
       "sha256": "cb2c59dc51d558d33938af99a1d72726c9c803e7429363cf42a82a058e4bc4b1"
     },
     {
-      "path": "assets/index-Csjp9E2q.js",
-      "bytes": 1272442,
-      "sha256": "59f62c0adfc8684c7d6303aaaf866ff81ea1fcabc0433eb44e5665d53cc81899"
+      "path": "assets/index-DRER--Co.js",
+      "bytes": 1280212,
+      "sha256": "70c3eba163aacc76505bf08c7230eb0e9c7b258a8cc63e7080e2fc2ea7a20872"
     },
     {
-      "path": "assets/ort.bundle.min-B0peBxyq.js",
-      "bytes": 418286,
-      "sha256": "02124e23f8e5bb503e638fdc84febbad20ef3ea89b83f5f1d2cd2a85ac9544a8"
-    },
-    {
-      "path": "assets/quranAsrSmall-CAMrzsmP.js",
+      "path": "assets/quranAsrSmall-Bf9PwVuj.js",
       "bytes": 8912,
-      "sha256": "5c7fd44054a4a57785fb00b1c22d2b8158c65e86e95aa9a48d25d21fd51ca2cb"
+      "sha256": "12c3e8647e1334769b83944103986c31f197d8f924e9d2044977853053d3f055"
     },
     {
-      "path": "assets/tasmeeEngines-DR3Wn_hc.js",
+      "path": "assets/tasmeeEngines-BYIOwQiR.js",
       "bytes": 13674,
-      "sha256": "9c1cc23aa804db5ab18616e2fcfdbb176bd06cb2be36e45cc99c04d56d90e5c7"
+      "sha256": "21f84a00f537a531d1dc2ed5281259f16df0ffdadeb269fbb35aee6ff8402e49"
     },
     {
-      "path": "assets/tilawaRecitation-C882TdZZ.js",
-      "bytes": 1052777,
-      "sha256": "71d5dc6321853955d8ae7bcba1d2a9ac9c731eeff17468ae0f6e7a1e9497ee25"
+      "path": "assets/tilawaRecitation-DeDSeQbV.js",
+      "bytes": 1053774,
+      "sha256": "ebcfdb1067ac3aa0246106bb7bfd9af290be5914d82c8c0d1755fda531b74372"
     },
     {
-      "path": "assets/web-Cx8w72-M.js",
+      "path": "assets/web-ieJUYMgb.js",
       "bytes": 4591,
-      "sha256": "8db31157079eafd5fd73643250cd3f98c1821e77470dcc84f451e46a02c31e87"
+      "sha256": "94abc2935735ae3dbead16f1a66eee33471ed3416edc74e743577c8b2c3680c1"
     },
     {
       "path": "fonts/UthmanicHafs-v3.woff2",
@@ -187,7 +182,7 @@
     {
       "path": "index.html",
       "bytes": 2483,
-      "sha256": "9a173749a2d9fba72cda11f61c9bbae90edb0f502f04f30ee0290386f77f1456"
+      "sha256": "525e93b2a89b867529670fe857cd3e829f82c74d04a9ddf98ce203d5c2e3df25"
     },
     {
       "path": "licenses/THIRD_PARTY_NOTICES.md",
@@ -528,11 +523,6 @@
       "path": "quran/pages.json",
       "bytes": 97589,
       "sha256": "6f66995b142feca29a9a1ada2d6957a6194aec39b0bd0f0cf2cd4cb1f2eae5f9"
-    },
-    {
-      "path": "quran/tajweed.json.gz",
-      "bytes": 374316,
-      "sha256": "e72c2cde54d0417676130f10ec684544de124e0b14988acc2d9713e224654aef"
     },
     {
       "path": "sw.js",

@@ -47,10 +47,19 @@ function walk(dir) {
   return result;
 }
 
+const SKIP_NAMES = ["ort.bundle", "ort-wasm", "tajweed.json"];
+function isSkipped(rel) {
+  return SKIP_NAMES.some((n) => rel.includes(n));
+}
+
 const skipped = [];
 const files = [];
 for (const full of walk(root)) {
   const rel = relative(root, full).split(sep).join("/");
+  if (isSkipped(rel)) {
+    skipped.push(rel);
+    continue;
+  }
   // نتجاهل الملفات الضخمة قبل قراءتها في الذاكرة (المصحف 218MB/WASM 28MB).
   if (MAX_BYTES > 0 && statSync(full).size > MAX_BYTES) {
     skipped.push(rel);
