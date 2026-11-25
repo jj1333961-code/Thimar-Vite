@@ -89,22 +89,10 @@ export default function AdhanPermissionsCard({ imageUrls, audioUrls, defaultAudi
       ok: permissions.notifications === true,
     },
     {
-      key: "fullScreenIntent",
-      title: "ملء الشاشة (Full-screen intent)",
-      why: "يسمح بعرض شاشة الصلاة فوق شاشة القفل تلقائيًا. على أندرويد 14+ قد يمنعه النظام لتطبيقات غير المنبهات.",
-      ok: permissions.fullScreenIntent !== false,
-    },
-    {
       key: "exactAlarms",
       title: "المنبهات الدقيقة",
       why: "يضبط الأذان في وقته بالدقيقة بدل التأخير. بدونه قد يتأخر الإشعار دقائق.",
       ok: permissions.exactAlarms === true,
-    },
-    {
-      key: "batteryUnrestricted",
-      title: "استثناء من تحسين البطارية",
-      why: "يمنع تأجيل المنبه أو إيقاف الصوت عند توفير الطاقة. موصى به بشدة.",
-      ok: permissions.batteryUnrestricted === true,
     },
   ];
 
