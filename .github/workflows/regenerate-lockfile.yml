@@ -1,6 +1,11 @@
 name: Regenerate dependency lockfile
 
 on:
+  push:
+    branches: [security/remove-unneeded-overlay-permission]
+    paths:
+      - 'package.json'
+      - '.github/workflows/regenerate-lockfile.yml'
   workflow_dispatch:
 
 permissions:
