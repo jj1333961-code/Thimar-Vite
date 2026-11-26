@@ -331,7 +331,7 @@ export default function MushafAyahMenu({
         </div>
       ) : null}
 
-      {sheet === "audio" ? <AyahAudioSheet ayahs={ayahs} page={page} onCompactChange={setAudioCompact} onClose={() => { setAudioCompact(false); setSheet(null); }} /> : null}
+      {sheet === "audio" ? <AyahAudioSheet ayahs={ayahs} page={page} onCompactChange={setAudioCompact} onClose={() => { setAudioCompact(false); setSheet(null); onClose(); }} /> : null}
       {sheet === "share" ? <AyahShareSheet ayahs={ayahs} onClose={() => setSheet(null)} /> : null}
       {sheet === "recite" ? <AyahReciteSheet ayahs={ayahs} onClose={() => setSheet(null)} /> : null}
     </>
