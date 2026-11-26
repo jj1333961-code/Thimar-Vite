@@ -3,13 +3,10 @@ import { loadPageMap, loadTajweed, tajweedText, type PageMap, type TajweedData }
 import { surahs } from "../../data/surahs";
 import { useHistoryBack } from "../../lib/useHistoryBack";
 import { ayahKey, loadHafsAyahs, loadHafsOrder, type HafsAyah } from "../../lib/mushafText";
+import { selectionAfterTap } from "../../lib/ayahSelectionCore";
 import { loadPageLines } from "../../lib/quranPageLayout";
 import type { TasmeeWord, WordStatus } from "../../lib/mushafTasmee";
-import { AyahPlayer } from "../../lib/ayahPlayer";
-import { selectionAfterTap } from "../../lib/ayahSelectionCore";
 import MushafAyahMenu from "./MushafAyahMenu";
-import AyahAudioSheet from "./AyahAudioSheet";
-import MushafMiniPlayer from "./MushafMiniPlayer";
 const MushafTasmeeSheet = lazy(() => import("./MushafTasmeeSheet"));
 
 /*
@@ -83,12 +80,9 @@ export default function MushafPagesText({
   const [selection, setSelection] = useState<string[]>([]);
   const selectionRef = useRef<string[]>([]);
   const [selected, setSelected] = useState<HafsAyah[]>([]);
-  const [audioOpen, setAudioOpen] = useState(false);
-  const player = useState(() => new AyahPlayer())[0];
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(() => readHidden());
   const [fontPx, setFontPx] = useState(0);
-  const [sparseLines, setSparseLines] = useState<Set<number>>(() => new Set());
   const [linesData, setLinesData] = useState<{ lines: number[][][]; lineNums: number[]; surahStarts: number[][] } | null>(null);
   const [tasmeeOpen, setTasmeeOpen] = useState(false);
   const [tasmeeWordsList, setTasmeeWordsList] = useState<TasmeeWord[]>([]);
@@ -130,9 +124,6 @@ export default function MushafPagesText({
       cancelled = true;
     };
   }, [page]);
-
-  /* إيقاف الصوت عند إغلاق المصحف حتى لا تستمر التلاوة في الخلفية. */
-  useEffect(() => () => player.stop(), [player]);
 
   useEffect(() => {
     if (!toast) return;
@@ -236,90 +227,39 @@ export default function MushafPagesText({
     const apply = (size: number) => {
       pageEl.style.setProperty("--qp-fs", `${size.toFixed(2)}px`);
     };
-        /*
-     * يجمع امتدادات النص في سطور بصرية. getClientRects لعنصر سطري يعيد
-     * شظايا لكل span/كلمة، فلا نعدّها سطورًا؛ نجمعها بحسب مركز الصندوق.
-     */
-    const visualLines = (element: Element, countWords = false) => {
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      const rows: Array<{ left: number; right: number; top: number; bottom: number; words: number }> = [];
-      const findRow = (rect: DOMRect) => {
-        const center = (rect.top + rect.bottom) / 2;
-        return rows.find((item) => Math.abs((item.top + item.bottom) / 2 - center) < Math.max(8, rect.height * 0.45));
-      };
-      for (const rect of Array.from(range.getClientRects())) {
-        if (rect.width < 1 || rect.height < 1) continue;
-        const row = findRow(rect);
-        if (row) {
-          row.left = Math.min(row.left, rect.left);
-          row.right = Math.max(row.right, rect.right);
-          row.bottom = Math.max(row.bottom, rect.bottom);
-        } else {
-          rows.push({ left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, words: 0 });
-        }
-      }
-      if (countWords) {
-        element.querySelectorAll(".qp-ayah-text").forEach((textEl) => {
-          const walker = document.createTreeWalker(textEl, NodeFilter.SHOW_TEXT);
-          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-            if (!node.textContent?.trim()) continue;
-            const wordRange = document.createRange();
-            wordRange.selectNodeContents(node);
-            for (const rect of Array.from(wordRange.getClientRects())) {
-              if (rect.width < 1 || rect.height < 1) continue;
-              const row = findRow(rect);
-              if (row) row.words += 1;
-            }
-          }
-        });
-      }
-      return rows.sort((a, b) => a.top - b.top);
-    };
     /* رقم آخر آية في الصفحة يجب ألّا ينفرد في سطر وحده (كما في المصحف المطبوع).
        كما ندمج ١–٣ كلمات منفردة في آخر سطر مع السطر الذي فوقه.
        في صفحات الفاتحة وأول البقرة النص مُوسَّط، فلا نفرض تساوي الأسطر. */
     const endsCleanly = () => {
       if (isSpecialPageRef.current) return true;
-      const lines = bodyEl.querySelectorAll<HTMLElement>(".qp-line");
-      const lastLine = lines[lines.length - 1];
-      if (!lastLine) return true;
-      const boxes = visualLines(lastLine);
-      if (!boxes.length) return true;
-      const lastBox = boxes[boxes.length - 1];
-      const containerWidth = bodyEl.clientWidth || 1;
-      // آخر سطر يجب أن يحتوي على كلمات كافية (لا ١–٣ كلمات منفردة).
-      if (lastBox.right - lastBox.left < containerWidth * 0.3) return false;
       const marks = bodyEl.querySelectorAll(".ayah-mark");
-      const lastMark = marks[marks.length - 1] as HTMLElement | undefined;
-      // رقم الآية يجب أن يكون على نفس سطر النص، لا في سطر تالٍ وحده.
-      if (lastMark && lastMark.getBoundingClientRect().top >= lastBox.bottom - 1) return false;
+      const last = marks[marks.length - 1] as HTMLElement | undefined;
+      const textEl = last?.parentElement?.querySelector(".qp-ayah-text") as HTMLElement | null;
+      if (!last || !textEl) return true;
+      const rects = Array.from(textEl.getClientRects());
+      if (!rects.length) return true;
+      let textBottom = 0;
+      for (const rect of rects) textBottom = Math.max(textBottom, rect.bottom);
+      // رقم الآية يجب أن يكون على نفس سطر النص (لا ينفرد في سطر وحده).
+      if (last.getBoundingClientRect().top >= textBottom - 1) return false;
+      // آخر سطر يجب أن يحتوي على كلمات كافية (لا ١–٣ كلمات منفردة).
+      const lastRect = rects[rects.length - 1];
+      const containerWidth = bodyEl.clientWidth || 1;
+      if (lastRect.width < containerWidth * 0.3) return false;
       return true;
     };
-    /*
-     * نسمح بثلاثة أسطر بصرية كحد أقصى للسطر المطبوع الواحد. هذا هو الفرق
-     * الذي يتيح تكبير الخط في الصفحات ذات الأسطر القليلة (مثل أول البقرة)
-     * وفي الصفحات المزدحمة، مع منع بقاء كلمة أو رقم آية وحده في سطر تالٍ.
-     */
-    const linesStayReadable = () => {
+    /* كل سطر منطقي يجب أن يبقى سطرًا واحدًا فعليًا: لا التفاف ولا كلمات
+       منفردة في سطر تالٍ، وبذلك تتساوى جميع الأسطر في الارتفاع والعرض. */
+    const linesStaySingle = () => {
       const lines = bodyEl.querySelectorAll<HTMLElement>(".qp-line");
-      const containerWidth = bodyEl.clientWidth || 1;
       for (const line of Array.from(lines)) {
-        const boxes = visualLines(line, true);
-        if (boxes.length > 3) return false;
-        if (boxes.length > 1) {
-          const last = boxes[boxes.length - 1];
-          // لا نرفض سطرًا فيه ٣–٤ كلمات لمجرد أن عرضه أقل من ثلث الصفحة.
-          if (last.right - last.left < Math.max(containerWidth * 0.2, 72)) return false;
-          // كلمة واحدة في آخر سطر تعني فاصلًا كبيرًا بسبب justify-last،
-          // إلا في الصفحات الموسَّطة حيث لا يُمدَّد السطر.
-          if (!isSpecialPageRef.current && last.words < 2) return false;
-        }
+        const style = window.getComputedStyle(line);
+        const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.86 || 24;
+        if (line.scrollHeight > lineHeight * 1.35 + 2) return false;
       }
       return true;
     };
-
-    const heightOk = () => bodyEl.scrollHeight <= available + 1 && linesStayReadable();
+    const heightOk = () => bodyEl.scrollHeight <= available + 1 && linesStaySingle();
     let low = 9;
     let high = 80;
     let best = 0;
@@ -351,33 +291,11 @@ export default function MushafPagesText({
       clean -= 0.25;
     }
     apply(clean);
-
-    /*
-     * السطر القصير (مثل أواخر السور) لا نمدّده بالقوة بين الكلمات؛ نترك
-     * مسافاته طبيعية ونحاذيه إلى جهة البداية. أما أسطر الصفحة الممتلئة فتبقى
-     * على تبرير المصحف المعتاد.
-     */
-    if (isSpecialPageRef.current) {
-      setSparseLines(new Set());
-    } else {
-      const containerWidth = bodyEl.clientWidth || 1;
-      const sparse = new Set<number>();
-      bodyEl.querySelectorAll<HTMLElement>(".qp-line").forEach((line, index) => {
-        const previous = line.style.textAlignLast;
-        line.style.textAlignLast = "right";
-        const lineRange = document.createRange();
-        lineRange.selectNodeContents(line);
-        const naturalWidth = lineRange.getBoundingClientRect().width;
-        line.style.textAlignLast = previous;
-        if (naturalWidth < containerWidth * 0.9) sparse.add(index);
-      });
-      setSparseLines(sparse);
-    }
     setFontPx(clean);
   }, []);
 
   useEffect(() => {
-    if (!data || !linesData || !rows.length) return;
+    if (!data || !rows.length) return;
     if (tasmeeOpen) return; // لا تغيير الخط أثناء عرض صفحة التسميع
     let frame = 0;
     const run = () => {
@@ -410,23 +328,16 @@ export default function MushafPagesText({
       visualViewport?.removeEventListener("resize", onResize);
       resizeObserver?.disconnect();
     };
-  }, [data, linesData, rows, page, fitPage, tasmeeOpen]);
+  }, [data, rows, page, fitPage, tasmeeOpen]);
 
-  const syncSeq = useRef(0);
   const syncSelected = (keys: string[]) => {
-    const seq = ++syncSeq.current;
     if (!keys.length) {
       setSelected([]);
       return;
     }
     void loadHafsAyahs(keys)
-      .then((value) => {
-        /* تجاهل نتيجة طلب قديم كي لا يطغى على تحديد أحدث. */
-        if (seq === syncSeq.current) setSelected(value);
-      })
-      .catch(() => {
-        if (seq === syncSeq.current) setSelected([]);
-      });
+      .then((value) => setSelected(value))
+      .catch(() => setSelected([]));
   };
 
   const changeSelection = (keys: string[]) => {
@@ -436,36 +347,30 @@ export default function MushafPagesText({
     if (!keys.length) setMenu(null);
   };
 
-  /* النقر: يمدّ النطاق من أول آية، والنقر على آية محددة يقصّ النطاق قبلها. */
+  /*
+   * النقر: يمدّ النطاق من أول آية محددة، والنقر على آية داخل المجموعة يقصّها
+   * قبل الآية المضغوطة. يعتمد النطاق على الرقم العام للآية (سورة:آية)، فيعمل
+   * عبر حدود الصفحات والسور ولا يخلط بين أرقام الآيات المتشابهة.
+   */
   const tapAyah = (key: string) => {
-    const selectedIndex = selection.indexOf(key);
-    if (selectedIndex >= 0) {
-      // مثال: ١،٢،٣،٤ ثم النقر على ٣ يبقي ١،٢ فقط.
-      changeSelection(selection.slice(0, selectedIndex));
-      return;
-    }
-    const target = pageKeys.indexOf(key);
-    if (target < 0) {
-      changeSelection([key]);
-      return;
-    }
-    const firstSelected = selection.length ? pageKeys.indexOf(selection[0]) : -1;
-    if (firstSelected < 0) {
-      changeSelection([key]);
-      return;
-    }
-    const from = Math.min(firstSelected, target);
-    const to = Math.max(firstSelected, target);
-    changeSelection(pageKeys.slice(from, to + 1));
+    void loadHafsOrder()
+      .then(({ keysByGlobal, globalOf }) => {
+        changeSelection(
+          selectionAfterTap({ keysByGlobal, globalOf, current: selectionRef.current, tapped: key }),
+        );
+      })
+      .catch(() => {
+        const current = selectionRef.current;
+        changeSelection(current.includes(key) ? current.slice(0, current.indexOf(key)) : [key]);
+      });
   };
 
-  /* الضغط المطوّل: فتح الأزرار الدائرية مع إضافة الآية الكاملة المضغوطة. */
+  /* الضغط المطوّل: فتح الأزرار الدائرية. */
   const openMenuFor = (key: string | null, x: number, y: number) => {
     // الضغط المطوّل على كلمة يختار آيتها كاملة فقط، ولا يضيفها إلى تحديد قديم.
-    const keys = key ? [key] : selection;
+    const keys = key ? [key] : selectionRef.current;
     if (!keys.length) return;
-    setSelection(keys);
-    syncSelected(keys);
+    changeSelection(keys);
     setMenu({ x, y });
   };
 
@@ -612,7 +517,7 @@ export default function MushafPagesText({
                           {surah !== 1 && surah !== 9 ? <div className="qp-basmala">{BASMALA}</div> : null}
                         </Fragment>
                       ))}
-                      <div className={`qp-line${sparseLines.has(lineIdx) ? " is-sparse" : ""}`}>
+                      <div className="qp-line">
                         {runs.map((run, runIdx) => {
                           const key = ayahKey(run.surah, run.ayah);
                           const encoded = data.verses[key];
@@ -701,10 +606,6 @@ export default function MushafPagesText({
             setMenu(null);
             setTasmeeOpen(true);
           }}
-          onStartAudio={(items, repeat) => {
-            setMenu(null);
-            void player.start(items, repeat);
-          }}
         />
       ) : null}
 
@@ -722,27 +623,6 @@ export default function MushafPagesText({
           onActiveChange={setTasmeeActive}
         />
         </Suspense>
-      ) : null}
-
-      <MushafMiniPlayer
-        player={player}
-        onStop={() => {
-          player.stop();
-          setAudioOpen(true);
-        }}
-      />
-
-      {audioOpen && selected.length ? (
-        <AyahAudioSheet
-          ayahs={selected}
-          page={page}
-          onClose={() => setAudioOpen(false)}
-          onStart={(items, repeat) => {
-            setAudioOpen(false);
-            setMenu(null);
-            void player.start(items, repeat);
-          }}
-        />
       ) : null}
 
       {toast ? <p className="mushaf-ayah-toast">{toast}</p> : null}

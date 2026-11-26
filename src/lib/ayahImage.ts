@@ -7,8 +7,6 @@ import { surahs } from "../data/surahs";
 import type { HafsAyah } from "./mushafText";
 
 const LOGO_URL = `${import.meta.env.BASE_URL || "/"}icons/icon-192.png`;
-/* زخرفة رقم الآية نفسها المستخدمة في صفحات المصحف. */
-const MARK_URL = `${import.meta.env.BASE_URL || "/"}images/ayah-mark.svg`;
 const WIDTH = 1200;
 const PADDING = 84;
 
@@ -226,33 +224,8 @@ export async function buildAyahImage(ayahs: HafsAyah[]): Promise<AyahImageResult
   ctx.textAlign = "right";
   let y = headerHeight;
   wrapped.forEach((lines, index) => {
-    const ayah = ayahs[index];
-    lines.forEach((line, lineIndex) => {
+    for (const line of lines) {
       ctx.fillText(line, WIDTH - PADDING, y);
-      if (lineIndex === lines.length - 1) {
-        /* العلامة الدائرية بعد آخر كلمة في الآية، والرقم بداخلها. */
-        const lineWidth = measure.measureText(line).width;
-        const markX = Math.max(PADDING, WIDTH - PADDING - lineWidth - markWidth);
-        const markTop = y - Math.round(fontSize * 0.88);
-        if (markImage) {
-          ctx.drawImage(markImage, markX, markTop, markWidth, markHeight);
-        } else {
-          ctx.save();
-          ctx.strokeStyle = "#007c89";
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.arc(markX + markWidth / 2, markTop + markHeight / 2, markWidth / 2 - 1, 0, Math.PI * 2);
-          ctx.stroke();
-          ctx.restore();
-        }
-        const digits = arabicNumber(ayah.ayah);
-        ctx.save();
-        ctx.fillStyle = "#007c89";
-        ctx.textAlign = "center";
-        ctx.font = `600 ${Math.round(fontSize * (digits.length >= 3 ? 0.4 : 0.5))}px "Hafs", "QuranUthmani", "Amiri", serif`;
-        ctx.fillText(digits, markX + markWidth / 2, markTop + markHeight / 2 + Math.round(fontSize * 0.18));
-        ctx.restore();
-      }
       y += lineHeight;
     }
     const lastLine = lines[lines.length - 1] ?? "";

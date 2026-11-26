@@ -3,7 +3,6 @@ import { ayahAudioUrl, reciters, reciterIsSurah, repeatOptions } from "../../dat
 import { loadSettings } from "../../lib/appStore";
 import { ayahKey, loadHafsAyahs, loadHafsPage, loadHafsPages, type HafsAyah } from "../../lib/mushafText";
 import { arabicNumber, surahNameOfNumber } from "../../lib/ayahImage";
-import type { AyahPlayItem } from "../../lib/ayahPlayer";
 
 // MP3Quran timing feed supplies ayah boundaries for catalogued full-surah audio files.
 type Scope = "selected" | "page" | "surah";
@@ -11,34 +10,9 @@ type TimingReciter = { id: number; name: string; rewaya?: string; folder_url: st
 type AyahTiming = { ayah: number; start_time: number; end_time: number };
 const AYAH_RECITERS = reciters;
 
-export type AudioStartMeta = { reciterId: string; scope: AudioScope };
-
-const PREFS_KEY = "thimar.mushaf.audio.prefs.v2";
-
-type Prefs = { reciterId?: string; scope?: AudioScope; repeat?: number };
-
-function readPrefs(): Prefs {
-  try {
-    const raw = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") as Prefs;
-    return raw && typeof raw === "object" ? raw : {};
-  } catch {
-    return {};
-  }
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
-
-function writePrefs(prefs: Prefs): void {
-  try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
-  } catch {
-    /* التخزين غير متاح */
-  }
-}
-
-const SCOPES: { id: AudioScope; label: string }[] = [
-  { id: "selection", label: "الآيات المحددة" },
-  { id: "page", label: "الصفحة الحالية" },
-  { id: "surah", label: "السورة كاملة" },
-];
 
 export default function AyahAudioSheet({
   ayahs,
@@ -51,14 +25,9 @@ export default function AyahAudioSheet({
   onClose: () => void;
   onCompactChange?: (compact: boolean) => void;
 }) {
-  const [prefs] = useState<Prefs>(() => readPrefs());
-  const [scope, setScope] = useState<AudioScope>(prefs.scope ?? "selection");
-  const [repeat, setRepeat] = useState(() =>
-    repeatOptions.includes(Number(prefs.repeat)) ? Number(prefs.repeat) : 2,
-  );
-  const [list, setList] = useState<Reciter[]>(() => {
-    const cached = readCachedReciters();
-    return cached.length ? cached : bundledReciters;
+  const [reciterId, setReciterId] = useState(() => {
+    const saved = loadSettings().reciter;
+    return AYAH_RECITERS.some((reciter) => reciter.id === saved) ? saved : AYAH_RECITERS[0].id;
   });
   const [scope, setScope] = useState<Scope>("selected");
   const [timingReciters, setTimingReciters] = useState<TimingReciter[]>([]);
@@ -303,7 +272,7 @@ export default function AyahAudioSheet({
   }
 
   return (
-    <div className="mushaf-ayah-sheet-backdrop" onClick={onClose}>
+    <div className="mushaf-ayah-sheet-backdrop" onClick={() => { stop(); onClose(); }}>
       <div className="mushaf-ayah-sheet ayah-audio-sheet" onClick={(event) => event.stopPropagation()}>
         <div className="mushaf-ayah-sheet-head">
           <h3>الاستماع والتكرار</h3>

@@ -4478,202 +4478,129 @@ html, body { max-width: 100%; overflow-x: hidden; }
   font-family: inherit; font-size: 13px; font-weight: 700;
 }
 
-/* ============ نافذة الأذان: بطاقة واحدة تحتوي كل المعلومات داخل الصورة ============ */
-/*
-  كل المعلومات (اسم الصلاة، الوقت، التاريخان، العبارة، الشعار) تُرسم فوق
-  خلفية البطاقة نفسها، وليس أسفلها. لا توجد أي أدوات تحكم أسفل البطاقة:
-  زر × وحده يوقف الصوت ويغلق النافذة ويحرّر موارد الصوت.
-  الأحجام نسبية (clamp + aspect-ratio) فلا تُقتطع النصوص أو الزخارف على أي شاشة.
-*/
+/* ============ شاشة وقت الصلاة: تصميم إسلامي كامل الشاشة ============ */
 .adhan-screen {
   position: fixed; inset: 0; z-index: 3000;
-  display: flex; align-items: center; justify-content: center;
-  background: #0a0710; overflow: hidden;
-  padding: calc(10px + env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom));
-  animation: adhan-fade 0.3s ease-out;
+  display: flex; align-items: stretch; justify-content: center;
+  background: #08120f; overflow: hidden;
+  animation: adhan-fade 0.45s ease-out;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
 }
-.adhan-card {
+.adhan-screen-backdrop {
+  position: absolute; inset: -20px;
+  background-size: cover; background-position: center;
+  filter: blur(18px) saturate(0.9) brightness(0.45);
+  transform: scale(1.08);
+  opacity: 0.65;
+}
+.adhan-screen-panel {
   position: relative;
-  aspect-ratio: 3 / 4;
-  width: min(94vw, 520px, calc((100dvh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 0.75));
+  width: min(560px, 100%);
   max-height: 100%;
-  border-radius: clamp(14px, 3.2vw, 22px);
-  overflow: hidden;
-  isolation: isolate;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.66), 0 0 0 1px rgba(231, 199, 132, 0.28);
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px 16px 18px;
+  overflow-y: auto;
+  background: linear-gradient(180deg, rgba(8, 18, 15, 0.55), rgba(8, 18, 15, 0.9));
 }
-.adhan-card-art {
-  position: absolute; inset: 0; width: 100%; height: 100%;
-  object-fit: cover; object-position: 50% 50%;
-  pointer-events: none; user-select: none; -webkit-user-drag: none;
+.adhan-screen-top {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; flex: 0 0 auto;
 }
-/* تعتيم سفلي متدرّج فقط لضمان قراءة النص فوق الصورة. */
-.adhan-card-shade {
-  position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(
-    180deg,
-    rgba(10, 6, 16, 0) 30%,
-    rgba(10, 6, 16, 0.22) 46%,
-    rgba(10, 6, 16, 0.58) 66%,
-    rgba(10, 6, 16, 0.82) 84%,
-    rgba(10, 6, 16, 0.9) 100%
-  );
+.adhan-screen-app {
+  font-family: "Tajawal", system-ui, sans-serif;
+  font-size: 12.5px; font-weight: 700; letter-spacing: 0.06em;
+  color: #e7c784;
 }
-.adhan-card-close {
-  position: absolute; left: clamp(12px, 4%, 22px); top: clamp(12px, 4%, 22px);
-  width: clamp(38px, 9.5vw, 46px); height: clamp(38px, 9.5vw, 46px);
+.adhan-screen-close {
   display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; flex: 0 0 auto;
   border-radius: 999px; cursor: pointer;
-  border: 1px solid rgba(255, 247, 230, 0.55);
-  background: rgba(18, 12, 26, 0.55);
-  color: #fff8ec;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(231, 199, 132, 0.55);
+  background: rgba(231, 199, 132, 0.14);
+  color: #f7f1e3;
 }
-.adhan-card-close:active { background: rgba(18, 12, 26, 0.8); }
-.adhan-card-brand {
-  position: absolute; right: clamp(12px, 4%, 22px); top: clamp(12px, 4%, 22px);
-  display: flex; align-items: center; gap: 7px;
-  padding: 5px 11px 5px 9px; border-radius: 999px;
-  background: rgba(18, 12, 26, 0.45);
-  border: 1px solid rgba(231, 199, 132, 0.42);
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+.adhan-screen-art {
+  flex: 1 1 auto; min-height: 150px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 20px; overflow: hidden;
+  border: 1px solid rgba(231, 199, 132, 0.4);
+  background: rgba(0, 0, 0, 0.25);
 }
-.adhan-card-logo {
-  width: clamp(20px, 5vw, 26px); height: clamp(20px, 5vw, 26px);
-  border-radius: 8px; object-fit: cover;
-  border: 1px solid rgba(231, 199, 132, 0.6);
-  background: #0b1a16;
-}
-.adhan-card-brand-name {
-  font-family: "Tajawal", system-ui, sans-serif;
-  font-size: clamp(12px, 3.1vw, 14px); font-weight: 700; letter-spacing: 0.06em;
-  color: #f6dfa6;
-}
-.adhan-card-content {
-  position: absolute; inset: auto 0 0 0;
-  padding: 0 clamp(18px, 7%, 40px) clamp(22px, 6.5%, 44px);
-  display: flex; flex-direction: column; align-items: center;
-  text-align: center; gap: clamp(5px, 1vh, 9px);
-}
-.adhan-card-name {
-  font-family: "Amiri", "Tajawal", serif;
-  font-size: clamp(21px, 6.2vw, 33px); font-weight: 700; line-height: 1.35;
-  color: #f8e3ac;
-  padding: clamp(5px, 1.5vw, 9px) clamp(20px, 7vw, 34px);
-  border: 1.5px solid rgba(231, 199, 132, 0.85);
-  border-radius: clamp(12px, 3vw, 16px);
-  background: linear-gradient(180deg, rgba(52, 28, 64, 0.8), rgba(26, 14, 38, 0.88));
-  box-shadow: inset 0 0 22px rgba(231, 199, 132, 0.16), 0 6px 18px rgba(0, 0, 0, 0.35);
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
-  max-width: 100%;
-}
-.adhan-card-time {
-  font-family: "Tajawal", system-ui, sans-serif;
-  font-size: clamp(52px, 15.5vw, 88px); font-weight: 300;
-  line-height: 1; letter-spacing: 0.03em;
-  color: #fffaf0; direction: ltr;
-  font-variant-numeric: tabular-nums;
-  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.6);
-}
-.adhan-card-date {
-  font-family: "Tajawal", system-ui, sans-serif;
-  font-size: clamp(12px, 3.3vw, 15px); font-weight: 600;
-  line-height: 1.6; color: rgba(255, 248, 236, 0.92);
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
-  max-width: 100%;
-}
-.adhan-card-hijri {
+.adhan-screen-art img {
+  width: 100%; height: 100%;
+  object-fit: contain;
   display: block;
-  font-size: clamp(11px, 3vw, 13px); font-weight: 600;
-  color: rgba(246, 223, 166, 0.9);
+  user-select: none; -webkit-user-drag: none;
 }
-/* فاصل ذهبي رفيع بزخرفة معمارية صغيرة في الوسط. */
-.adhan-card-divider {
-  position: relative; display: block;
-  width: min(78%, 300px); height: 14px; margin: clamp(2px, 0.6vh, 5px) 0;
+.adhan-screen-card {
+  flex: 0 0 auto;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  text-align: center; padding: 2px 6px 0;
 }
-.adhan-card-divider::before {
-  content: ""; position: absolute; inset-inline: 0; top: 50%; height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(231, 199, 132, 0.9), transparent);
-}
-.adhan-card-divider::after {
-  content: ""; position: absolute; left: 50%; top: 50%;
-  width: 9px; height: 9px; transform: translate(-50%, -50%) rotate(45deg);
-  border: 1px solid rgba(231, 199, 132, 0.95);
-  background: rgba(20, 12, 28, 0.85);
-}
-.adhan-card-greeting {
+.adhan-screen-kicker {
   font-family: "Tajawal", system-ui, sans-serif;
-  font-size: clamp(12.5px, 3.4vw, 15.5px); font-weight: 600;
-  line-height: 1.75; color: rgba(255, 248, 236, 0.95);
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
-  max-width: 30ch;
+  font-size: 11.5px; font-weight: 700; letter-spacing: 0.12em;
+  color: rgba(231, 199, 132, 0.85);
 }
+.adhan-screen-title {
+  margin: 0;
+  font-family: "Amiri", "Tajawal", serif;
+  font-size: clamp(24px, 6vw, 34px); font-weight: 700;
+  color: #e7c784; line-height: 1.25;
+}
+.adhan-screen-time {
+  margin: 0;
+  font-family: "Tajawal", system-ui, sans-serif;
+  font-size: clamp(34px, 10vw, 48px); font-weight: 300;
+  letter-spacing: 0.06em; color: #f7f1e3;
+  font-variant-numeric: tabular-nums;
+}
+.adhan-screen-date {
+  margin: 0;
+  font-family: "Tajawal", system-ui, sans-serif;
+  font-size: 12.5px; color: rgba(247, 241, 227, 0.7);
+}
+.adhan-screen-motivation {
+  margin: 4px 0 0;
+  font-family: "Tajawal", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.6;
+  color: rgba(247, 241, 227, 0.88);
+}
+.adhan-screen-controls {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 10px;
+  padding-top: 4px;
+}
+.adhan-ctrl-primary, .adhan-ctrl-stop {
+  font-family: "Tajawal", system-ui, sans-serif;
+  font-size: 13px; font-weight: 700;
+  border-radius: 999px; padding: 11px 18px; cursor: pointer;
+  min-height: 44px;
+}
+.adhan-ctrl-primary {
+  border: 1px solid rgba(255, 243, 214, 0.7);
+  background: #e7c784; color: #08120f;
+}
+.adhan-ctrl-stop {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(159, 42, 42, 0.9); color: #fdf6ea;
+}
+.adhan-screen-volume {
+  flex: 1 1 auto;
+  display: flex; flex-direction: column; gap: 2px;
+  font-family: "Tajawal", system-ui, sans-serif;
+  font-size: 10.5px; color: rgba(247, 241, 227, 0.65);
+}
+.adhan-screen-volume input { width: 100%; accent-color: #e7c784; }
 @keyframes adhan-fade { from { opacity: 0; } to { opacity: 1; } }
 
-/* على الشاشات القصيرة جدًا (عرضي) نقلّص الهوامش فقط، وكل النص يبقى داخل البطاقة. */
-@media (max-height: 520px) {
-  .adhan-card-content { gap: 3px; padding-bottom: clamp(14px, 4%, 22px); }
-  .adhan-card-time { font-size: clamp(42px, 9vh, 62px); }
-  .adhan-card-greeting { font-size: clamp(11.5px, 2.4vh, 13px); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .adhan-screen { animation: none; }
-}
-
-
-/* الوضع البني الدافئ (sepia) يبقى مقروءًا بالهوية الذهبية. */
-[data-theme="sepia"] .adhan-screen { background: #f3e7d3; }
-[data-theme="sepia"] .adhan-screen-panel {
-  background: linear-gradient(165deg, #fbf3e4, #f0e1c9);
-  border-color: rgba(122, 90, 31, 0.26);
-  box-shadow: 0 22px 60px rgba(60, 44, 18, 0.18);
-}
-[data-theme="sepia"] .adhan-screen-app,
-[data-theme="sepia"] .adhan-screen-takbir,
-[data-theme="sepia"] .adhan-screen-title-en,
-[data-theme="sepia"] .adhan-screen-date-hijri { color: #7a5a1f; }
-[data-theme="sepia"] .adhan-screen-title { color: #8a6420; }
-[data-theme="sepia"] .adhan-screen-time { color: #3a2f22; }
-[data-theme="sepia"] .adhan-screen-app-sub,
-[data-theme="sepia"] .adhan-screen-date,
-[data-theme="sepia"] .adhan-screen-motivation { color: #6a5a44; }
-[data-theme="sepia"] .adhan-screen-close { color: #6a4f1d; border-color: rgba(122, 90, 31, 0.4); background: rgba(122, 90, 31, 0.08); }
-[data-theme="sepia"] .adhan-screen-ornament::after { background: #fbf3e4; }
-
-/* شاشات صغيرة أو قصيرة: تقليل المسافات والأحجام مع بقاء كل المحتوى ظاهرًا. */
-@media (max-height: 660px) {
-  .adhan-screen-panel { gap: 8px; padding: 14px 16px; border-radius: 22px; }
-  .adhan-screen-title { font-size: clamp(28px, 7.4vw, 40px); }
-  .adhan-screen-time { font-size: clamp(38px, 11vw, 58px); }
-  .adhan-screen-ornament { margin: 0 0 2px; }
-}
 @media (max-width: 380px) {
   .adhan-screen-controls { flex-wrap: wrap; }
   .adhan-ctrl-stop { flex: 1 1 100%; }
-  .adhan-screen { padding-inline: 9px; }
 }
-/* الوضع العرضي: عمودان يمنحان مساحة أكبر للاسم والوقت دون تمرير. */
-@media (orientation: landscape) and (max-height: 620px) {
-  .adhan-screen-panel { width: min(900px, 100%); padding: 14px 22px; gap: 8px; }
-  .adhan-screen-body {
-    flex-direction: row; align-items: center; gap: 26px;
-  }
-  .adhan-screen-main { flex: 1 1 46%; }
-  .adhan-screen-meta { flex: 1 1 54%; border-top: 0; padding-top: 0; border-inline-start: 1px solid rgba(231, 199, 132, 0.18); padding-inline-start: 22px; }
-  .adhan-screen-title { font-size: clamp(28px, 5.6vh, 44px); }
-  .adhan-screen-time { font-size: clamp(40px, 8.4vh, 64px); }
-  .adhan-screen-takbir { font-size: clamp(14px, 3.4vh, 19px); }
-  .adhan-screen-motivation { font-size: clamp(12px, 2.8vh, 14px); line-height: 1.6; }
-  [data-theme="light"] .adhan-screen-meta { border-inline-start-color: rgba(15, 95, 78, 0.16); }
-}
-@media (orientation: landscape) and (min-height: 621px) {
-  .adhan-screen-panel { width: min(760px, 100%); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .adhan-screen { animation: none; }
+@media (min-height: 760px) {
+  .adhan-screen-panel { padding: 22px 22px 26px; gap: 14px; }
+  .adhan-screen-art { min-height: 240px; }
 }
 
 /* ============ بطاقة أذونات وقت الصلاة والتنزيل دون إنترنت ============ */
@@ -5741,111 +5668,6 @@ html, body { max-width: 100%; overflow-x: hidden; }
 
 /* أوراق الآية: التفسير، الملاحظات، الصوت، التسميع، الصورة. */
 .ayah-audio-field { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-
-/* نطاق التشغيل: خيار واحد واضح بدل صناديق التكرار المزدوجة. */
-.ayah-audio-scopes { display: flex; gap: 6px; flex-wrap: wrap; }
-.ayah-audio-scopes button {
-  flex: 1 1 30%;
-  min-height: 38px;
-  padding: 6px 8px;
-  border-radius: 10px;
-  border: 1px solid rgba(15, 95, 78, 0.22);
-  background: #fffdf8;
-  color: #0b5c48;
-  font-family: inherit;
-  font-size: 12.5px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.ayah-audio-scopes button.is-active {
-  background: #0f5f4e;
-  border-color: #0f5f4e;
-  color: #fff;
-}
-.ayah-audio-summary { margin: 0; font-size: 12.5px; color: #6b6252; text-align: center; }
-.ayah-audio-filter {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 6px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(15, 95, 78, 0.22);
-  background: #fffdf8;
-  color: inherit;
-  font-family: inherit;
-  font-size: 13px;
-}
-
-/* شريط التحكم المصغّر فوق صفحة المصحف: لا يغطي القراءة ويختفي تلقائيًا. */
-.mushaf-mini-player {
-  position: fixed;
-  left: 50%;
-  bottom: max(10px, env(safe-area-inset-bottom));
-  transform: translate(-50%, 12px);
-  z-index: 2400;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: min(94vw, 460px);
-  padding: 6px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(15, 95, 78, 0.2);
-  background: rgba(255, 253, 248, 0.94);
-  box-shadow: 0 8px 24px rgba(11, 40, 32, 0.18);
-  backdrop-filter: blur(10px);
-  font-family: "Tajawal", system-ui, sans-serif;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.25s ease, transform 0.25s ease;
-}
-.mushaf-mini-player.is-shown {
-  opacity: 1;
-  transform: translate(-50%, 0);
-}
-.mushaf-mini-player.is-shown .mushaf-mini-btn { pointer-events: auto; }
-.mushaf-mini-btn {
-  flex: 0 0 auto;
-  width: 38px;
-  height: 38px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 50%;
-  background: #0f5f4e;
-  color: #fff;
-  font-size: 15px;
-  line-height: 1;
-  cursor: pointer;
-  pointer-events: none;
-}
-.mushaf-mini-btn.is-stop { background: #f3e3dc; color: #a33a2a; }
-.mushaf-mini-meta {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  text-align: center;
-}
-.mushaf-mini-label {
-  font-size: 12px;
-  font-weight: 700;
-  color: #0b5c48;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.mushaf-mini-time { font-size: 11px; color: #6b6252; letter-spacing: 0.04em; }
-[data-theme="dark"] .mushaf-mini-player {
-  background: rgba(31, 35, 31, 0.94);
-  border-color: rgba(95, 191, 168, 0.24);
-  color: #efe7d8;
-}
-[data-theme="dark"] .mushaf-mini-label { color: #9fd4c4; }
-[data-theme="dark"] .mushaf-mini-time { color: #cfc6b4; }
-[data-theme="dark"] .ayah-audio-scopes button,
-[data-theme="dark"] .ayah-audio-filter { background: var(--bg-2, #232723); color: #efe7d8; }
-[data-theme="dark"] .ayah-audio-scopes button.is-active { background: #0f5f4e; color: #fff; }
 .ayah-audio-field span { font-size: 13px; font-weight: 700; color: #0b5c48; }
 .ayah-audio-field select,
 .ayah-audio-single button {
@@ -6736,16 +6558,14 @@ html, body { max-width: 100%; overflow-x: hidden; }
   border: 0;
   border-radius: 0;
   box-shadow: none;
-  padding: max(4px, env(safe-area-inset-top)) clamp(4px, 0.7vw, 12px) max(4px, env(safe-area-inset-bottom)) clamp(4px, 0.7vw, 12px);
+  padding: max(6px, env(safe-area-inset-top)) clamp(8px, 1.2vw, 16px) max(6px, env(safe-area-inset-bottom)) clamp(8px, 1.2vw, 16px);
   text-align: justify;
   text-align-last: justify;
   text-justify: inter-word;
   color: #111018;
   font-family: "Hafs", "Amiri Quran", serif;
   font-size: var(--qp-fs, 22px);
-  line-height: 1.72;
-  text-size-adjust: 100%;
-  -webkit-text-size-adjust: 100%;
+  line-height: 1.86;
   -webkit-touch-callout: none;
 }
 /* لا إطار ولا صندوق حول الصفحة أو الآيات. */
@@ -6774,19 +6594,10 @@ html, body { max-width: 100%; overflow-x: hidden; }
   text-align: justify;
   text-align-last: justify;
   text-justify: inter-word;
-  line-height: 1.72;
+  line-height: 1.86;
   white-space: normal;
   overflow: visible;
-  text-wrap: wrap;
 }
-.qp-page .ayah,
-.qp-page .ayah *,
-.qp-page .qp-ayah-text {
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
-}
-.qp-page ::selection { background: transparent; }
 .qp-page .ayah {
   font-family: inherit;
   -webkit-user-select: none;
@@ -6871,12 +6682,10 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .qp-page .ayah-mark {
   position: relative;
   display: inline-block;
-  height: 0.94em;
+  height: 0.89em;
   aspect-ratio: 0.80542;
-  vertical-align: -0.16em;
-  /* مسافة واضحة قبل العلامة وبعدها: تفصل نهاية الآية عن بداية التالية. */
-  margin-inline: 0.07em 0.12em;
-  margin-block: 0;
+  vertical-align: -0.2em;
+  margin: 0 0.08em;
   user-select: none;
 }
 .qp-page .ayah-mark > img {
@@ -6895,14 +6704,14 @@ html, body { max-width: 100%; overflow-x: hidden; }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.53em;
-  font-weight: 600;
+  font-size: 0.5em;
+  font-weight: 500;
   line-height: 1;
   font-family: "Hafs", serif;
   color: #007c89;
-  -webkit-text-stroke: 0.025em currentColor;
+  -webkit-text-stroke: 0.03em currentColor;
 }
-.qp-page .ayah-mark[data-len="3"] .ayah-mark__n { font-size: 0.39em; }
+.qp-page .ayah-mark[data-len="3"] .ayah-mark__n { font-size: 0.38em; }
 
 /* البسملة واسم السورة منفصلان عن الآيات، فوقها ولا يدخلان في التحديد. */
 .qp-basmala {
@@ -7018,8 +6827,8 @@ html, body { max-width: 100%; overflow-x: hidden; }
   padding: 24px 0;
 }
 @media (min-width: 900px) {
-  .qp-reader-stage { padding: 4px; }
-  .qp-page { padding: 6px 12px; }
+  .qp-reader-stage { padding: 6px; }
+  .qp-page { padding: 8px 16px; }
 }
 
 /* ==================================================================
@@ -7437,16 +7246,16 @@ html, body { max-width: 100%; overflow-x: hidden; }
   word-spacing: var(--qp-word-spacing);
   padding-top: max(4px, env(safe-area-inset-top));
   padding-bottom: max(4px, env(safe-area-inset-bottom));
-  padding-inline: clamp(4px, 0.7vw, 12px);
+  padding-inline: clamp(6px, 1vw, 12px);
 }
 .qp-page .qp-line {
-  line-height: 1.70;
+  line-height: 1.74;
   word-spacing: var(--qp-word-spacing);
 }
 .qp-page .ayah-mark {
-  height: 1em;
-  vertical-align: -0.12em;
-  margin-inline: 0.08em 0.12em;
+  height: 1.02em;
+  vertical-align: -0.26em;
+  margin-inline: 0.15em;
 }
 .qp-page .ayah-mark__n {
   font-size: 0.55em;
