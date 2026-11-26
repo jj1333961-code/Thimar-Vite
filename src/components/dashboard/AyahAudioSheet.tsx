@@ -43,6 +43,7 @@ export default function AyahAudioSheet({
   const [nowAyah, setNowAyah] = useState<HafsAyah | null>(null);
   const [error, setError] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const stopResolverRef = useRef<(() => void) | null>(null);
   const stopRef = useRef(true);
   const pausedRef = useRef(false);
   const surahOnly = !selectedTimingReciter && reciterIsSurah(reciterId);
@@ -118,8 +119,11 @@ export default function AyahAudioSheet({
   const stop = useCallback(() => {
     stopRef.current = true;
     pausedRef.current = false;
+    stopResolverRef.current?.();
+    stopResolverRef.current = null;
     const audio = audioRef.current;
     if (audio) {
+      audio.onloadedmetadata = null;
       audio.pause();
       audio.currentTime = 0;
     }
@@ -145,9 +149,16 @@ export default function AyahAudioSheet({
     if (!selectedTimingReciter) {
       return new Promise((resolve) => {
         audio.src = ayahAudioUrl(reciterId, ayah.global);
-        audio.onended = () => resolve(true);
-        audio.onerror = () => resolve(false);
-        void audio.play().then(() => undefined, () => resolve(false));
+        const finish = (ok: boolean) => {
+          stopResolverRef.current = null;
+          audio.onended = null;
+          audio.onerror = null;
+          resolve(ok);
+        };
+        stopResolverRef.current = () => finish(false);
+        audio.onended = () => finish(true);
+        audio.onerror = () => finish(false);
+        void audio.play().then(() => undefined, () => finish(false));
       });
     }
     const cacheKey = `${selectedTimingReciter.id}:${ayah.surah}`;
@@ -177,12 +188,15 @@ export default function AyahAudioSheet({
         audio.ontimeupdate = null;
         audio.onended = null;
         audio.onerror = null;
+        stopResolverRef.current = null;
         resolve(ok);
       };
+      stopResolverRef.current = () => finish(false);
       const startAt = timing.start_time / 1000;
       const endAt = timing.end_time / 1000;
       audio.src = `${selectedTimingReciter.folder_url.replace(/^http:/, "https:")}${String(ayah.surah).padStart(3, "0")}.mp3`;
       audio.onloadedmetadata = () => {
+        if (stopRef.current) { finish(false); return; }
         audio.currentTime = startAt;
         audio.ontimeupdate = () => {
           if (audio.currentTime >= endAt) {
