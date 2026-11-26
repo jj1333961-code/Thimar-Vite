@@ -205,6 +205,7 @@ export default function AyahAudioSheet({
           setPlaying(false);
           setNowAyah(null);
           setCompactMode(false);
+          onClose();
           return;
         }
       }
@@ -214,6 +215,7 @@ export default function AyahAudioSheet({
     setNowAyah(null);
     setRound(0);
     setCompactMode(false);
+    onClose();
   };
 
   const togglePause = () => {
