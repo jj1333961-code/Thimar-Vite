@@ -35,7 +35,6 @@ export default function AyahAudioSheet({
   const [repeat, setRepeat] = useState(2);
   const [scopeAyahs, setScopeAyahs] = useState<HafsAyah[]>(ayahs);
   const [scopeLoading, setScopeLoading] = useState(false);
-  const [playing, setPlaying] = useState(false);
   const [paused, setPaused] = useState(false);
   const [compact, setCompact] = useState(false);
   const [miniVisible, setMiniVisible] = useState(true);
@@ -127,7 +126,6 @@ export default function AyahAudioSheet({
       audio.pause();
       audio.currentTime = 0;
     }
-    setPlaying(false);
     setPaused(false);
     setNowAyah(null);
     setRound(0);
@@ -221,7 +219,6 @@ export default function AyahAudioSheet({
     setError("");
     stopRef.current = false;
     pausedRef.current = false;
-    setPlaying(true);
     setPaused(false);
     setCompactMode(true);
     for (let index = 0; index < repeat; index += 1) {
