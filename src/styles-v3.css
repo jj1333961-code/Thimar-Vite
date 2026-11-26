@@ -7281,3 +7281,45 @@ html, body { max-width: 100%; overflow-x: hidden; }
   background: transparent !important;
   color: inherit !important;
 }
+
+/* مشغل التلاوة المصغّر فوق صفحة المصحف */
+.ayah-audio-mini-player {
+  position: fixed;
+  z-index: 2400;
+  inset-inline: 14px;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid rgba(0, 112, 99, .22);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .97);
+  color: #174f43;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .18);
+  direction: rtl;
+}
+.ayah-audio-mini-now {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+}
+.ayah-audio-mini-player button {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: #e8f3ef;
+  color: #075e50;
+  font-size: 19px;
+}
