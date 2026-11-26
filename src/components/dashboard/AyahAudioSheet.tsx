@@ -39,8 +39,6 @@ export default function AyahAudioSheet({
   const [paused, setPaused] = useState(false);
   const [compact, setCompact] = useState(false);
   const [miniVisible, setMiniVisible] = useState(true);
-  const [round, setRound] = useState(0);
-  const [nowAyah, setNowAyah] = useState<HafsAyah | null>(null);
   const [error, setError] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const stopResolverRef = useRef<(() => void) | null>(null);
@@ -128,8 +126,6 @@ export default function AyahAudioSheet({
       audio.currentTime = 0;
     }
     setPaused(false);
-    setNowAyah(null);
-    setRound(0);
   }, []);
 
   useEffect(() => () => {
@@ -144,7 +140,6 @@ export default function AyahAudioSheet({
   const playAyah = async (ayah: HafsAyah): Promise<boolean> => {
     const audio = audioRef.current ?? new Audio();
     audioRef.current = audio;
-    setNowAyah(ayah);
     if (!selectedTimingReciter) {
       return new Promise((resolve) => {
         audio.src = ayahAudioUrl(reciterId, ayah.global);
@@ -224,7 +219,6 @@ export default function AyahAudioSheet({
     setCompactMode(true);
     for (let index = 0; index < repeat; index += 1) {
       if (stopRef.current) return;
-      setRound(index + 1);
       for (const ayah of scopeAyahs) {
         while (pausedRef.current && !stopRef.current) await sleep(150);
         if (stopRef.current) return;
