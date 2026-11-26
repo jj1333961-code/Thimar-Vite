@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ayahAudioUrl, reciters, reciterIsSurah, repeatOptions } from "../../data/reciters";
 import { loadSettings } from "../../lib/appStore";
 import { ayahKey, loadHafsAyahs, loadHafsPage, loadHafsPages, type HafsAyah } from "../../lib/mushafText";
@@ -264,12 +264,6 @@ export default function AyahAudioSheet({
     stop();
     setCompactMode(false);
   };
-
-  const progressLabel = useMemo(() => {
-    if (!nowAyah) return "جارٍ تجهيز التلاوة…";
-    const label = `${surahNameOfNumber(nowAyah.surah)} — الآية ${arabicNumber(nowAyah.ayah)}`;
-    return repeat > 1 ? `${label} • الجولة ${arabicNumber(round)} من ${arabicNumber(repeat)}` : label;
-  }, [nowAyah, repeat, round]);
 
   if (compact && !miniVisible) return null;
 
