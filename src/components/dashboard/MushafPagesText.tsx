@@ -370,12 +370,11 @@ export default function MushafPagesText({
 
   /* الضغط المطوّل: فتح الأزرار الدائرية. */
   const openMenuFor = (key: string | null, x: number, y: number) => {
-    const keys = key && !selection.includes(key) ? [...selection, key] : selection;
-    if (!key && !keys.length) return;
-    if (keys !== selection) {
-      setSelection(keys);
-      syncSelected(keys);
-    }
+    // الضغط المطوّل على كلمة يختار آيتها كاملة فقط، ولا يضيفها إلى تحديد قديم.
+    const keys = key ? [key] : selection;
+    if (!keys.length) return;
+    setSelection(keys);
+    syncSelected(keys);
     setMenu({ x, y });
   };
 
