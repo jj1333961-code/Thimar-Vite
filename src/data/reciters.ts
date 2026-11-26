@@ -3,8 +3,11 @@ export type Reciter = {
   name: string;
   /** «ayah» صوت آية بآية، «surah» ملف السورة كاملة. */
   mode?: "ayah" | "surah";
+  /** خادم MP3Quran لملفات السور (للقراء المضافين من الكتالوج). */
+  server?: string;
 };
 
+/** القراء المضمّنون مع التطبيق — يعملون دون اتصال. */
 export const reciters: Reciter[] = [
   { id: "ar.alafasy", name: "مشاري العفاسي" },
   { id: "ar.yasseraldossari", name: "ياسر الدوسري", mode: "surah" },
@@ -21,7 +24,7 @@ export const reciters: Reciter[] = [
   { id: "ar.ahmedajamy", name: "أحمد بن علي العجمي" },
 ];
 
-export const repeatOptions = [1, 2, 3, 5, 10];
+export const repeatOptions = [1, 2, 3, 5, 7, 10];
 
 const RECITER_QUALITY: Record<string, number> = {
   "ar.minshawi": 128,
@@ -30,9 +33,24 @@ const RECITER_QUALITY: Record<string, number> = {
   "ar.abdurrahmaansudais": 64,
 };
 
+/* خوادم MP3Quran للقراء المحمّلين من الكتالوج (تُسجَّل عند تحميل القائمة). */
+const reciterServers = new Map<string, string>();
+
+/** يسجّل خوادم ملفات السور للقراء القادمين من كتالوج MP3Quran. */
+export function registerReciterServers(entries: Iterable<[string, string]>): void {
+  for (const [id, server] of entries) {
+    if (id && server) reciterServers.set(id, server.replace(/\/?$/, "/"));
+  }
+}
+
+export function reciterServer(reciterId: string): string | undefined {
+  return reciterServers.get(reciterId);
+}
+
 /** هل هذا القارئ يعتمد ملف السورة كاملة بدل ملف لكل آية؟ */
-export function reciterIsSurah(reciterId: string): boolean {
-  return reciters.find((reciter) => reciter.id === reciterId)?.mode === "surah";
+export function reciterIsSurah(reciterId: string, list: Reciter[] = reciters): boolean {
+  if (reciterServers.has(reciterId)) return true;
+  return list.find((reciter) => reciter.id === reciterId)?.mode === "surah";
 }
 
 export function ayahAudioUrl(reciterId: string, globalAyahNumber: number): string {
@@ -42,9 +60,11 @@ export function ayahAudioUrl(reciterId: string, globalAyahNumber: number): strin
 
 /**
  * رابط ملف السورة كاملة للقراء الذين لا تتوفر لهم ملفات آية بآية
- * (ياسر الدوسري، حسن صالح، منصور السالمي).
+ * (ياسر الدوسري، حسن صالح، منصور السالمي، وقراء كتالوج MP3Quran).
  */
 export function surahAudioUrl(reciterId: string, surahNumber: number): string {
+  const server = reciterServers.get(reciterId);
+  if (server) return `${server}${String(surahNumber).padStart(3, "0")}.mp3`;
   if (reciterId === "mp3quran.mansouralsalmi") {
     return `https://cdn.mp3quran.net/audio/mansour-salimi/r1/${String(surahNumber).padStart(3, "0")}.mp3`;
   }

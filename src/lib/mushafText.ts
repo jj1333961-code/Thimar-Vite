@@ -172,6 +172,59 @@ export async function loadHafsAyahs(keys: string[]): Promise<HafsAyah[]> {
   return result;
 }
 
+export type HafsOrder = {
+  /** مفاتيح الآيات مفهرسة بالرقم العام (١..٦٢٣٦) — الفهرس[0] فارغ. */
+  keysByGlobal: string[];
+  globalOf: Map<string, number>;
+};
+
+let orderPromise: Promise<HafsOrder> | null = null;
+
+/** ترتيب المصحف كاملًا: يمكّن تحديد نطاق آيات متتابع عبر الصفحات والسور. */
+export function loadHafsOrder(): Promise<HafsOrder> {
+  if (!orderPromise) {
+    orderPromise = loadHafsPages()
+      .then((pages) => {
+        const keysByGlobal: string[] = [""];
+        const globalOf = new Map<string, number>();
+        for (const rows of pages) {
+          for (const [surah, ayah, global] of rows) {
+            const key = ayahKey(surah, ayah);
+            keysByGlobal[global] = key;
+            globalOf.set(key, global);
+          }
+        }
+        return { keysByGlobal, globalOf };
+      })
+      .catch((error) => {
+        orderPromise = null;
+        throw error;
+      });
+  }
+  return orderPromise;
+}
+
+/** آيات سورة كاملة بترتيب المصحف (للقراءة والاستماع للسورة). */
+export async function loadHafsSurah(surah: number): Promise<HafsAyah[]> {
+  const [pages, texts] = await Promise.all([loadHafsPages(), loadHafsText()]);
+  const result: HafsAyah[] = [];
+  pages.forEach((rows, pageIndex) => {
+    for (const [s, ayah, global, juz] of rows) {
+      if (s !== surah) continue;
+      result.push({
+        surah: s,
+        ayah,
+        global,
+        juz,
+        page: pageIndex + 1,
+        text: texts[ayahKey(s, ayah)] ?? "",
+      });
+    }
+  });
+  result.sort((first, second) => first.global - second.global);
+  return result;
+}
+
 /** صفحة آية واحدة بالرقم العام (للانتقال من العلامات والملاحظات). */
 export async function pageOfGlobalAyah(global: number): Promise<number | null> {
   const pages = await loadHafsPages();

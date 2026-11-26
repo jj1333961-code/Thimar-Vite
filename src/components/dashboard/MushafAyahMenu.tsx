@@ -4,7 +4,8 @@ import { isMarked, setReviewMark, toggleMark } from "../../lib/mushafMarks";
 import { readAyahNotes, saveAyahNote } from "../../lib/ayahNotes";
 import { arabicNumber, selectionTitle, surahNameOfNumber } from "../../lib/ayahImage";
 import { ayahKey, type HafsAyah } from "../../lib/mushafText";
-import AyahAudioSheet from "./AyahAudioSheet";
+import AyahAudioSheet, { type AudioStartMeta } from "./AyahAudioSheet";
+import type { AyahPlayItem } from "../../lib/ayahPlayer";
 import AyahReciteSheet from "./AyahReciteSheet";
 import AyahShareSheet from "./AyahShareSheet";
 
@@ -57,6 +58,7 @@ export default function MushafAyahMenu({
   onToast,
   onOpenPage,
   onStartTasmee,
+  onStartAudio,
 }: {
   ayahs: HafsAyah[];
   page: number;
@@ -69,6 +71,8 @@ export default function MushafAyahMenu({
   onOpenPage: (page: number) => void;
   /** فتح جلسة تسميع المصحف (الصفحة/المحدد/السورة) بدل ورقة التسميع القديمة. */
   onStartTasmee?: (revealVerses: boolean) => void;
+  /** بدء تشغيل الآيات في المشغل المصغّر فوق صفحة المصحف. */
+  onStartAudio: (items: AyahPlayItem[], repeat: number, meta: AudioStartMeta) => void;
 }) {
   const [panel, setPanel] = useState<Panel>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -330,7 +334,17 @@ export default function MushafAyahMenu({
         </div>
       ) : null}
 
-      {sheet === "audio" ? <AyahAudioSheet ayahs={ayahs} onClose={() => setSheet(null)} /> : null}
+      {sheet === "audio" ? (
+        <AyahAudioSheet
+          ayahs={ayahs}
+          page={page}
+          onClose={() => setSheet(null)}
+          onStart={(items, repeat, meta) => {
+            setSheet(null);
+            onStartAudio(items, repeat, meta);
+          }}
+        />
+      ) : null}
       {sheet === "share" ? <AyahShareSheet ayahs={ayahs} onClose={() => setSheet(null)} /> : null}
       {sheet === "recite" ? <AyahReciteSheet ayahs={ayahs} onClose={() => setSheet(null)} /> : null}
     </>
