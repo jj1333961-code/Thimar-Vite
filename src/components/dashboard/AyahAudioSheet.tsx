@@ -226,7 +226,6 @@ export default function AyahAudioSheet({
         if (stopRef.current) return;
         if (!ok) {
           setError("تعذّر تشغيل التلاوة. تحقّق من الاتصال بالإنترنت أو اختر قارئًا آخر.");
-          setNowAyah(null);
           setCompactMode(false);
           onClose();
           return;
@@ -234,8 +233,6 @@ export default function AyahAudioSheet({
       }
     }
     setPaused(false);
-    setNowAyah(null);
-    setRound(0);
     setCompactMode(false);
     onClose();
   };
