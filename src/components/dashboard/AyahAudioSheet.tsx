@@ -1,24 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
-import {
-  ayahAudioUrl,
-  reciters as bundledReciters,
-  reciterIsSurah,
-  repeatOptions,
-  surahAudioUrl,
-  type Reciter,
-} from "../../data/reciters";
-import { loadReciterCatalog, readCachedReciters } from "../../lib/reciterCatalog";
-import { loadHafsPage, loadHafsSurah, type HafsAyah } from "../../lib/mushafText";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ayahAudioUrl, reciters, reciterIsSurah, repeatOptions } from "../../data/reciters";
+import { loadSettings } from "../../lib/appStore";
+import { ayahKey, loadHafsAyahs, loadHafsPage, loadHafsPages, type HafsAyah } from "../../lib/mushafText";
 import { arabicNumber, surahNameOfNumber } from "../../lib/ayahImage";
 import type { AyahPlayItem } from "../../lib/ayahPlayer";
 
-/*
- * نافذة الاستماع والتكرار: نطاق واحد واضح (الآيات المحددة / الصفحة الحالية /
- * السورة كاملة)، قارئ من الكتالوج الكامل، وعدد مرات تكرار واحد بلا صناديق
- * متكررة. زر البدء يسلّم التشغيل للمشغل المصغّر فوق صفحة المصحف.
- */
-
-export type AudioScope = "selection" | "page" | "surah";
+// MP3Quran timing feed supplies ayah boundaries for catalogued full-surah audio files.
+type Scope = "selected" | "page" | "surah";
+type TimingReciter = { id: number; name: string; rewaya?: string; folder_url: string; soar_count?: number };
+type AyahTiming = { ayah: number; start_time: number; end_time: number };
+const AYAH_RECITERS = reciters;
 
 export type AudioStartMeta = { reciterId: string; scope: AudioScope };
 
@@ -53,12 +44,12 @@ export default function AyahAudioSheet({
   ayahs,
   page,
   onClose,
-  onStart,
+  onCompactChange,
 }: {
   ayahs: HafsAyah[];
   page: number;
   onClose: () => void;
-  onStart: (items: AyahPlayItem[], repeat: number, meta: AudioStartMeta) => void;
+  onCompactChange?: (compact: boolean) => void;
 }) {
   const [prefs] = useState<Prefs>(() => readPrefs());
   const [scope, setScope] = useState<AudioScope>(prefs.scope ?? "selection");
@@ -69,209 +60,297 @@ export default function AyahAudioSheet({
     const cached = readCachedReciters();
     return cached.length ? cached : bundledReciters;
   });
-  const [catalogNote, setCatalogNote] = useState("");
-  const [catalogLoading, setCatalogLoading] = useState(true);
-  const [filter, setFilter] = useState("");
-  const [reciterId, setReciterId] = useState(() => {
-    const cached = readCachedReciters();
-    const wanted = prefs.reciterId ?? "";
-    return (cached.length ? cached : bundledReciters).some((reciter) => reciter.id === wanted)
-      ? wanted
-      : (cached[0] ?? bundledReciters[0]).id;
-  });
+  const [scope, setScope] = useState<Scope>("selected");
+  const [timingReciters, setTimingReciters] = useState<TimingReciter[]>([]);
+  const timingCache = useRef(new Map<string, AyahTiming[]>());
+  const selectedTimingReciter = timingReciters.find((item) => `timing-${item.id}` === reciterId);
+  const [repeat, setRepeat] = useState(2);
   const [scopeAyahs, setScopeAyahs] = useState<HafsAyah[]>(ayahs);
-  const [loading, setLoading] = useState(false);
+  const [scopeLoading, setScopeLoading] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [compact, setCompact] = useState(false);
+  const [miniVisible, setMiniVisible] = useState(true);
   const [error, setError] = useState("");
-
-  const surah = ayahs[0]?.surah ?? 1;
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const stopResolverRef = useRef<(() => void) | null>(null);
+  const stopRef = useRef(true);
+  const pausedRef = useRef(false);
+  const surahOnly = !selectedTimingReciter && reciterIsSurah(reciterId);
 
   useEffect(() => {
     let cancelled = false;
-    loadReciterCatalog()
-      .then((catalog) => {
-        if (cancelled) return;
-        setList(catalog.reciters);
-        setCatalogNote(catalog.error);
-        setReciterId((current) =>
-          catalog.reciters.some((reciter) => reciter.id === current)
-            ? current
-            : catalog.reciters[0].id,
-        );
+    fetch("https://mp3quran.net/api/v3/ayat_timing/reads")
+      .then((response) => {
+        if (!response.ok) throw new Error("reciters unavailable");
+        return response.json();
       })
-      .finally(() => {
-        if (!cancelled) setCatalogLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .then((payload: unknown) => {
+        if (cancelled || !Array.isArray(payload)) return;
+        const items = payload.filter((item): item is TimingReciter =>
+          !!item && typeof item === "object" &&
+          typeof (item as TimingReciter).id === "number" &&
+          typeof (item as TimingReciter).name === "string" &&
+          typeof (item as TimingReciter).folder_url === "string"
+        );
+        setTimingReciters(items);
+      })
+      .catch(() => { /* تبقى قائمة القراء المضمّنة متاحة عند تعذر الشبكة */ });
+    return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => {
-    writePrefs({ reciterId, scope, repeat });
-  }, [reciterId, scope, repeat]);
+  const setCompactMode = (value: boolean) => {
+    setCompact(value);
+    setMiniVisible(true);
+    onCompactChange?.(value);
+  };
 
   useEffect(() => {
-    if (scope === "selection") {
-      setScopeAyahs(ayahs);
-      setError("");
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    setError("");
-    const task = scope === "page" ? loadHafsPage(page) : loadHafsSurah(surah);
-    task
-      .then((value) => {
-        if (!cancelled) setScopeAyahs(value);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setScopeAyahs([]);
-        setError("تعذّر تحميل آيات هذا النطاق. تحقّق من ملفات المصحف ثم أعد المحاولة.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
+    if (!compact) return;
+    let timer = 0;
+    const showTemporarily = () => {
+      setMiniVisible(true);
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setMiniVisible(false), 3600);
     };
-  }, [scope, page, surah, ayahs]);
+    showTemporarily();
+    window.addEventListener("pointerdown", showTemporarily, { passive: true });
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("pointerdown", showTemporarily);
+    };
+  }, [compact]);
 
-  const surahOnly = reciterIsSurah(reciterId, list);
-  const visibleReciters = useMemo(() => {
-    const term = filter.trim();
-    if (!term) return list;
-    return list.filter((reciter) => reciter.name.includes(term));
-  }, [filter, list]);
+  useEffect(() => {
+    let cancelled = false;
+    setScopeLoading(true);
+    const load = async () => {
+      if (scope === "selected") return ayahs;
+      if (scope === "page") return loadHafsPage(page);
+      const pages = await loadHafsPages();
+      const keys = pages.flat().filter((row) => row[0] === ayahs[0]?.surah).map((row) => ayahKey(row[0], row[1]));
+      return loadHafsAyahs(keys);
+    };
+    load().then((items) => {
+      if (!cancelled) {
+        setScopeAyahs(items);
+        setScopeLoading(false);
+      }
+    }).catch(() => {
+      if (!cancelled) {
+        setScopeAyahs(scope === "selected" ? ayahs : []);
+        setScopeLoading(false);
+        setError("تعذّر تحميل نطاق الآيات المطلوب.");
+      }
+    });
+    return () => { cancelled = true; };
+  }, [scope, ayahs, page]);
 
-  const scopeLabel =
-    scope === "selection"
-      ? `${arabicNumber(ayahs.length)} آيات محددة`
-      : scope === "page"
-        ? `الصفحة ${arabicNumber(page)}`
-        : `سورة ${surahNameOfNumber(surah)}`;
-
-  const start = () => {
-    const reciter = list.find((item) => item.id === reciterId);
-    if (!reciter) {
-      setError("اختر قارئًا أولًا.");
-      return;
+  const stop = useCallback(() => {
+    stopRef.current = true;
+    pausedRef.current = false;
+    stopResolverRef.current?.();
+    stopResolverRef.current = null;
+    const audio = audioRef.current;
+    if (audio) {
+      audio.onloadedmetadata = null;
+      audio.pause();
+      audio.currentTime = 0;
     }
-    if (loading) {
-      setError("جارٍ تحميل آيات النطاق…");
-      return;
+    setPaused(false);
+  }, []);
+
+  useEffect(() => () => {
+    stopRef.current = true;
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.src = "";
     }
-    const items: AyahPlayItem[] = [];
-    if (surahOnly && scope === "surah") {
-      items.push({
-        url: surahAudioUrl(reciter.id, surah),
-        label: `سورة ${surahNameOfNumber(surah)} — ${reciter.name}`,
+  }, []);
+
+  const playAyah = async (ayah: HafsAyah): Promise<boolean> => {
+    const audio = audioRef.current ?? new Audio();
+    audioRef.current = audio;
+    if (!selectedTimingReciter) {
+      return new Promise((resolve) => {
+        audio.src = ayahAudioUrl(reciterId, ayah.global);
+        const finish = (ok: boolean) => {
+          stopResolverRef.current = null;
+          audio.onended = null;
+          audio.onerror = null;
+          resolve(ok);
+        };
+        stopResolverRef.current = () => finish(false);
+        audio.onended = () => finish(true);
+        audio.onerror = () => finish(false);
+        void audio.play().then(() => undefined, () => finish(false));
       });
-    } else if (surahOnly) {
-      setError(
-        "هذا القارئ متوفر بملف السورة كاملة فقط؛ اختر «السورة كاملة» أو قارئًا يتوفر له صوت آية بآية.",
-      );
-      return;
-    } else {
-      for (const ayah of scopeAyahs) {
-        items.push({
-          url: ayahAudioUrl(reciter.id, ayah.global),
-          label: `${surahNameOfNumber(ayah.surah)} — الآية ${arabicNumber(ayah.ayah)}`,
-        });
+    }
+    const cacheKey = `${selectedTimingReciter.id}:${ayah.surah}`;
+    let timings = timingCache.current.get(cacheKey);
+    if (!timings) {
+      try {
+        const response = await fetch(`https://mp3quran.net/api/v3/ayat_timing?surah=${ayah.surah}&read=${selectedTimingReciter.id}`);
+        if (!response.ok) return false;
+        const payload = await response.json();
+        if (!Array.isArray(payload)) return false;
+        timings = payload.filter((item): item is AyahTiming =>
+          !!item && typeof item.ayah === "number" &&
+          typeof item.start_time === "number" && typeof item.end_time === "number"
+        );
+        timingCache.current.set(cacheKey, timings);
+      } catch {
+        return false;
       }
     }
-    if (!items.length) {
-      setError("لا توجد آيات في هذا النطاق.");
+    const timing = timings.find((item) => item.ayah === ayah.ayah);
+    if (!timing) return false;
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        audio.ontimeupdate = null;
+        audio.onended = null;
+        audio.onerror = null;
+        stopResolverRef.current = null;
+        resolve(ok);
+      };
+      stopResolverRef.current = () => finish(false);
+      const startAt = timing.start_time / 1000;
+      const endAt = timing.end_time / 1000;
+      audio.src = `${selectedTimingReciter.folder_url.replace(/^http:/, "https:")}${String(ayah.surah).padStart(3, "0")}.mp3`;
+      audio.onloadedmetadata = () => {
+        if (stopRef.current) { finish(false); return; }
+        audio.currentTime = startAt;
+        audio.ontimeupdate = () => {
+          if (audio.currentTime >= endAt) {
+            audio.pause();
+            finish(true);
+          }
+        };
+        void audio.play().catch(() => finish(false));
+      };
+      audio.onended = () => finish(true);
+      audio.onerror = () => finish(false);
+      audio.load();
+    });
+  };
+
+  const start = async () => {
+    if (!scopeAyahs.length || scopeLoading) return;
+    if (surahOnly) {
+      setError("هذا القارئ يوفر ملفات السور كاملة فقط، ولا تتوفر له مقاطع آية بآية. اختر قارئًا يدعم الآيات أو اختر قارئًا آخر من قائمة السور.");
       return;
     }
     setError("");
-    onStart(items, repeat, { reciterId: reciter.id, scope });
+    stopRef.current = false;
+    pausedRef.current = false;
+    setPaused(false);
+    setCompactMode(true);
+    for (let index = 0; index < repeat; index += 1) {
+      if (stopRef.current) return;
+      for (const ayah of scopeAyahs) {
+        while (pausedRef.current && !stopRef.current) await sleep(150);
+        if (stopRef.current) return;
+        const ok = await playAyah(ayah);
+        if (stopRef.current) return;
+        if (!ok) {
+          setError("تعذّر تشغيل التلاوة. تحقّق من الاتصال بالإنترنت أو اختر قارئًا آخر.");
+          setCompactMode(false);
+          onClose();
+          return;
+        }
+      }
+    }
+    setPaused(false);
+    setCompactMode(false);
+    onClose();
   };
+
+  const togglePause = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (pausedRef.current) {
+      pausedRef.current = false;
+      setPaused(false);
+      void audio.play().catch(() => undefined);
+    } else {
+      pausedRef.current = true;
+      setPaused(true);
+      audio.pause();
+    }
+  };
+
+  const stopAndReturnToSettings = () => {
+    stop();
+    setCompactMode(false);
+  };
+
+  if (compact && !miniVisible) return null;
+
+  if (compact) {
+    return (
+      <div className="ayah-audio-mini-player" role="status" aria-label="التحكم في التلاوة">
+        <button type="button" onClick={stopAndReturnToSettings} aria-label="إيقاف التلاوة وفتح الإعدادات" title="إيقاف">
+          ⏺️
+        </button>
+        <button type="button" onClick={togglePause} aria-label={paused ? "استئناف التلاوة" : "إيقاف مؤقت"} title={paused ? "استئناف" : "إيقاف مؤقت"}>
+          {paused ? "▶️" : "⏸️"}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="mushaf-ayah-sheet-backdrop" onClick={onClose}>
       <div className="mushaf-ayah-sheet ayah-audio-sheet" onClick={(event) => event.stopPropagation()}>
         <div className="mushaf-ayah-sheet-head">
           <h3>الاستماع والتكرار</h3>
-          <button type="button" onClick={onClose} aria-label="إغلاق">
-            ×
-          </button>
+          <button type="button" onClick={() => { stop(); onClose(); }} aria-label="إغلاق">×</button>
         </div>
-
-        <div className="ayah-audio-scopes" role="group" aria-label="نطاق التشغيل">
-          {SCOPES.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={scope === item.id ? "is-active" : ""}
-              aria-pressed={scope === item.id}
-              onClick={() => setScope(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-
-        <p className="ayah-audio-summary">{scopeLabel}</p>
-
+        <p className="mushaf-ayah-sheet-sub">
+          {scope === "selected" ? `الآيات المحددة • ${arabicNumber(ayahs.length)} آيات` : scope === "page" ? `صفحة المصحف • ${arabicNumber(page)}` : `سورة ${surahNameOfNumber(ayahs[0]?.surah ?? 1)} كاملة`}
+        </p>
         <label className="ayah-audio-field">
-          <span>القارئ</span>
-          <input
-            type="search"
-            className="ayah-audio-filter"
-            placeholder="ابحث باسم القارئ"
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-            aria-label="بحث في القراء"
-          />
-        </label>
-
-        <label className="ayah-audio-field">
-          <span>التلاوة</span>
-          <select value={reciterId} onChange={(event) => setReciterId(event.target.value)}>
-            {visibleReciters.length === 0 ? <option value={reciterId}>لا نتائج للبحث</option> : null}
-            {visibleReciters.map((reciter) => (
-              <option key={reciter.id} value={reciter.id}>
-                {reciter.name}
-              </option>
-            ))}
+          <span>نطاق التشغيل</span>
+          <select value={scope} onChange={(event) => { stop(); setScope(event.target.value as Scope); }}>
+            <option value="selected">الآيات المحددة</option>
+            <option value="page">الصفحة الحالية</option>
+            <option value="surah">السورة كاملة (سورة أول آية محددة)</option>
           </select>
         </label>
-
+        <label className="ayah-audio-field">
+          <span>القارئ</span>
+          <select value={reciterId} onChange={(event) => { stop(); setReciterId(event.target.value); }}>
+            <optgroup label="القراء المضمّنون">
+              {AYAH_RECITERS.map((reciter) => <option key={reciter.id} value={reciter.id}>{reciter.name}</option>)}
+            </optgroup>
+            {timingReciters.length ? (
+              <optgroup label="كتالوج القراء المتاحين عبر MP3Quran">
+                {timingReciters.map((reciter) => (
+                  <option key={reciter.id} value={`timing-${reciter.id}`}>
+                    {reciter.name}{reciter.rewaya ? ` — ${reciter.rewaya}` : ""}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
+          </select>
+        </label>
         <label className="ayah-audio-field">
           <span>عدد مرات التكرار</span>
           <select value={repeat} onChange={(event) => setRepeat(Number(event.target.value))}>
-            {repeatOptions.map((option) => (
-              <option key={option} value={option}>
-                {arabicNumber(option)} {option === 1 ? "مرة" : "مرات"}
-              </option>
-            ))}
+            {repeatOptions.map((option) => <option key={option} value={option}>{arabicNumber(option)} مرة</option>)}
           </select>
         </label>
-
-        {catalogLoading ? <p className="mushaf-ayah-sheet-note">جارٍ تحميل قائمة القراء…</p> : null}
-        {!catalogLoading && catalogNote ? <p className="mushaf-ayah-sheet-note">{catalogNote}</p> : null}
-        {!catalogLoading ? (
-          <p className="mushaf-ayah-sheet-note">
-            {`القراء المتاحون: ${arabicNumber(list.length)} قارئًا — القائمة المضمّنة تعمل دون اتصال.`}
-          </p>
-        ) : null}
-        {surahOnly ? (
-          <p className="mushaf-ayah-sheet-note">
-            هذا القارئ متوفر بملف السورة كاملة فقط؛ لتشغيل آيات محددة اختر قارئًا آخر.
-          </p>
-        ) : null}
-        {loading ? <p className="mushaf-ayah-sheet-note">جارٍ تجهيز الآيات…</p> : null}
-        {error ? <p className="mushaf-ayah-sheet-note">{error}</p> : null}
-
+        {surahOnly ? <p className="mushaf-ayah-sheet-note">هذا القارئ متاح بتسجيل السورة كاملة فقط؛ تشغيل نطاق آيات محدد يحتاج قارئًا يدعم ملفات الآيات.</p> : null}
+        {scopeLoading ? <p className="mushaf-ayah-sheet-note">جارٍ تجهيز الآيات…</p> : null}
         <div className="ayah-audio-actions">
-          <button type="button" className="primary-button" onClick={start} disabled={surahOnly && scope !== "surah"}>
-            بدء
-          </button>
-          <button type="button" className="ghost-button" onClick={onClose}>
-            إلغاء
+          <button type="button" className="primary-button" onClick={() => void start()} disabled={surahOnly || scopeLoading || !scopeAyahs.length}>
+            تشغيل
           </button>
         </div>
+        {error ? <p className="mushaf-ayah-sheet-note">{error}</p> : null}
       </div>
     </div>
   );

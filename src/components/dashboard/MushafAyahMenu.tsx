@@ -76,6 +76,7 @@ export default function MushafAyahMenu({
 }) {
   const [panel, setPanel] = useState<Panel>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
+  const [audioCompact, setAudioCompact] = useState(false);
   const [tafsirRows, setTafsirRows] = useState<TafsirRow[] | null>(null);
   const [tafsirLoading, setTafsirLoading] = useState(false);
   const [tafsirError, setTafsirError] = useState("");
@@ -227,7 +228,7 @@ export default function MushafAyahMenu({
 
   return (
     <>
-      <div className="mushaf-ayah-menu-layer" onClick={onClose}>
+      {!audioCompact ? <div className="mushaf-ayah-menu-layer" onClick={onClose}>
         <div
           className="mushaf-ayah-menu"
           style={{
@@ -272,7 +273,7 @@ export default function MushafAyahMenu({
 
           <span className="mushaf-ayah-menu-badge">{title}</span>
         </div>
-      </div>
+      </div> : null}
 
       {panel ? (
         <div className="mushaf-ayah-sheet-backdrop" onClick={() => setPanel(null)}>
@@ -334,17 +335,7 @@ export default function MushafAyahMenu({
         </div>
       ) : null}
 
-      {sheet === "audio" ? (
-        <AyahAudioSheet
-          ayahs={ayahs}
-          page={page}
-          onClose={() => setSheet(null)}
-          onStart={(items, repeat, meta) => {
-            setSheet(null);
-            onStartAudio(items, repeat, meta);
-          }}
-        />
-      ) : null}
+      {sheet === "audio" ? <AyahAudioSheet ayahs={ayahs} page={page} onCompactChange={setAudioCompact} onClose={() => { setAudioCompact(false); setSheet(null); onClose(); }} /> : null}
       {sheet === "share" ? <AyahShareSheet ayahs={ayahs} onClose={() => setSheet(null)} /> : null}
       {sheet === "recite" ? <AyahReciteSheet ayahs={ayahs} onClose={() => setSheet(null)} /> : null}
     </>

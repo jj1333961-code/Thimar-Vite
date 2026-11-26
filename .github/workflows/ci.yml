@@ -26,8 +26,27 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
+      - name: Fail on moderate or higher dependency vulnerabilities
+        run: npm audit --audit-level=moderate
+      - name: Report dependency advisories without hiding the build result
+        run: |
+          npm audit --json > /tmp/thimar-npm-audit.json || true
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const report = JSON.parse(fs.readFileSync("/tmp/thimar-npm-audit.json", "utf8"));
+            console.log(JSON.stringify({
+              metadata: report.metadata?.vulnerabilities ?? {},
+              advisories: Object.entries(report.vulnerabilities ?? {}).map(([name, v]) => ({
+                name, severity: v.severity, isDirect: v.isDirect,
+                range: v.range, fixAvailable: v.fixAvailable,
+                via: v.via.map(x => typeof x === "string" ? x : { title: x.title, url: x.url, range: x.range })
+              }))
+            }, null, 2));
+          '
       - name: Test remembered-device opt-in
         run: npm run test:remember-device
+      - name: Test Android security regressions
+        run: npm run test:android-security
       - name: Test Quran resource cache refresh and offline fallback
         run: npm run test:offline-cache
       - name: Test offline package and integrity checks
@@ -38,5 +57,60 @@ jobs:
         run: npm run test:admin-diagnostics
       - name: TypeScript validation
         run: npm run typecheck
+      - name: Generate Quran search index
+        run: npm run build:quran-search-index
       - name: Production Vite build
         run: npm run build
+
+  android-security-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools platforms;android-34 build-tools;34.0.0
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Fail on moderate or higher dependency vulnerabilities
+        run: npm audit --audit-level=moderate
+      - name: Run Android security regression tests
+        run: npm run test:android-security
+      - name: TypeScript validation
+        run: npm run typecheck
+      - name: Generate Quran search index
+        run: npm run build:quran-search-index
+      - name: Build web assets
+        run: npm run build
+      - name: Fetch verified offline assets
+        run: bash scripts/fetch-offline-assets.sh
+      - name: Bundle Android web assets
+        run: bash scripts/bundle-android-assets.sh
+      - name: Build unsigned debug APK
+        working-directory: packaging/android
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --no-daemon
+      - name: Verify final APK permissions
+        working-directory: packaging/android
+        run: |
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          AAPT="$ANDROID_HOME/build-tools/34.0.0/aapt"
+          test -f "$APK"
+          "$AAPT" dump permissions "$APK" | tee /tmp/thimar-apk-permissions.txt
+          if grep -E 'SYSTEM_ALERT_WINDOW|USE_FULL_SCREEN_INTENT|REQUEST_IGNORE_BATTERY_OPTIMIZATIONS|DISABLE_KEYGUARD|USE_EXACT_ALARM' /tmp/thimar-apk-permissions.txt; then
+            echo "A restricted/unnecessary permission remains in the final merged APK." >&2
+            exit 1
+          fi
+          "$AAPT" dump badging "$APK" | grep -F "package: name='app.thimar.quran'"

@@ -436,29 +436,36 @@ export default function MushafPagesText({
     if (!keys.length) setMenu(null);
   };
 
-  /*
-   * النقر: تحديد آية، أو نطاق متتابع بين المحدَّد والآية المضغوطة (عبر
-   * الصفحات والسور بالرقم العام)، أو تجاهل ما بعد آية داخل المجموعة.
-   */
+  /* النقر: يمدّ النطاق من أول آية، والنقر على آية محددة يقصّ النطاق قبلها. */
   const tapAyah = (key: string) => {
-    void loadHafsOrder()
-      .then(({ keysByGlobal, globalOf }) => {
-        changeSelection(
-          selectionAfterTap({ keysByGlobal, globalOf, current: selectionRef.current, tapped: key }),
-        );
-      })
-      .catch(() => {
-        const current = selectionRef.current;
-        changeSelection(current.includes(key) ? current.filter((item) => item !== key) : [key]);
-      });
+    const selectedIndex = selection.indexOf(key);
+    if (selectedIndex >= 0) {
+      // مثال: ١،٢،٣،٤ ثم النقر على ٣ يبقي ١،٢ فقط.
+      changeSelection(selection.slice(0, selectedIndex));
+      return;
+    }
+    const target = pageKeys.indexOf(key);
+    if (target < 0) {
+      changeSelection([key]);
+      return;
+    }
+    const firstSelected = selection.length ? pageKeys.indexOf(selection[0]) : -1;
+    if (firstSelected < 0) {
+      changeSelection([key]);
+      return;
+    }
+    const from = Math.min(firstSelected, target);
+    const to = Math.max(firstSelected, target);
+    changeSelection(pageKeys.slice(from, to + 1));
   };
 
   /* الضغط المطوّل: فتح الأزرار الدائرية مع إضافة الآية الكاملة المضغوطة. */
   const openMenuFor = (key: string | null, x: number, y: number) => {
-    const current = selectionRef.current;
-    const keys = key && !current.includes(key) ? [...current, key] : current;
-    if (!key && !keys.length) return;
-    if (keys !== current) changeSelection(keys);
+    // الضغط المطوّل على كلمة يختار آيتها كاملة فقط، ولا يضيفها إلى تحديد قديم.
+    const keys = key ? [key] : selection;
+    if (!keys.length) return;
+    setSelection(keys);
+    syncSelected(keys);
     setMenu({ x, y });
   };
 

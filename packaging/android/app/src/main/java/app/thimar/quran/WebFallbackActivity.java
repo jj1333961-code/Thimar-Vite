@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
 import android.os.Environment;
 import android.view.KeyEvent;
 import android.view.ViewGroup;
@@ -40,6 +41,9 @@ public class WebFallbackActivity extends Activity {
   private static final String APP_URL = "https://" + APP_HOST + "/";
   private static final int FILE_CHOOSER_REQUEST = 1001;
   private static final int REQUEST_MEDIA_PERMISSIONS = 1002;
+  private static final int REQUEST_LOCATION_PERMISSION = 1003;
+  private android.webkit.GeolocationPermissions.Callback pendingGeoCallback;
+  private String pendingGeoOrigin;
   private PermissionRequest pendingPermissionRequest;
   private String[] pendingAllowedResources;
   private WebView webView;
@@ -187,11 +191,15 @@ public class WebFallbackActivity extends Activity {
     settings.setLoadWithOverviewMode(true);
     settings.setUseWideViewPort(true);
     settings.setSupportZoom(false);
-    settings.setJavaScriptCanOpenWindowsAutomatically(true);
+    settings.setJavaScriptCanOpenWindowsAutomatically(false);
+    settings.setSupportMultipleWindows(false);
+    settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) settings.setSafeBrowsingEnabled(true);
     settings.setCacheMode(isOnline() ? WebSettings.LOAD_DEFAULT : WebSettings.LOAD_CACHE_ELSE_NETWORK);
     /* تحديد الموقع داخل التطبيق يعمل مثل المتصفح (للمواقيت والأذان). */
     settings.setGeolocationEnabled(true);
     CookieManager.getInstance().setAcceptCookie(true);
+    CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
     webView.setBackgroundColor(0xFFFAF7F1);
 
     webView.setWebViewClient(new WebViewClient() {
@@ -219,8 +227,18 @@ public class WebFallbackActivity extends Activity {
 
       @Override
       public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
-        // الجسر (رمز الإشعارات والحساب) متاح فقط لصفحات نطاق ثمار.
-        PushBridge.setTrustedOrigin(url != null && url.startsWith(APP_URL));
+        boolean trusted = false;
+        try {
+          trusted = isTrustedAppOrigin(Uri.parse(url));
+        } catch (Exception ignored) {
+          // Invalid URL: keep every native bridge untrusted.
+        }
+        PushBridge.setTrustedOrigin(trusted);
+        if (!trusted) {
+          // Never leave a third-party page inside the WebView that owns native bridges.
+          view.stopLoading();
+          view.post(() -> view.loadUrl(APP_URL));
+        }
       }
 
       @Override
@@ -259,7 +277,7 @@ public class WebFallbackActivity extends Activity {
           Uri origin = request.getOrigin();
           String originStr = origin == null ? "" : origin.toString();
           /* السماح فقط للأصل الموثوق (ثمار) — لا منح تلقائي لكل الموارد. */
-          if (!originStr.startsWith("https://thimar.freebuff.page")) {
+          if (!isTrustedAppOrigin(origin)) {
             request.deny();
             return;
           }
@@ -303,7 +321,32 @@ public class WebFallbackActivity extends Activity {
       @Override
       public void onGeolocationPermissionsShowPrompt(
           String origin, android.webkit.GeolocationPermissions.Callback callback) {
-        callback.invoke(origin, true, false);
+        boolean trusted = false;
+        try {
+          trusted = isTrustedAppOrigin(Uri.parse(origin));
+        } catch (Exception ignored) {
+          // Invalid origin must never receive location.
+        }
+        if (!trusted) {
+          callback.invoke(origin, false, false);
+          return;
+        }
+        boolean locationGranted =
+            checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED
+            || checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        if (locationGranted) {
+          callback.invoke(origin, true, false);
+          return;
+        }
+        // Ask Android only in response to an actual geolocation request from Thimar.
+        pendingGeoCallback = callback;
+        pendingGeoOrigin = origin;
+        requestPermissions(new String[] {
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION
+        }, REQUEST_LOCATION_PERMISSION);
       }
 
       @Override
@@ -375,6 +418,19 @@ public class WebFallbackActivity extends Activity {
       boolean granted = grantResults.length > 0
           && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED;
       PushBridge.handlePermissionResult(this, requestCode, granted);
+      return;
+    }
+    if (requestCode == REQUEST_LOCATION_PERMISSION) {
+      boolean granted =
+          checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
+              == android.content.pm.PackageManager.PERMISSION_GRANTED
+          || checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+              == android.content.pm.PackageManager.PERMISSION_GRANTED;
+      if (pendingGeoCallback != null) {
+        pendingGeoCallback.invoke(pendingGeoOrigin, granted, false);
+        pendingGeoCallback = null;
+        pendingGeoOrigin = null;
+      }
       return;
     }
     if (requestCode == REQUEST_MEDIA_PERMISSIONS) {
@@ -623,30 +679,35 @@ public class WebFallbackActivity extends Activity {
     }
   }
 
-  /** يبقي كل روابط الويب داخل التطبيق، ويُخرج فقط tel/mailto/whatsapp. */
-  private boolean handleUrl(WebView view, Uri uri) {
+  private boolean isTrustedAppOrigin(Uri uri) {
     if (uri == null) return false;
-    String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
-    String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase();
-    if (scheme.equals("http") || scheme.equals("https")) {
-      if (host.endsWith(APP_HOST) || host.endsWith("freebuff.page")) {
-        view.loadUrl(uri.toString());
-        return true;
-      }
-      // روابط خارجية تُعرض داخل التطبيق أيضًا حتى لا يظهر «فتح بواسطة».
+    String scheme = uri.getScheme();
+    String host = uri.getHost();
+    return "https".equalsIgnoreCase(scheme)
+        && APP_HOST.equalsIgnoreCase(host == null ? "" : host)
+        && (uri.getPort() == -1 || uri.getPort() == 443)
+        && uri.getUserInfo() == null;
+  }
+
+  /** يبقي نطاق ثمار الموثوق داخل WebView ويفتح أي نطاق آخر خارج حاوية الجسور الأصلية. */
+  private boolean handleUrl(WebView view, Uri uri) {
+    if (uri == null) return true;
+    if (isTrustedAppOrigin(uri)) {
       view.loadUrl(uri.toString());
       return true;
     }
-    if (scheme.equals("tel") || scheme.equals("mailto") || scheme.equals("sms")
-        || scheme.equals("whatsapp")) {
+    String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+    if (scheme.equals("https") || scheme.equals("http") || scheme.equals("tel")
+        || scheme.equals("mailto") || scheme.equals("sms") || scheme.equals("whatsapp")) {
       try {
         startActivity(new Intent(Intent.ACTION_VIEW, uri));
       } catch (Exception ignored) {
-        /* لا يوجد تطبيق يدعم هذا الرابط. */
+        /* لا يوجد تطبيق يدعم هذا الرابط؛ لا نعيد فتحه داخل WebView ذي الجسور الأصلية. */
       }
       return true;
     }
-    return false;
+    // حظر المخططات غير المعروفة (intent:, file:, content:, javascript: وغيرها).
+    return true;
   }
 
   @Override
@@ -674,6 +735,11 @@ public class WebFallbackActivity extends Activity {
 
   @Override
   protected void onDestroy() {
+    if (pendingGeoCallback != null) {
+      pendingGeoCallback.invoke(pendingGeoOrigin, false, false);
+      pendingGeoCallback = null;
+      pendingGeoOrigin = null;
+    }
     unregisterConnectivityCallback();
     PushBridge.detach();
     if (webView != null) {
