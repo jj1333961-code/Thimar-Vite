@@ -5,6 +5,8 @@ import { ayahKey, loadHafsAyahs, loadHafsPage, loadHafsPages, type HafsAyah } fr
 import { arabicNumber, surahNameOfNumber } from "../../lib/ayahImage";
 
 type Scope = "selected" | "page" | "surah";
+type TimingReciter = { id: number; name: string; rewaya?: string; folder_url: string; soar_count?: number };
+type AyahTiming = { ayah: number; start_time: number; end_time: number };
 const AYAH_RECITERS = reciters;
 
 function sleep(ms: number): Promise<void> {
@@ -27,6 +29,9 @@ export default function AyahAudioSheet({
     return AYAH_RECITERS.some((reciter) => reciter.id === saved) ? saved : AYAH_RECITERS[0].id;
   });
   const [scope, setScope] = useState<Scope>("selected");
+  const [timingReciters, setTimingReciters] = useState<TimingReciter[]>([]);
+  const timingCache = useRef(new Map<string, AyahTiming[]>());
+  const selectedTimingReciter = timingReciters.find((item) => `timing-${item.id}` === reciterId);
   const [repeat, setRepeat] = useState(2);
   const [scopeAyahs, setScopeAyahs] = useState<HafsAyah[]>(ayahs);
   const [scopeLoading, setScopeLoading] = useState(false);
@@ -39,7 +44,28 @@ export default function AyahAudioSheet({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const stopRef = useRef(true);
   const pausedRef = useRef(false);
-  const surahOnly = reciterIsSurah(reciterId);
+  const surahOnly = !selectedTimingReciter && reciterIsSurah(reciterId);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("https://mp3quran.net/api/v3/ayat_timing/reads")
+      .then((response) => {
+        if (!response.ok) throw new Error("reciters unavailable");
+        return response.json();
+      })
+      .then((payload: unknown) => {
+        if (cancelled || !Array.isArray(payload)) return;
+        const items = payload.filter((item): item is TimingReciter =>
+          !!item && typeof item === "object" &&
+          typeof (item as TimingReciter).id === "number" &&
+          typeof (item as TimingReciter).name === "string" &&
+          typeof (item as TimingReciter).folder_url === "string"
+        );
+        setTimingReciters(items);
+      })
+      .catch(() => { /* تبقى قائمة القراء المضمّنة متاحة عند تعذر الشبكة */ });
+    return () => { cancelled = true; };
+  }, []);
 
   const setCompactMode = (value: boolean) => {
     setCompact(value);
@@ -94,16 +120,65 @@ export default function AyahAudioSheet({
     }
   }, []);
 
-  const playAyah = (ayah: HafsAyah): Promise<boolean> =>
-    new Promise((resolve) => {
-      const audio = audioRef.current ?? new Audio();
-      audioRef.current = audio;
-      audio.src = ayahAudioUrl(reciterId, ayah.global);
-      audio.onended = () => resolve(true);
-      audio.onerror = () => resolve(false);
-      setNowAyah(ayah);
-      void audio.play().then(() => undefined, () => resolve(false));
+  const playAyah = async (ayah: HafsAyah): Promise<boolean> => {
+    const audio = audioRef.current ?? new Audio();
+    audioRef.current = audio;
+    setNowAyah(ayah);
+    if (!selectedTimingReciter) {
+      return new Promise((resolve) => {
+        audio.src = ayahAudioUrl(reciterId, ayah.global);
+        audio.onended = () => resolve(true);
+        audio.onerror = () => resolve(false);
+        void audio.play().then(() => undefined, () => resolve(false));
+      });
+    }
+    const cacheKey = `${selectedTimingReciter.id}:${ayah.surah}`;
+    let timings = timingCache.current.get(cacheKey);
+    if (!timings) {
+      try {
+        const response = await fetch(`https://mp3quran.net/api/v3/ayat_timing?surah=${ayah.surah}&read=${selectedTimingReciter.id}`);
+        if (!response.ok) return false;
+        const payload = await response.json();
+        if (!Array.isArray(payload)) return false;
+        timings = payload.filter((item): item is AyahTiming =>
+          !!item && typeof item.ayah === "number" &&
+          typeof item.start_time === "number" && typeof item.end_time === "number"
+        );
+        timingCache.current.set(cacheKey, timings);
+      } catch {
+        return false;
+      }
+    }
+    const timing = timings.find((item) => item.ayah === ayah.ayah);
+    if (!timing) return false;
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        audio.ontimeupdate = null;
+        audio.onended = null;
+        audio.onerror = null;
+        resolve(ok);
+      };
+      const startAt = timing.start_time / 1000;
+      const endAt = timing.end_time / 1000;
+      audio.src = `${selectedTimingReciter.folder_url.replace(/^http:/, "https:")}${String(ayah.surah).padStart(3, "0")}.mp3`;
+      audio.onloadedmetadata = () => {
+        audio.currentTime = startAt;
+        audio.ontimeupdate = () => {
+          if (audio.currentTime >= endAt) {
+            audio.pause();
+            finish(true);
+          }
+        };
+        void audio.play().catch(() => finish(false));
+      };
+      audio.onended = () => finish(true);
+      audio.onerror = () => finish(false);
+      audio.load();
     });
+  };
 
   const start = async () => {
     if (!scopeAyahs.length || scopeLoading) return;
@@ -201,7 +276,18 @@ export default function AyahAudioSheet({
         <label className="ayah-audio-field">
           <span>القارئ</span>
           <select value={reciterId} onChange={(event) => { stop(); setReciterId(event.target.value); }}>
-            {AYAH_RECITERS.map((reciter) => <option key={reciter.id} value={reciter.id}>{reciter.name}</option>)}
+            <optgroup label="القراء المضمّنون">
+              {AYAH_RECITERS.map((reciter) => <option key={reciter.id} value={reciter.id}>{reciter.name}</option>)}
+            </optgroup>
+            {timingReciters.length ? (
+              <optgroup label="كتالوج القراء المتاحين عبر MP3Quran">
+                {timingReciters.map((reciter) => (
+                  <option key={reciter.id} value={`timing-${reciter.id}`}>
+                    {reciter.name}{reciter.rewaya ? ` — ${reciter.rewaya}` : ""}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
           </select>
         </label>
         <label className="ayah-audio-field">
