@@ -38,6 +38,7 @@ export default function AyahAudioSheet({
   const [playing, setPlaying] = useState(false);
   const [paused, setPaused] = useState(false);
   const [compact, setCompact] = useState(false);
+  const [miniVisible, setMiniVisible] = useState(true);
   const [round, setRound] = useState(0);
   const [nowAyah, setNowAyah] = useState<HafsAyah | null>(null);
   const [error, setError] = useState("");
@@ -69,8 +70,25 @@ export default function AyahAudioSheet({
 
   const setCompactMode = (value: boolean) => {
     setCompact(value);
+    setMiniVisible(true);
     onCompactChange?.(value);
   };
+
+  useEffect(() => {
+    if (!compact) return;
+    let timer = 0;
+    const showTemporarily = () => {
+      setMiniVisible(true);
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setMiniVisible(false), 3600);
+    };
+    showTemporarily();
+    window.addEventListener("pointerdown", showTemporarily, { passive: true });
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("pointerdown", showTemporarily);
+    };
+  }, [compact]);
 
   useEffect(() => {
     let cancelled = false;
@@ -242,6 +260,8 @@ export default function AyahAudioSheet({
     const label = `${surahNameOfNumber(nowAyah.surah)} — الآية ${arabicNumber(nowAyah.ayah)}`;
     return repeat > 1 ? `${label} • الجولة ${arabicNumber(round)} من ${arabicNumber(repeat)}` : label;
   }, [nowAyah, repeat, round]);
+
+  if (compact && !miniVisible) return null;
 
   if (compact) {
     return (
