@@ -4,6 +4,7 @@ import { loadSettings } from "../../lib/appStore";
 import { ayahKey, loadHafsAyahs, loadHafsPage, loadHafsPages, type HafsAyah } from "../../lib/mushafText";
 import { arabicNumber, surahNameOfNumber } from "../../lib/ayahImage";
 
+// MP3Quran timing feed supplies ayah boundaries for catalogued full-surah audio files.
 type Scope = "selected" | "page" | "surah";
 type TimingReciter = { id: number; name: string; rewaya?: string; folder_url: string; soar_count?: number };
 type AyahTiming = { ayah: number; start_time: number; end_time: number };
