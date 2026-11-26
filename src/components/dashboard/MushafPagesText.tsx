@@ -345,10 +345,12 @@ export default function MushafPagesText({
     if (!keys.length) setMenu(null);
   };
 
-  /* النقر: تحديد الآية، أو إلغاء تحديدها، أو تحديد المدى بينها وبين المحدَّد. */
+  /* النقر: يمدّ النطاق من أول آية، والنقر على آية محددة يقصّ النطاق قبلها. */
   const tapAyah = (key: string) => {
-    if (selection.includes(key)) {
-      changeSelection(selection.filter((item) => item !== key));
+    const selectedIndex = selection.indexOf(key);
+    if (selectedIndex >= 0) {
+      // مثال: ١،٢،٣،٤ ثم النقر على ٣ يبقي ١،٢ فقط.
+      changeSelection(selection.slice(0, selectedIndex));
       return;
     }
     const target = pageKeys.indexOf(key);
@@ -356,15 +358,13 @@ export default function MushafPagesText({
       changeSelection([key]);
       return;
     }
-    const indexes = selection
-      .map((item) => pageKeys.indexOf(item))
-      .filter((index) => index >= 0);
-    if (!indexes.length) {
+    const firstSelected = selection.length ? pageKeys.indexOf(selection[0]) : -1;
+    if (firstSelected < 0) {
       changeSelection([key]);
       return;
     }
-    const from = Math.min(target, ...indexes);
-    const to = Math.max(target, ...indexes);
+    const from = Math.min(firstSelected, target);
+    const to = Math.max(firstSelected, target);
     changeSelection(pageKeys.slice(from, to + 1));
   };
 
