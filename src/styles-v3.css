@@ -7240,7 +7240,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
 
 /* ============ المصحف: خط أكبر مع فراغات معتدلة ورقم آية بارز بين الآيتين ============ */
 .qp-page {
-  --qp-word-spacing: -0.035em;
+  --qp-word-spacing: -0.06em;
   line-height: 1.74;
   letter-spacing: 0;
   word-spacing: var(--qp-word-spacing);
@@ -7263,3 +7263,21 @@ html, body { max-width: 100%; overflow-x: hidden; }
 }
 .qp-page .ayah-mark[data-len="3"] .ayah-mark__n { font-size: 0.4em; }
 .qp-page--special .qp-line { line-height: 1.66; }
+
+/* منع تحديد/نسخ النص من الحاوية الخارجية وصفحة المصحف على الويب وWebView.
+   اختيار الآية يتم حصريًا عبر النقر والضغط المطوّل داخل عارض المصحف. */
+.qp-reader,
+.qp-reader .qp-reader-stage,
+.qp-reader .qp-page,
+.qp-reader .qp-page *,
+.qp-reader .qp-page-body,
+.qp-reader .qp-line,
+.qp-reader .qp-ayah-text {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+.qp-reader ::selection {
+  background: transparent !important;
+  color: inherit !important;
+}

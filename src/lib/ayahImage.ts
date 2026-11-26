@@ -51,7 +51,7 @@ function loadImage(url: string): Promise<HTMLImageElement> {
     const image = new Image();
     image.crossOrigin = "anonymous";
     image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("logo unavailable"));
+    image.onerror = () => reject(new Error("image unavailable"));
     image.src = url;
   });
 }
@@ -141,10 +141,14 @@ export async function buildAyahImage(ayahs: HafsAyah[]): Promise<AyahImageResult
   measure.direction = "rtl";
 
   const textWidth = WIDTH - PADDING * 2;
-  const paragraphs = ayahs.map((ayah) => `${ayah.text} ﴿${arabicNumber(ayah.ayah)}﴾`);
-  const wrapped = paragraphs.map((paragraph) => wrapText(measure, paragraph, textWidth));
+  // كل آية تُلفّ وحدها، وتُرسم علامة المصحف الدائرية في نهاية سطرها الأخير.
+  const wrapped = ayahs.map((ayah) => wrapText(measure, ayah.text, textWidth));
   const bodyLines = wrapped.reduce((total, lines) => total + lines.length, 0);
   const gapBetweenAyahs = Math.round(lineHeight * 0.55);
+  const markerSize = Math.round(fontSize * 0.9);
+  const markerUrl = `${import.meta.env.BASE_URL || "/"}images/ayah-mark.svg`;
+  let markerImage: HTMLImageElement | null = null;
+  try { markerImage = await loadImage(markerUrl); } catch { /* يبقى رقم الآية ظاهرًا نصيًا */ }
 
   const headerHeight = 300;
   const footerHeight = 130;
@@ -213,7 +217,7 @@ export async function buildAyahImage(ayahs: HafsAyah[]): Promise<AyahImageResult
   ctx.lineTo(WIDTH / 2 + 150, 332);
   ctx.stroke();
 
-  // نص الآيات — خط المصحف، RTL، التفاف طبيعي.
+  // نص الآيات بخط المصحف واتجاه RTL، مع علامة رقم الآية الدائرية الأصلية.
   ctx.font = bodyFont;
   ctx.fillStyle = "#1c1a14";
   ctx.direction = "rtl";
@@ -223,6 +227,29 @@ export async function buildAyahImage(ayahs: HafsAyah[]): Promise<AyahImageResult
     for (const line of lines) {
       ctx.fillText(line, WIDTH - PADDING, y);
       y += lineHeight;
+    }
+    const lastLine = lines[lines.length - 1] ?? "";
+    const textEndX = WIDTH - PADDING - measure.measureText(lastLine).width;
+    const markX = Math.max(PADDING, textEndX - markerSize - 10);
+    const markY = y - lineHeight + Math.round(fontSize * 0.12);
+    if (markerImage) {
+      ctx.drawImage(markerImage, markX, markY, markerSize * 0.80542, markerSize);
+      ctx.save();
+      ctx.direction = "rtl";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#007c89";
+      ctx.font = `600 ${Math.max(14, Math.round(fontSize * 0.39))}px "QuranUthmani", "Amiri", serif`;
+      ctx.fillText(arabicNumber(ayahs[index].ayah), markX + markerSize * 0.40271, markY + markerSize * 0.51);
+      ctx.restore();
+    } else {
+      ctx.save();
+      ctx.direction = "rtl";
+      ctx.textAlign = "left";
+      ctx.fillStyle = "#007c89";
+      ctx.font = `600 ${Math.round(fontSize * 0.48)}px "QuranUthmani", "Amiri", serif`;
+      ctx.fillText(`۞ ${arabicNumber(ayahs[index].ayah)} ۞`, markX, markY + markerSize * 0.7);
+      ctx.restore();
     }
     if (index < wrapped.length - 1) {
       y += gapBetweenAyahs;
