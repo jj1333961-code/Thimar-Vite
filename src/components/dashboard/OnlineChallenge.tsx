@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { fetchJuzs, type Ayah } from "../../lib/quran";
 import { surahs } from "../../data/surahs";
 import { getSupabase } from "../../lib/supabase";
+import { challengeRoom } from "../../lib/cloud";
 import { quickMatch, type QuickMatchHandle, type MatchResult } from "../../lib/matchmaking";
 import { EmptyState, SectionCard } from "./ui";
 import { addPoints } from "../../lib/appStore";
@@ -435,12 +436,9 @@ export default function OnlineChallenge({ account }: { account: { id: string; fu
     if (juzs.length > 7) { setError("حد أقصى ٧ أجزاء."); return; }
     setLoading(true); setError("");
     const newCode = makeCode();
-    const sb = getSupabase();
-    if (sb) {
-      try {
-        await sb.from("thimar_challenge_rooms").insert({ code: newCode, host_name: name, juzs, status: "waiting" });
-      } catch { /* ignore */ }
-    }
+    try {
+      await challengeRoom("create", { code: newCode, hostName: name, juzs });
+    } catch { /* الغرفة تعمل بالبث حتى لو تعذّر الحفظ */ }
     setRoomCode(newCode);
     setPlayers([{ name, score: 0, joinedAt: Date.now() }]);
     setPhase("lobby");
@@ -453,16 +451,11 @@ export default function OnlineChallenge({ account }: { account: { id: string; fu
   const joinRoom = async () => {
     if (!joinCode.trim()) { setError("أدخل رمز الغرفة."); return; }
     setLoading(true); setError("");
-    const sb = getSupabase();
     const code = joinCode.trim().toUpperCase();
-    if (sb) {
-      try {
-        const { data } = await sb.from("thimar_challenge_rooms").select("*").eq("code", code).single();
-        if (data) {
-          setJuzs(data.juzs ?? []);
-        }
-      } catch { /* ignore */ }
-    }
+    try {
+      const room = await challengeRoom("get", { code });
+      if (room?.juzs?.length) setJuzs(room.juzs as number[]);
+    } catch { /* ignore */ }
     setRoomCode(code);
     setPhase("lobby");
     setLoading(false);

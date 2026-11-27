@@ -71,17 +71,25 @@ export function accountTypeLabel(type: AccountType): string {
 }
 
 // Supabase integration
-import { cloud, pushAccount, removeAccountFromCloud, SUPABASE_URL, SUPABASE_ANON_KEY } from "./cloud";
+import {
+  accountFromRow,
+  changePasswordInCloud,
+  cloud,
+  hasCloudSession,
+  pullCloud,
+  pushAccount,
+  registerInCloud,
+  removeAccountFromCloud,
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
+} from "./cloud";
+import { ApiError } from "./api";
 import { authorizeDevice } from "./nativePush";
 import { revokeSession, saveSessionToken } from "./sessionStore";
 import { clearRememberedDevice, getRememberedAccountId, rememberThisDevice } from "./rememberedDevice.mjs";
 export { rememberThisDevice };
 import { hashPassword, newPasswordSalt, verifyPassword } from "./password";
-import {
-  changePasswordViaRpc,
-  loginViaRpc,
-  type RpcAccountRow,
-} from "./authRpc";
+import { loginViaRpc, type RpcAccountRow } from "./authRpc";
 
 /** عميل Supabase المشترك (رابط المشروع والمفتاح العام في lib/cloud.ts). */
 export const supabase = cloud;
@@ -114,41 +122,36 @@ export function loadAccounts(): Account[] {
 }
 
 export async function loadAccountsFromSupabase(): Promise<Account[]> {
-  if (!supabase) return loadAccounts();
-  try {
-    const { data, error } = await supabase.from("thimar_accounts").select("*");
-    if (error) throw error;
-    if (data && data.length > 0) {
-      const accounts = data.map((row: any) => ({
-        id: row.id,
-        type: row.type,
-        fullName: row.full_name,
-        username: row.username,
-        passwordHash: row.password_hash ?? undefined,
-        passwordSalt: row.password_salt ?? undefined,
-        countryCode: row.country_code,
-        phone: row.phone,
-        email: row.email,
-        createdAt: row.created_at,
-        status: row.status,
-        student: row.student,
-        teacher: row.teacher,
-        guardian: row.guardian,
-        rejectionReason: row.rejection_reason,
-        banned: row.banned,
-      }));
-      saveToLocalStorage(accounts);
-      return accounts;
-    }
-  } catch (e) {
-    console.warn("Supabase load failed, using localStorage:", e);
-  }
+  /* كل الحسابات تأتي من `pull` المحمي بالجلسة؛ لا قراءة مباشرة للجدول. */
+  if (hasCloudSession()) await pullCloud();
   return loadAccounts();
+}
+
+
+/** يُعلم مراقبة الأخطاء بالهوية الحالية بعد نجاح الدخول. */
+function announceSignedIn(account: Account): void {
+  try {
+    window.dispatchEvent(
+      new CustomEvent("thimar:signed-in", { detail: { accountId: account.id, role: account.type } }),
+    );
+  } catch {
+    /* ignore */
+  }
 }
 
 export function findAccountByUsername(username: string): Account | undefined {
   const accounts = loadAccounts();
   return accounts.find((a) => a.username.trim().toLowerCase() === username.trim().toLowerCase());
+}
+
+function registerErrorMessage(error: unknown): string {
+  const code = error instanceof ApiError ? error.code : "";
+  if (code === "USERNAME_TAKEN") return "اسم المستخدم مستخدم بالفعل.";
+  if (code === "WEAK_PASSWORD") return "كلمة المرور 8 أحرف على الأقل.";
+  if (code === "INVALID_TYPE") return "لا يمكن إنشاء حساب بهذا النوع.";
+  if (code === "FORBIDDEN") return "غير مسموح بإنشاء هذا الحساب.";
+  if (code === "NETWORK") return "تحتاج اتصالًا بالإنترنت لإنشاء الحساب.";
+  return "تعذّر إنشاء الحساب. تحقق من البيانات وحاول مرة أخرى.";
 }
 
 export async function createAccount(input: {
@@ -161,54 +164,54 @@ export async function createAccount(input: {
   email?: string;
   birthDate?: string | null;
 }): Promise<Account> {
-  const accounts = loadAccounts();
-  const id = `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const passwordSalt = newPasswordSalt();
-  const passwordHash = await hashPassword(input.password, passwordSalt);
-  const base: Account = {
-    id,
-    type: input.type,
-    fullName: input.fullName,
-    username: input.username,
-    passwordSalt,
-    passwordHash,
-    countryCode: input.countryCode ?? "SA",
-    phone: input.phone ?? "",
-    email: input.email ?? "",
-    createdAt: Date.now(),
-    status: "active",
-  };
-  if (input.type === "student") {
-    base.student = {
-      track: "quran",
-      tuhfaLastVerse: null,
-      surahs: [],
-      juz: [],
-      level: "A1",
-      needsTeacher: false,
-      teacherId: null,
-      birthDate: input.birthDate ?? null,
-    };
-  } else if (input.type === "teacher") {
-    base.teacher = {
-      juzMemorized: 0,
-      mujawwad: false,
-      qiraat: ["حفص"],
-      hasIjazah: false,
-      birthDate: input.birthDate ?? null,
-    };
-  } else if (input.type === "guardian") {
-    base.guardian = {
-      linkedStudent: "",
-      studentUsernames: [],
-      birthDate: input.birthDate ?? null,
-    };
+  /* الإنشاء يتم على الخادم: النوع المسموح والحالة الابتدائية يقرّرهما هو. */
+  let result: { account: any };
+  try {
+    result = await registerInCloud(
+      {
+        type: input.type,
+        fullName: input.fullName,
+        username: input.username,
+        password: input.password,
+        countryCode: input.countryCode,
+        phone: input.phone,
+        email: input.email,
+        student:
+          input.type === "student"
+            ? {
+                track: "quran",
+                tuhfaLastVerse: null,
+                surahs: [],
+                juz: [],
+                level: "A1",
+                needsTeacher: false,
+                teacherId: null,
+                birthDate: input.birthDate ?? null,
+              }
+            : undefined,
+        teacher:
+          input.type === "teacher"
+            ? {
+                juzMemorized: 0,
+                mujawwad: false,
+                qiraat: ["حفص"],
+                hasIjazah: false,
+                birthDate: input.birthDate ?? null,
+              }
+            : undefined,
+        guardian:
+          input.type === "guardian"
+            ? { linkedStudent: "", studentUsernames: [], birthDate: input.birthDate ?? null }
+            : undefined,
+      },
+      { adoptSession: false },
+    );
+  } catch (error) {
+    throw new Error(registerErrorMessage(error));
   }
-  accounts.push(base);
-  saveToLocalStorage(accounts);
-  // يُحفظ في طابور الرفع حتى يُضاف إلى قاعدة البيانات حتى بعد انقطاع الإنترنت.
-  void pushAccount(base);
-  return base;
+  const account = accountFromRow(result.account);
+  saveToLocalStorage([...loadAccounts().filter((item) => item.id !== account.id), account]);
+  return account;
 }
 
 export function updateAccount(id: string, patch: Partial<Account>): Account | null {
@@ -219,23 +222,8 @@ export function updateAccount(id: string, patch: Partial<Account>): Account | nu
   // بعد الترقية إلى البصمة لا تبقى كلمة المرور النصية على الجهاز.
   if (patch.passwordHash) delete accounts[idx].password;
   saveToLocalStorage(accounts);
-  if (supabase) {
-    const row: any = {};
-    if (patch.fullName !== undefined) row.full_name = patch.fullName;
-    if (patch.passwordHash !== undefined) row.password_hash = patch.passwordHash;
-    if (patch.passwordSalt !== undefined) row.password_salt = patch.passwordSalt;
-    if (patch.status !== undefined) row.status = patch.status;
-    if (patch.student !== undefined) row.student = patch.student;
-    if (patch.banned !== undefined) row.banned = patch.banned;
-    if (patch.teacher !== undefined) row.teacher = patch.teacher;
-    if (patch.guardian !== undefined) row.guardian = patch.guardian;
-    if (Object.keys(row).length > 0) {
-      supabase.from("thimar_accounts").update(row).eq("id", id).then(
-        () => {},
-        (e: unknown) => console.warn("Supabase update failed:", e),
-      );
-    }
-  }
+  /* الحفظ على الخادم: `account.update` لحسابي أو `admin.account.update` للمسؤول. */
+  void pushAccount(accounts[idx]);
   return accounts[idx];
 }
 
@@ -352,6 +340,12 @@ export async function login(username: string, password: string, remember = false
   }
   // إصدار رمز جلسة موقّع من الخادم (للمكالمات والعمليات المحمية).
   void issueSessionToken(username, password);
+  // بصمة محلية للسماح بالدخول دون إنترنت على هذا الجهاز.
+  const localSalt = newPasswordSalt();
+  const localHash = await hashPassword(password, localSalt);
+  updateAccount(account.id, { passwordHash: localHash, passwordSalt: localSalt });
+  void pullCloud();
+  announceSignedIn(account);
   return { status: "ok", account };
     }
   /* unavailable: الدالتان غير منشورتين — نكمل بالمسار المحلي (توافق). */
@@ -388,41 +382,46 @@ export async function login(username: string, password: string, remember = false
   }
   // إصدار رمز جلسة موقّع من الخادم.
   void issueSessionToken(username, password);
+  announceSignedIn(account);
   return { status: "ok", account };
 }
 
 export async function registerAccount(data: any): Promise<{ ok: true; account: Account } | { ok: false; message: string }> {
-  const accounts = loadAccounts();
-  if (accounts.find((a) => a.username === data.username)) {
+  const username = String(data.username ?? "").trim();
+  if (loadAccounts().some((a) => a.username.trim().toLowerCase() === username.toLowerCase())) {
     return { ok: false, message: "اسم المستخدم مستخدم بالفعل." };
   }
-  const passwordSalt = newPasswordSalt();
-  const passwordHash = await hashPassword(String(data.password ?? ""), passwordSalt);
-  const newAccount: Account = {
-    id: `acc-${Date.now()}`,
-    type: data.type,
-    fullName: data.fullName,
-    username: data.username,
-    passwordSalt,
-    passwordHash,
-    countryCode: data.countryCode,
-    phone: data.phone,
-    email: data.email,
-    createdAt: Date.now(),
-    status: data.type === "teacher" ? "pending" : "active",
-    student: data.student,
-    teacher: data.teacher,
-    guardian: data.guardian,
-  };
-  accounts.push(newAccount);
-  saveToLocalStorage(accounts);
-  // يُرفع فورًا عند توفر الإنترنت أو عند عودته.
-  void pushAccount(newAccount);
+  if (String(data.password ?? "").length < 8) {
+    return { ok: false, message: "كلمة المرور 8 أحرف على الأقل." };
+  }
+  let result: { account: any };
+  try {
+    result = await registerInCloud({
+      type: data.type,
+      fullName: data.fullName,
+      username,
+      password: data.password,
+      countryCode: data.countryCode,
+      phone: data.phone,
+      email: data.email,
+      student: data.student,
+      teacher: data.teacher,
+      guardian: data.guardian,
+    });
+  } catch (error) {
+    return { ok: false, message: registerErrorMessage(error) };
+  }
+  const account = accountFromRow(result.account);
+  const localSalt = newPasswordSalt();
+  account.passwordSalt = localSalt;
+  account.passwordHash = await hashPassword(String(data.password ?? ""), localSalt);
+  saveToLocalStorage([...loadAccounts().filter((item) => item.id !== account.id), account]);
   const nativeDeviceId = (window as any)?.ThimarNative?.deviceId?.();
   if (typeof nativeDeviceId === "string" && nativeDeviceId && data?.password) {
-    void authorizeDevice(newAccount.id, String(data.password));
+    void authorizeDevice(account.id, String(data.password));
   }
-  return { ok: true, account: newAccount };
+  void pullCloud();
+  return { ok: true, account };
 }
 
 export function restoreRememberedAccount(): Account | null {
@@ -570,34 +569,31 @@ export async function ensureHomeworkSeeds(): Promise<void> {}
 export async function ensureNotificationSeeds(): Promise<void> {}
 
 // Password change helper
-export async function changePassword(accountId: string, oldPassword: string, newPassword: string): Promise<{ ok: boolean; message: string }> {
-  const accounts = loadAccounts();
-  const account = accounts.find((a) => a.id === accountId);
-  if (!account) return { ok: false, message: "الحساب غير موجود." };
-  const valid = account.passwordHash && account.passwordSalt
-    ? await verifyPassword(oldPassword, account.passwordSalt, account.passwordHash)
-    : account.password === oldPassword;
-  if (!valid) return { ok: false, message: "كلمة المرور الحالية غير صحيحة." };
-  if (newPassword.length < 6) return { ok: false, message: "كلمة المرور الجديدة 6 أحرف على الأقل." };
+export async function changePassword(
+  accountId: string,
+  oldPassword: string,
+  newPassword: string,
+): Promise<{ ok: boolean; message: string }> {
+  if (!loadAccounts().some((a) => a.id === accountId)) {
+    return { ok: false, message: "الحساب غير موجود." };
+  }
+  if (newPassword.length < 8) {
+    return { ok: false, message: "كلمة المرور الجديدة 8 أحرف على الأقل." };
+  }
+  /* التحقق من كلمة المرور القديمة والتحديث يحدثان على الخادم فقط. */
+  const failure = await changePasswordInCloud(oldPassword, newPassword);
+  if (failure) return { ok: false, message: failure };
   const passwordSalt = newPasswordSalt();
   const passwordHash = await hashPassword(newPassword, passwordSalt);
-  // Atomic server-side password change: verifies the old password, updates the
-  // password, and revokes all device authorizations in one transaction.
-  const viaRpc = await changePasswordViaRpc(accountId, oldPassword, passwordHash, passwordSalt);
-  if (viaRpc === null) return { ok: false, message: "تعذّر تحديث كلمة المرور على الخادم. أعد المحاولة." };
-  if (viaRpc === false) return { ok: false, message: "تعذّر تحديث كلمة المرور على الخادم. أعد المحاولة." };
   updateAccount(accountId, { passwordHash, passwordSalt });
   const nativeDeviceId = (window as any)?.ThimarNative?.deviceId?.();
   if (typeof nativeDeviceId === "string" && nativeDeviceId) {
-    // Await device reauthorization and handle failure explicitly. The server has
-    // already revoked every previous device authorization, so a failure here means
-    // this device is no longer authorized until the user signs in again.
+    /* الخادم أبطل تفويض كل الأجهزة مع تغيير كلمة المرور؛ نُعيد تفويض هذا الجهاز. */
     const deviceSecret = await authorizeDevice(accountId, newPassword);
     if (!deviceSecret) {
       return {
         ok: true,
-        message:
-          "تم تغيير كلمة المرور بنجاح، لكن تعذّر إعادة تفويض هذا الجهاز. أعد تسجيل الدخول.",
+        message: "تم تغيير كلمة المرور بنجاح، لكن تعذّر إعادة تفويض هذا الجهاز. أعد تسجيل الدخول.",
       };
     }
   }

@@ -5,10 +5,10 @@
  * إرسال الإشعارات والرسائل والأذان والتذكير اليومي حتى لو كان التطبيق مغلقًا.
  */
 import { cloud, SUPABASE_ANON_KEY, SUPABASE_URL } from "./cloud";
+import { currentToken } from "./api";
 import { nativePushToken } from "./nativePush";
 import { fallbackCities } from "./islamic";
 
-const TABLE = "thimar_push_subscriptions";
 
 export type PushPrefs = {
   latitude?: number;
@@ -77,7 +77,7 @@ function pushSupported(): boolean {
 
 /** يسجّل الجهاز لدى خدمة الدفع ويرفع الاشتراك إلى السحابة. */
 export async function subscribeToPush(
-  accountId: string,
+  _accountId: string,
   prefs: PushPrefs = pushPrefsFromDevice(),
 ): Promise<boolean> {
   if (!pushSupported() || Notification.permission !== "granted") return false;
@@ -99,22 +99,20 @@ export async function subscribeToPush(
     const keys = json.keys as { p256dh?: string; auth?: string } | undefined;
     if (!keys?.p256dh || !keys?.auth) return false;
 
-    const { error } = await cloud.from(TABLE).upsert(
-      {
-        account_id: accountId,
+    const { error } = await cloud.rpc("thimar_push_register", {
+      p_token: currentToken(),
+      p_data: {
         endpoint: subscription.endpoint,
         p256dh: keys.p256dh,
         auth: keys.auth,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
         latitude: prefs.latitude ?? null,
         longitude: prefs.longitude ?? null,
-        prayer_method: prefs.method,
-        adhan_enabled: prefs.adhan,
-        daily_enabled: prefs.daily,
-        updated_at: Date.now(),
+        prayerMethod: prefs.method,
+        adhan: prefs.adhan,
+        daily: prefs.daily,
       },
-      { onConflict: "endpoint" },
-    );
+    });
     if (error) throw error;
     return true;
   } catch (error) {

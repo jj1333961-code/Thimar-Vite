@@ -4,9 +4,13 @@ import {
   deleteConversationFromCloud,
   deleteMessagesFromCloud,
   deleteNotificationsFromCloud,
+  gradeSubmissionInCloud,
+  notifyAdminsInCloud,
   pushChats,
+  pushHomework,
   pushLinkRequests,
   pushNotifications,
+  pushSubmissions,
 } from "./cloud";
 import { notifyAccounts } from "./push";
 export type Theme = "light" | "dark" | "sepia" | "auto";
@@ -454,10 +458,6 @@ function saveNotifications(notifications: AppNotification[]) {
  */
 export function notifyAdminsOfTeacherApplication(account: Account): void {
   if (account.type !== "teacher") return;
-  const admins = loadAccounts().filter(
-    (item) => item.type === "admin" && item.status === "active",
-  );
-  if (!admins.length) return;
 
   // منع تكرار الإشعار إذا أعاد المستخدم المحاولة أو أُعيد تحميل الصفحة.
   const marker = `thimar.teacherApplicationNotified.${account.id}`;
@@ -470,13 +470,29 @@ export function notifyAdminsOfTeacherApplication(account: Account): void {
 
   const title = "طلب اعتماد معلم جديد";
   const body = `${account.fullName} (@${account.username}) — ${account.countryCode} ${account.phone} — ${account.email}`;
-  addNotification({
-    recipientId: "admins",
-    kind: "teacher",
+
+  /* الإشعار الحقيقي يُكتب على الخادم لكل مسؤول نشط، حتى لو لم يكن مسؤولي
+     هذا الجهاز ضمن قائمة الحسابات المحلية. */
+  void notifyAdminsInCloud({
     title,
     body: `${body}. راجع البيانات كاملة واعتمد الحساب أو ارفضه.`,
+    kind: "teacher",
     target: "settings",
   });
+
+  const admins = loadAccounts().filter(
+    (item) => item.type === "admin" && item.status === "active",
+  );
+  if (!admins.length) return;
+  for (const admin of admins) {
+    addNotification({
+      recipientId: admin.id,
+      kind: "teacher",
+      title,
+      body: `${body}. راجع البيانات كاملة واعتمد الحساب أو ارفضه.`,
+      target: "settings",
+    });
+  }
   void notifyAccounts(admins.map((admin) => admin.id), {
     title,
     body: `${account.fullName} (@${account.username}) قدّم طلب اعتماد. راجع طلبات المعلمين.`,
@@ -681,10 +697,13 @@ export function loadSubmissions(): Submission[] {
 
 function saveHomework(items: Homework[]) {
   localStorage.setItem(HW_KEY, JSON.stringify(items));
+  /* الواجبات تُزامن إلى الخادم حتى يراها الطالب على أي جهاز. */
+  void pushHomework(items);
 }
 
 function saveSubmissions(items: Submission[]) {
   localStorage.setItem(SUB_KEY, JSON.stringify(items));
+  void pushSubmissions(items);
 }
 
 export function addHomework(input: Omit<Homework, "id" | "createdAt">): Homework {
@@ -769,6 +788,7 @@ export function addSubmission(
     createdAt: Date.now(),
   };
   saveSubmissions([...loadSubmissions(), submission]);
+  void pushSubmissions([submission]);
   addNotification({
     recipientId: input.teacherId,
     kind: "homework",
@@ -797,6 +817,8 @@ export function evaluateSubmission(
       : submission,
   );
   saveSubmissions(updated);
+  /* التصحيح يُحفظ على الخادم أولًا فلا يُستبدل بتسليم غير مصحح. */
+  void gradeSubmissionInCloud(submissionId, score, feedback);
   if (target) {
     addNotification({
       recipientId: target.studentId,

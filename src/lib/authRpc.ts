@@ -1,24 +1,13 @@
-import { cloud } from "./cloud";
+import { ApiError, apiCall } from "./api";
+import { loginInCloud } from "./cloud";
 
 /**
- * حدود المصادقة على الخادم (prepared, non-default).
+ * حدود المصادقة على الخادم.
  *
- * المصادقة الحالية تُتمّ في المتصفح: تُقرأ بصمة كلمة المرور والملح من الجدول ثم تُقارن
- * محليًا. هذا هو سبب انكشاف البصمات. الدالتان هنا تنقلان التحقق إلى Postgres عبر RPC
- * (انظر artifacts/AUTH-BOUNDARY.sql)، فلا تعود البصمة ولا الملح تخرج من قاعدة البيانات.
- *
- * التفعيل مقصود أن يكون اختياريًا: ما لم يُضبط المفتاح أدناه إلى "1" يبقى المسار القديم
- * كما هو تمامًا، حتى لا ينقطع دخول أي مستخدم قبل نشر الدالتين في القاعدة.
+ * التحقق من كلمة المرور يحدث داخل Postgres (`thimar_api` → `login`)، فلا تخرج
+ * البصمة ولا الملح من قاعدة البيانات إلى المتصفح. تُحفظ محليًا بصمة مشتقة
+ * (scrypt) للسماح بالدخول دون إنترنت على الجهاز نفسه فقط.
  */
-export const AUTH_RPC_FLAG = "thimar.auth.rpc";
-
-export function rpcAuthEnabled(): boolean {
-  try {
-    return localStorage.getItem(AUTH_RPC_FLAG) === "1";
-  } catch {
-    return false;
-  }
-}
 
 export type RpcAccountRow = {
   id: string;
@@ -43,70 +32,62 @@ export type RpcLoginResult =
 const RATE_LIMITED_MESSAGE = "محاولات كثيرة. انتظر ربع ساعة ثم أعد المحاولة.";
 const GENERIC_ERROR = "اسم المستخدم أو كلمة المرور غير صحيحة.";
 
-/** 404/42883 = الدالة غير منشورة بعد؛ نعود للمسار المحلي بدل تعطيل الدخول. */
-function isMissingFunction(error: { code?: string; message?: string } | null): boolean {
-  if (!error) return false;
-  const code = String(error.code ?? "");
-  const message = String(error.message ?? "");
-  return (
-    code === "42883" ||
-    code === "PGRST202" ||
-    message.includes("Could not find the function") ||
-    message.includes("does not exist")
-  );
+function codeOf(error: unknown): string {
+  return error instanceof ApiError ? error.code : "ERROR";
+}
+
+/** NETWORK = الخادم غير متاح؛ نعود للمسار المحلي بدل تعطيل الدخول. */
+function isUnavailable(error: unknown): boolean {
+  return ["NETWORK", "HTTP_502", "HTTP_503", "HTTP_504", "PGRST202"].includes(codeOf(error));
 }
 
 export async function loginViaRpc(username: string, password: string): Promise<RpcLoginResult> {
+  const nativeDeviceId = (globalThis as any)?.ThimarNative?.deviceId?.();
   try {
-    const { data, error } = await cloud.rpc("thimar_login", {
-      p_username: username,
-      p_password: password,
-    });
-    if (error) {
-      if (isMissingFunction(error)) return { status: "unavailable" };
-      if (String(error.message ?? "").includes("RATE_LIMITED")) {
-        return { status: "error", message: RATE_LIMITED_MESSAGE };
-      }
+    const result = await loginInCloud(
+      username,
+      password,
+      typeof nativeDeviceId === "string" ? nativeDeviceId : undefined,
+    );
+    const row = result.account as Record<string, any>;
+    if (!row?.id || !row?.username) return { status: "error", message: GENERIC_ERROR };
+    return {
+      status: "ok",
+      account: {
+        id: row.id,
+        type: row.type,
+        username: row.username,
+        fullName: row.full_name ?? row.username,
+        countryCode: row.country_code ?? "SA",
+        phone: row.phone ?? "",
+        email: row.email ?? "",
+        status: row.status ?? "active",
+        banned: Boolean(row.banned),
+        student: row.student ?? undefined,
+        teacher: row.teacher ?? undefined,
+        guardian: row.guardian ?? undefined,
+      },
+    };
+  } catch (error) {
+    if (isUnavailable(error)) return { status: "unavailable" };
+    const code = codeOf(error);
+    if (code === "TOO_MANY_ATTEMPTS") return { status: "error", message: RATE_LIMITED_MESSAGE };
+    if (code === "ACCOUNT_BANNED") return { status: "error", message: "تم حظر حسابك من قبل المسؤول." };
+    if (code === "ACCOUNT_NOT_ACTIVE") return { status: "error", message: "حسابك غير مفعّل بعد." };
+    if (code === "INVALID_CREDENTIALS" || code === "MISSING_CREDENTIALS") {
       return { status: "error", message: GENERIC_ERROR };
     }
-    if (!data) return { status: "error", message: GENERIC_ERROR };
-    const row = data as RpcAccountRow & { error?: string };
-    if (row.error === "ACCOUNT_BANNED") {
-      return { status: "error", message: "تم حظر حسابك من قبل المسؤول." };
-    }
-    if (row.error === "ACCOUNT_INACTIVE") {
-      return { status: "error", message: "حسابك غير مفعّل بعد." };
-    }
-    if (!row.id || !row.username) return { status: "error", message: GENERIC_ERROR };
-    return { status: "ok", account: row };
-  } catch {
-    return { status: "unavailable" };
+    return { status: "error", message: GENERIC_ERROR };
   }
 }
 
-/**
- * تغيير كلمة المرور: تُرسل البصمة الجديدة المحسوبة محليًا مع كلمة المرور القديمة
- * (لإثبات الملكية). تعيد null إذا كانت الدالة غير منشورة، حتى يبقى المسار القديم ممكنًا.
- */
-export async function changePasswordViaRpc(
-  accountId: string,
-  oldPassword: string,
-  newHash: string,
-  newSalt: string,
-): Promise<boolean | null> {
+/** رمز عملية تغيير كلمة المرور (يُترجم في auth.ts إلى رسالة عربية). */
+export async function changePasswordViaRpc(oldPassword: string, newPassword: string): Promise<string | null> {
   try {
-    const { data, error } = await cloud.rpc("thimar_change_password", {
-      p_account_id: accountId,
-      p_old_password: oldPassword,
-      p_new_hash: newHash,
-      p_new_salt: newSalt,
-    });
-    if (error) {
-      if (isMissingFunction(error)) return null;
-      return false;
-    }
-    return data === true;
-  } catch {
+    await apiCall("password.change", { oldPassword, newPassword });
     return null;
+  } catch (error) {
+    if (isUnavailable(error)) return "NETWORK";
+    return codeOf(error);
   }
 }

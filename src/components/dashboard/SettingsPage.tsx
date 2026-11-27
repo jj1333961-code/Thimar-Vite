@@ -50,6 +50,7 @@ import {
   type AiConfig,
 } from "../../lib/ai";
 import { Icon, EmptyState, SectionCard } from "./ui";
+import SecurityPanel from "./SecurityPanel";
 import type { TilawaReadinessState } from "../../lib/tilawaRecitation";
 import { detectPlatform, installedResourceVersion, ANDROID_UPDATE_METADATA_URL, IOS_UPDATE_METADATA_URL } from "../UpdatePrompt";
 import { getInstalledVersionCode } from "../../lib/nativePush";
@@ -860,6 +861,7 @@ export default function SettingsPage({
           ...(detectPlatform() !== "web" ? [{ id: "updates", label: settings.language === "en" ? "Updates" : "التحديثات" }] : []),
           ...(account.type === "admin" ? [{ id: "approvals", label: "الاعتماد والشكاوى" }] : []),
           { id: "users", label: "المستخدمين" },
+          { id: "security", label: "الأمان والجلسات" },
           { id: "password", label: "تغير الرقم السري" },
         ].map((g) => (
           <button
@@ -1813,6 +1815,8 @@ export default function SettingsPage({
           )}
         </>
       ) : null}
+
+      {activeGroup === "security" && <SecurityPanel account={account} />}
 
       {activeGroup === "password" && (
       <>

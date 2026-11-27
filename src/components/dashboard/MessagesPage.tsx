@@ -24,6 +24,7 @@ import {
   type Conversation,
 } from "../../lib/appStore";
 import { uploadChatMedia, pullCloud } from "../../lib/cloud";
+import { useMediaSrc } from "../../lib/mediaRef";
 import { setActiveConversation } from "../../lib/nativePush";
 import { aiChat, buildCompanionMessages, offlineCompanionReply } from "../../lib/ai";
 import { callServer, type CallMode } from "../../lib/call";
@@ -239,6 +240,7 @@ export default function MessagesPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, selected?.messages.length, account.id]);
 
+  const mediaSrc = useMediaSrc();
   const nameOf = (id: string) => accounts.find((item) => item.id === id)?.fullName ?? "مستخدم";
 
   const conversationTitle = (conversation: Conversation) => {
@@ -262,7 +264,7 @@ export default function MessagesPage({
     const recording = lastRecording;
     setLastRecording(null);
     setUploading(true);
-    const url = await uploadChatMedia(recording.dataUrl, `voice-${Date.now()}.webm`);
+    const url = await uploadChatMedia(recording.dataUrl, `voice-${Date.now()}.webm`, conversationId);
     setUploading(false);
     sendChatMessage(conversationId, {
       senderId: account.id,
@@ -283,7 +285,7 @@ export default function MessagesPage({
       const dataUrl = typeof reader.result === "string" ? reader.result : "";
       if (!dataUrl) return;
       setUploading(true);
-      const url = await uploadChatMedia(dataUrl, file.name);
+      const url = await uploadChatMedia(dataUrl, file.name, conversationId);
       setUploading(false);
       sendChatMessage(conversationId, {
         senderId: account.id,
@@ -683,10 +685,10 @@ export default function MessagesPage({
                     {message.kind === "audio" ? (
                       <div className="audio-message">
                         <Icon name="mic" size={16} />
-                        {message.audioUrl ? <audio controls src={message.audioUrl} preload="none" /> : null}
+                        {mediaSrc(message.audioUrl) ? <audio controls src={mediaSrc(message.audioUrl)} preload="none" /> : null}
                         {message.duration ? <span>{message.duration}ث</span> : null}
                         {message.audioUrl ? (
-                          <a className="media-link" href={message.audioUrl} download={`رسالة-صوتية-${message.id}.webm`}>
+                          <a className="media-link" href={mediaSrc(message.audioUrl)} download={`رسالة-صوتية-${message.id}.webm`}>
                             تحميل
                           </a>
                         ) : null}
@@ -694,9 +696,9 @@ export default function MessagesPage({
                     ) : null}
                     {message.kind === "file" ? (
                       <div className="file-message">
-                        {message.audioUrl && /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(message.fileName ?? "") ? (
-                          <a className="file-message-thumb" href={message.audioUrl} target="_blank" rel="noreferrer">
-                            <img src={message.audioUrl} alt={message.fileName ?? "ملف"} />
+                        {(message.audioUrl && mediaSrc(message.audioUrl)) && /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(message.fileName ?? "") ? (
+                          <a className="file-message-thumb" href={mediaSrc(message.audioUrl)} target="_blank" rel="noreferrer">
+                            <img src={mediaSrc(message.audioUrl)} alt={message.fileName ?? "ملف"} />
                           </a>
                         ) : (
                           <Icon name="file" size={16} />
@@ -705,11 +707,11 @@ export default function MessagesPage({
                         {message.audioUrl ? (
                           <>
                             {/\.(png|jpe?g|gif|webp|bmp|svg|pdf|txt)$/i.test(message.fileName ?? "") ? (
-                              <a className="media-link" href={message.audioUrl} target="_blank" rel="noreferrer">
+                              <a className="media-link" href={mediaSrc(message.audioUrl)} target="_blank" rel="noreferrer">
                                 عرض
                               </a>
                             ) : null}
-                            <a className="media-link" href={message.audioUrl} download={message.fileName}>
+                            <a className="media-link" href={mediaSrc(message.audioUrl)} download={message.fileName}>
                               تحميل
                             </a>
                           </>

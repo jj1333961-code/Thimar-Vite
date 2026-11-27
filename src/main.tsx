@@ -4,10 +4,18 @@ import App from "./App";
 import { TranslationLayer } from "./lib/autoTranslate";
 import { enableBackgroundNotifications } from "./lib/notify";
 import { pullCloud } from "./lib/cloud";
+import { installErrorMonitoring, setErrorContext } from "./lib/monitoring";
 import "./styles.css";
 import "./styles-v2.css";
 import "./styles-v3.css";
 import "./thimar-redesign.css";
+
+/* مراقبة أخطاء الإنتاج: مستمعات عامة + سياق الحساب عند الدخول. */
+installErrorMonitoring();
+window.addEventListener("thimar:signed-in", ((event: Event) => {
+  const detail = (event as CustomEvent<{ accountId?: string; role?: string }>).detail;
+  if (detail) setErrorContext({ accountId: detail.accountId, role: detail.role });
+}) as EventListener);
 
 // يجعل التطبيق قابلًا للتثبيت ويعمل واجهته دون اتصال في النسخة المنشورة.
 if (import.meta.env.PROD && "serviceWorker" in navigator) {

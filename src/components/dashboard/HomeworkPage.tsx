@@ -16,6 +16,7 @@ import {
 } from "../../lib/appStore";
 import { fetchSurah, type Ayah } from "../../lib/quran";
 import { useRecorder } from "../../lib/recorder";
+import { useMediaSrc } from "../../lib/mediaRef";
 import { celebrate } from "../../lib/celebrate";
 import { Icon, EmptyState, Stars, SectionCard } from "./ui";
 const TasmeeReader = lazy(() => import("./TasmeeReader"));
@@ -131,6 +132,7 @@ export default function HomeworkPage({ account }: { account: Account }) {
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [submissionNote, setSubmissionNote] = useState("");
   const [submissionFile, setSubmissionFile] = useState<string | null>(null);
+  const mediaSrc = useMediaSrc();
   const [recordingResult, setRecordingResult] = useState<{ dataUrl: string; duration: number } | null>(null);
   const [inApp, setInApp] = useState<{ homework: Homework; list: HomeworkSegment[]; index: number } | null>(null);
   const [readingTask, setReadingTask] = useState<Homework | null>(null);
@@ -714,7 +716,7 @@ export default function HomeworkPage({ account }: { account: Account }) {
                                   ? <p className="muted">{task.segments.map((segment) => `${segment.label}: ${rangeLabel(segment)}`).join(" • ")}</p>
                                   : null}
                                 {submission.note ? <p className="homework-notes">{submission.note}</p> : null}
-                                {submission.audioUrl ? <audio controls src={submission.audioUrl} style={{ width: "100%", marginTop: 6 }} /> : null}
+                                {mediaSrc(submission.audioUrl) ? <audio controls src={mediaSrc(submission.audioUrl)} style={{ width: "100%", marginTop: 6 }} /> : null}
                                 {submission.feedback ? <p className="muted">ملاحظة المعلم: {submission.feedback}</p> : null}
                                 <div className="form-actions" style={{ marginTop: 8 }}>
                                   <button type="button" className="ghost-button" onClick={() => openReview(submission)}>
@@ -765,7 +767,7 @@ export default function HomeworkPage({ account }: { account: Account }) {
           <div className="modal-backdrop" onClick={() => setReviewing(null)}>
             <div className="modal" onClick={(event) => event.stopPropagation()}>
               <h3>تقييم التسجيل</h3>
-              {reviewing.audioUrl ? <audio controls src={reviewing.audioUrl} style={{ width: "100%" }} /> : null}
+              {mediaSrc(reviewing.audioUrl) ? <audio controls src={mediaSrc(reviewing.audioUrl)} style={{ width: "100%" }} /> : null}
               {reviewing.note ? <p className="muted">{reviewing.note}</p> : null}
               <label>
                 <span>التقييم (1–5)</span>
@@ -958,7 +960,7 @@ export default function HomeworkPage({ account }: { account: Account }) {
                                     <strong>{new Date(submission.createdAt).toLocaleString("ar-SA")} • {METHOD_LABELS[submission.kind]}</strong>
                                     {submission.note ? <p>{submission.note}</p> : null}
                                     {submission.feedback ? <p className="muted">تقييم المعلم: {submission.feedback}</p> : null}
-                                    {submission.audioUrl ? <audio controls src={submission.audioUrl} /> : null}
+                                    {mediaSrc(submission.audioUrl) ? <audio controls src={mediaSrc(submission.audioUrl)} /> : null}
                                   </div>
                                   <span className={`badge ${submission.score === undefined ? "badge-warning" : "badge-success"}`}>
                                     {submission.score === undefined ? "بانتظار التقييم" : `${submission.score}/5`}
@@ -995,7 +997,7 @@ export default function HomeworkPage({ account }: { account: Account }) {
                           </span>
                         </div>
                         {submission.note ? <p className="homework-notes">{submission.note}</p> : null}
-                        {submission.audioUrl ? <audio controls src={submission.audioUrl} style={{ width: "100%", marginTop: 6 }} /> : null}
+                        {mediaSrc(submission.audioUrl) ? <audio controls src={mediaSrc(submission.audioUrl)} style={{ width: "100%", marginTop: 6 }} /> : null}
                       </div>
                     );
                   })}

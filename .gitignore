@@ -54,3 +54,8 @@ ios/App/build/
 # نظام التشغيل والمحرر
 .DS_Store
 Thumbs.db
+.verify/asset-upload-token.txt
+
+# أدوات التحقق المحلية (سجلات ولقطات ومفاتيح رفع)
+.verify/
+deploy-dist/
