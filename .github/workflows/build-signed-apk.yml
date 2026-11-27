@@ -14,13 +14,41 @@ jobs:
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
       - uses: actions/checkout@v4
+
+      # فشل سريع وواضح: أسماء الأسرار الناقصة فقط، بلا أي قيمة.
+      - name: Check signing secrets
+        env:
+          THIMAR_KEYSTORE_BASE64: ${{ secrets.THIMAR_KEYSTORE_BASE64 }}
+          THIMAR_KEYSTORE_PASSWORD: ${{ secrets.THIMAR_KEYSTORE_PASSWORD }}
+          THIMAR_KEY_ALIAS: ${{ secrets.THIMAR_KEY_ALIAS }}
+          THIMAR_KEY_PASSWORD: ${{ secrets.THIMAR_KEY_PASSWORD }}
+        run: |
+          missing=()
+          [ -n "$THIMAR_KEYSTORE_BASE64" ] || missing+=("THIMAR_KEYSTORE_BASE64")
+          [ -n "$THIMAR_KEYSTORE_PASSWORD" ] || missing+=("THIMAR_KEYSTORE_PASSWORD")
+          [ -n "$THIMAR_KEY_ALIAS" ] || missing+=("THIMAR_KEY_ALIAS")
+          [ -n "$THIMAR_KEY_PASSWORD" ] || missing+=("THIMAR_KEY_PASSWORD")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing repository secrets: ${missing[*]}"
+            echo "أضفها من Settings → Secrets and variables → Actions ثم أعد التشغيل." >&2
+            exit 1
+          fi
+          echo "كل أسرار التوقيع موجودة."
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4.0.4
+        with:
+          packages: platform-tools platforms;android-34 build-tools;34.0.0
+
       - name: Install web dependencies
         run: npm ci
       - name: Build web application
@@ -29,25 +57,36 @@ jobs:
         run: bash scripts/fetch-offline-assets.sh
       - name: Bundle assets
         run: bash scripts/bundle-android-assets.sh
+
       - name: Decode keystore
         env:
           THIMAR_KEYSTORE_BASE64: ${{ secrets.THIMAR_KEYSTORE_BASE64 }}
         run: |
-          if [ -z "$THIMAR_KEYSTORE_BASE64" ]; then
-            echo "THIMAR_KEYSTORE_BASE64 is not set" >&2
-            exit 1
-          fi
           echo "$THIMAR_KEYSTORE_BASE64" | base64 --decode > /tmp/thimar-release.jks
+          echo "THIMAR_KEYSTORE=/tmp/thimar-release.jks" >> "$GITHUB_ENV"
+          echo "keystore size: $(wc -c < /tmp/thimar-release.jks) bytes"
+
       - name: Build release APK
         working-directory: packaging/android
         env:
-          THIMAR_KEYSTORE: /tmp/thimar-release.jks
           THIMAR_KEYSTORE_PASSWORD: ${{ secrets.THIMAR_KEYSTORE_PASSWORD }}
           THIMAR_KEY_ALIAS: ${{ secrets.THIMAR_KEY_ALIAS }}
           THIMAR_KEY_PASSWORD: ${{ secrets.THIMAR_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
           ./gradlew :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Verify signature and metadata
+        working-directory: packaging/android
+        run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          test -f "$APK"
+          aapt2 dump badging "$APK" | grep -q "package: name='app.thimar.quran'" || {
+            echo "::error::Package id mismatch"; exit 1; }
+          apksigner verify --print-certs "$APK"
+          sha256sum "$APK" | tee "$GITHUB_STEP_SUMMARY"
+          grep -E "versionCode|versionName" app/build.gradle | head -2 >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
