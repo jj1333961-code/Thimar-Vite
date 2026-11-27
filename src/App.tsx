@@ -7,7 +7,8 @@ import { PendingScreen } from "./components/Portal";
 import RegisterPage from "./components/RegisterPage";
 import InternetStatusIndicator from "./components/InternetStatusIndicator";
 import { restoreRememberedAccount, signOut, type Account } from "./lib/auth";
-import { loadSessionToken } from "./lib/sessionStore";
+import { loadSessionToken, startSessionKeepAlive } from "./lib/sessionStore";
+import { preloadMushaf } from "./lib/mushafPreload";
 import { celebrate, celebrateOnce } from "./lib/celebrate";
 import { pullCloud, startCloudSync } from "./lib/cloud";
 import { requestAppPermissions } from "./lib/notify";
@@ -37,6 +38,15 @@ export default function App() {
 
   /* تحميل رمز الجلسة من المخزن الآمن قبل أي مكالمة أو إشارة. */
   loadSessionToken();
+
+  /* إبقاء الجلسة حيّة: تجديد دوري قبل الانتهاء وعند العودة للتطبيق،
+     فلا تظهر رسالة "انتهت صلاحية الجلسة" أثناء المكالمات. */
+  useEffect(() => startSessionKeepAlive(), []);
+
+  /* تحميل المصحف مسبقًا في وقت الخمول ليفتح جاهزًا بلا شاشة انتظار. */
+  useEffect(() => {
+    preloadMushaf();
+  }, []);
 
   function handleLogout() {
     signOut();

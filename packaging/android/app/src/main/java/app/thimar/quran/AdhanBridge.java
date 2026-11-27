@@ -46,6 +46,12 @@ public class AdhanBridge {
       String defaultUrl = obj.optString("defaultUrl", "");
       float volume = (float) obj.optDouble("volume", 0.9);
       AdhanScheduler.saveSettings(context, master, screen, fajr, dhuhr, asr, maghrib, isha, defaultUrl, volume);
+      /* خيارات شاشة الأذان: كتم بزر الصوت، والمدينة واللغة والسمة. */
+      AdhanScheduler.savePresentation(context,
+          obj.optBoolean("volumeKeyMute", true),
+          obj.optString("city", ""),
+          obj.optString("lang", "ar"),
+          obj.optString("theme", ""));
       if (obj.has("urls")) {
         AdhanScheduler.saveUrls(context, obj.getJSONObject("urls"));
       }
@@ -90,6 +96,8 @@ public class AdhanBridge {
           AdhanScheduler.prefs(context).getString(AdhanScheduler.KEY_SCHEDULED, "{}")));
       json.put("lastPlayed", AdhanScheduler.prefs(context).getString(AdhanScheduler.KEY_LAST_PLAYED, ""));
       json.put("volume", AdhanScheduler.prefs(context).getFloat(AdhanScheduler.KEY_VOLUME, 0.9f));
+      json.put("volumeKeyMute",
+          AdhanScheduler.prefs(context).getBoolean(AdhanScheduler.KEY_VOLUME_KEY_MUTE, true));
       json.put("assetsBytes", AdhanAssets.totalBytes(context));
       json.put("android", Build.VERSION.SDK_INT);
     } catch (Exception e) {

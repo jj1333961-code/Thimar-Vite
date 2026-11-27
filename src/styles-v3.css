@@ -621,7 +621,8 @@ button, input, select, textarea {
   transition: background .15s ease;
 }
 .adhkar-card.done { background: color-mix(in srgb, var(--success) 10%, var(--bg-2)); }
-.adhkar-card p { margin: 0; line-height: 1.9; font-family: "Amiri", serif; font-size: calc(16px * var(--app-font-scale, 1)); }
+.adhkar-card p { margin: 0; line-height: 1.9; font-family: "Amiri", serif; font-size: calc(16px * var(--app-font-scale, 1)); white-space: pre-line; }
+.adhkar-more { margin: 12px auto 4px; display: block; }
 .adhkar-foot { display: flex; align-items: center; justify-content: space-between; font-size: calc(11px * var(--app-font-scale, 1)); color: var(--muted); }
 .counter { font-weight: 800; color: var(--primary); }
 
@@ -1085,6 +1086,12 @@ button, input, select, textarea {
   position: relative;
 }
 .notification-card.unread { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 6%, var(--card)); }
+.notification-delete {
+  flex-shrink: 0; width: 30px; height: 30px; padding: 0; border-radius: 9px;
+  border: 1px solid var(--border); background: transparent; color: var(--danger, #b91c1c);
+  display: grid; place-items: center; cursor: pointer;
+}
+.notification-delete:active { transform: scale(0.94); }
 .notification-icon {
   width: 36px;
   height: 36px;
@@ -1740,7 +1747,7 @@ button, input, select, textarea {
 .accordion-head-row .accordion-head { flex: 1; }
 .accordion-head-actions { display: flex; gap: 6px; }
 .verse-row.selected { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 7%, var(--card)); }
-.verse-row.active { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); }
+.verse-row.active { outline: none; background: color-mix(in srgb, var(--primary) 9%, var(--card)); }
 .verse-select {
   width: 34px;
   height: 34px;
@@ -2231,7 +2238,7 @@ button, input, select, textarea {
   transition: background .15s ease, color .15s ease;
 }
 .mushaf-ayah:hover { background: color-mix(in srgb, var(--primary) 8%, transparent); }
-.mushaf-ayah.active { background: color-mix(in srgb, var(--accent) 28%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); }
+.mushaf-ayah.active { background: color-mix(in srgb, var(--primary) 16%, transparent); box-shadow: none; }
 .mushaf-ayah.selected { background: color-mix(in srgb, var(--accent) 16%, transparent); }
 .mushaf-ayah-number {
   display: inline-grid;
@@ -3993,17 +4000,30 @@ html, body { max-width: 100%; overflow-x: hidden; }
   background: var(--bg-2, #fff); color: inherit; font-size: 14px;
 }
 .tasbih-composer input[aria-label="عدد التكرار"] { flex: 0 0 82px; }
+.tasbih-current {
+  width: 100%; max-width: 560px; margin: 0 auto; padding: 10px 16px;
+  border: 1px solid color-mix(in srgb, var(--primary, #0f5f4e) 16%, var(--border, #e5e7eb));
+  border-radius: 16px; background: color-mix(in srgb, var(--primary, #0f5f4e) 5%, var(--card, #fff));
+  display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center;
+}
+.tasbih-current-label { font-size: 11px; letter-spacing: 0.04em; color: var(--muted); font-weight: 700; }
+.tasbih-current p {
+  margin: 0; font-family: "Amiri", serif; font-size: clamp(18px, 4.6vw, 24px);
+  line-height: 1.55; color: var(--primary, #0f5f4e); font-weight: 700;
+}
 .tasbih-stage {
   position: relative; display: flex; align-items: center; justify-content: center;
-  min-height: 320px; padding: 10px 0;
+  width: 100%; min-height: 340px; padding: 10px 0;
 }
 .tasbih-touch {
-  position: relative; width: 272px; height: 272px; border: 0; background: transparent; padding: 0;
+  position: relative; width: 100%; max-width: 560px; min-height: 320px; border: 0;
+  background: transparent; padding: 0;
   display: flex; align-items: center; justify-content: center; cursor: pointer;
-  -webkit-tap-highlight-color: transparent; outline: none; border-radius: 50%;
+  -webkit-tap-highlight-color: transparent; outline: none; border-radius: 24px;
   color: inherit;
 }
 .tasbih-touch:active, .tasbih-touch:focus, .tasbih-touch:focus-visible { outline: none; box-shadow: none; background: transparent; }
+.tasbih-dial { position: relative; width: 272px; height: 272px; display: flex; align-items: center; justify-content: center; }
 .tasbih-ring {
   position: absolute; inset: 0; border-radius: 50%;
   background: conic-gradient(var(--primary, #0f5f4e) var(--progress, 0deg), color-mix(in srgb, var(--primary, #0f5f4e) 12%, transparent) 0deg);
@@ -4016,7 +4036,6 @@ html, body { max-width: 100%; overflow-x: hidden; }
   width: 196px; height: 196px; border-radius: 50%; justify-content: center;
   background: var(--card, #fff); box-shadow: 0 10px 24px rgba(0,0,0,0.08);
 }
-.tasbih-text { font-family: "Amiri", serif; font-size: 16px; text-align: center; padding: 0 10px; line-height: 1.5; }
 .tasbih-count { font-size: 40px; line-height: 1.05; color: var(--primary, #0f5f4e); }
 .tasbih-target { font-size: 11px; color: var(--muted); }
 .beads-ring { position: absolute; inset: -6px; animation: tasbih-spin 26s linear infinite; }
@@ -4026,17 +4045,37 @@ html, body { max-width: 100%; overflow-x: hidden; }
   transform: rotate(var(--angle)) translate(148px);
 }
 .beads-ring .bead.lit { background: var(--primary, #0f5f4e); box-shadow: 0 0 8px color-mix(in srgb, var(--primary, #0f5f4e) 55%, transparent); }
-.beads-strand { position: absolute; inset: 4px; display: flex; flex-wrap: wrap; gap: 7px; align-content: center; justify-content: center; padding: 18px; }
-.beads-strand .bead { width: 12px; height: 12px; border-radius: 50%; background: color-mix(in srgb, var(--primary, #0f5f4e) 18%, transparent); }
-.beads-strand .bead.lit { background: var(--primary, #0f5f4e); }
-.stone {
-  position: absolute; width: 236px; height: 236px; border-radius: 46% 54% 52% 48% / 50% 46% 54% 50%;
-  background: radial-gradient(circle at 34% 30%, color-mix(in srgb, var(--primary, #0f5f4e) 38%, #fff), color-mix(in srgb, var(--primary, #0f5f4e) 62%, #000));
-  opacity: 0.35; animation: tasbih-breathe 5s ease-in-out infinite;
+.tasbih-touch--chain { min-height: 250px; overflow: hidden; }
+.tasbih-chain {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  transform: rotate(-20deg); pointer-events: none;
 }
-.prayer-beads { position: absolute; inset: 18px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; place-items: center; opacity: 0.55; }
-.prayer-beads .bead { width: 14px; height: 22px; border-radius: 50%; background: color-mix(in srgb, var(--primary, #0f5f4e) 22%, transparent); }
-.prayer-beads .bead.lit { background: var(--primary, #0f5f4e); }
+.tasbih-chain-track { position: relative; width: 100%; height: 84px; --chain-gap: clamp(34px, 9vw, 48px); }
+.tasbih-chain-bead {
+  position: absolute; top: 50%; left: 50%; width: clamp(18px, 5vw, 24px); aspect-ratio: 1;
+  border-radius: 50%; border: 4px solid var(--bead-color);
+  background: color-mix(in srgb, var(--bead-color) 14%, var(--card, #fff));
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--bead-color) 35%, transparent);
+  transform: translate(-50%, -50%) translateX(calc(var(--offset) * var(--chain-gap))) scale(0.82);
+  transition: transform 280ms cubic-bezier(0.22, 0.8, 0.28, 1), opacity 220ms ease, box-shadow 220ms ease;
+}
+.tasbih-chain-bead.is-past { opacity: 0.42; }
+.tasbih-chain-bead.is-active {
+  transform: translate(-50%, -50%) translateX(calc(var(--offset) * var(--chain-gap))) scale(1.3);
+  background: color-mix(in srgb, var(--bead-color) 28%, var(--card, #fff));
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--bead-color) 18%, transparent),
+    0 0 22px color-mix(in srgb, var(--bead-color) 55%, transparent);
+  z-index: 2;
+}
+.tasbih-chain-count {
+  position: absolute; inset-inline: 0; bottom: 16px; margin: 0 auto; width: max-content;
+  display: flex; align-items: baseline; gap: 6px; padding: 4px 13px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--primary, #0f5f4e) 18%, var(--border, #e5e7eb));
+  background: color-mix(in srgb, var(--card, #fff) 90%, transparent);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.06);
+}
+.tasbih-chain-count strong { font-size: 28px; line-height: 1; color: var(--primary, #0f5f4e); }
+.tasbih-chain-count span { font-size: 11px; color: var(--muted); }
 .tasbih-plus {
   position: absolute; transform: translate(-50%, -50%); font-weight: 800; font-size: 15px;
   color: var(--primary, #0f5f4e); pointer-events: none; animation: tasbih-float 900ms ease-out forwards;
@@ -4045,9 +4084,8 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .tasbih-actions .muted { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
 @keyframes tasbih-float { 0% { opacity: 0.95; transform: translate(-50%, -50%) scale(0.85); } 100% { opacity: 0; transform: translate(-50%, -160%) scale(1.15); } }
 @keyframes tasbih-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-@keyframes tasbih-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
 @media (prefers-reduced-motion: reduce) {
-  .beads-ring, .stone, .tasbih-plus { animation: none; }
+  .beads-ring, .tasbih-plus, .tasbih-chain-bead { animation: none; transition: none; }
 }
 
 /* ============ صندوق تسجيلات الأذان (الرئيسية) ============ */
@@ -4097,6 +4135,13 @@ html, body { max-width: 100%; overflow-x: hidden; }
   border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 700; cursor: pointer;
 }
 .adhan-preview-btn.playing { background: var(--primary, #0f5f4e); color: #fff; }
+.adhan-preview-search {
+  width: 100%; padding: 8px 12px; border-radius: 10px;
+  border: 1px solid var(--border, #e5e7eb); background: var(--bg-2, #f9fafb);
+  font-family: inherit; font-size: 13px; color: inherit;
+}
+.adhan-preview li > span { display: flex; flex-direction: column; gap: 2px; }
+.adhan-preview li > span small { font-size: 11.5px; line-height: 1.5; }
 
 /* ============ عرض صفحات مصحف التجويد كصور (كما هي) ============ */
 .mushaf-image-scroll {
@@ -4478,114 +4523,131 @@ html, body { max-width: 100%; overflow-x: hidden; }
   font-family: inherit; font-size: 13px; font-weight: 700;
 }
 
-/* ============ شاشة وقت الصلاة: تصميم إسلامي كامل الشاشة ============ */
-.adhan-screen {
+/* ============ شاشة وقت الصلاة: هوية مستقلة لكل صلاة، بلا صور ============ */
+.adhan-stage {
   position: fixed; inset: 0; z-index: 3000;
-  display: flex; align-items: stretch; justify-content: center;
-  background: #08120f; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+  color: #f7f1e3;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(255, 255, 255, 0.06), transparent 62%),
+    linear-gradient(168deg, var(--adhan-deep) 0%, #050b09 92%);
   animation: adhan-fade 0.45s ease-out;
   padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
 }
-.adhan-screen-backdrop {
-  position: absolute; inset: -20px;
-  background-size: cover; background-position: center;
-  filter: blur(18px) saturate(0.9) brightness(0.45);
-  transform: scale(1.08);
-  opacity: 0.65;
+/* هالة لون الصلاة خلف المحتوى. */
+.adhan-stage-glow {
+  position: absolute; inset: -10% -20% auto;
+  height: 70%;
+  background: var(--adhan-accent);
+  opacity: 0.14; filter: blur(90px);
+  pointer-events: none;
 }
-.adhan-screen-panel {
-  position: relative;
-  width: min(560px, 100%);
-  max-height: 100%;
-  display: flex; flex-direction: column;
-  padding: 10px 10px 12px;
-  overflow: hidden;
-  background: linear-gradient(180deg, rgba(8, 18, 15, 0.55), rgba(8, 18, 15, 0.9));
+.adhan-stage-motif {
+  position: absolute; top: 50%; left: 50%;
+  width: min(86vw, 460px); height: min(86vw, 460px);
+  transform: translate(-50%, -54%);
+  color: var(--adhan-accent); opacity: 0.32;
+  pointer-events: none;
 }
-.adhan-screen-close {
-  position: absolute; top: 10px; inset-inline-end: 10px; z-index: 3;
+.adhan-stage-frame {
+  position: absolute; inset: 12px;
+  border: 1px solid var(--adhan-accent);
+  border-radius: 26px; opacity: 0.22;
+  pointer-events: none;
+}
+.adhan-stage-inner {
+  position: relative; z-index: 2;
+  width: min(560px, 100%); height: 100%;
+  display: flex; flex-direction: column; justify-content: space-between;
+  gap: 10px;
+  padding: clamp(18px, 5vw, 34px) clamp(18px, 6vw, 38px);
+}
+.adhan-stage-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.adhan-stage-brand {
+  font-family: "Tajawal", system-ui, sans-serif;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.16em;
+  color: var(--adhan-accent); opacity: 0.9;
+}
+.adhan-stage-close {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 40px; height: 40px; flex: 0 0 auto;
+  width: 42px; height: 42px; flex: 0 0 auto;
   border-radius: 999px; cursor: pointer;
-  border: 1px solid rgba(231, 199, 132, 0.55);
-  background: rgba(8, 18, 15, 0.55);
+  border: 1px solid var(--adhan-accent); color: #f7f1e3;
+  background: rgba(0, 0, 0, 0.22);
   backdrop-filter: blur(6px);
-  color: #f7f1e3;
 }
-/* بطاقة الأذان: الصورة والزخارف والنصوص كلها داخل إطار واحد. */
-.adhan-screen-card {
-  position: relative;
+.adhan-stage-center {
   flex: 1 1 auto; min-height: 0;
-  display: flex; flex-direction: column; justify-content: flex-end;
-  border-radius: 22px; overflow: hidden;
-  border: 1px solid rgba(231, 199, 132, 0.45);
-  background: #08120f;
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; text-align: center;
 }
-.adhan-screen-card-img {
-  position: absolute; inset: 0;
-  width: 100%; height: 100%;
-  object-fit: cover; object-position: center;
-  display: block;
-  user-select: none; -webkit-user-drag: none;
+.adhan-stage-overline {
+  font-family: "Tajawal", system-ui, sans-serif;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.28em;
+  color: rgba(247, 241, 227, 0.7);
 }
-.adhan-screen-card-shade {
-  position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(180deg,
-    rgba(6, 14, 12, 0.30) 0%,
-    rgba(6, 14, 12, 0) 30%,
-    rgba(6, 14, 12, 0.55) 64%,
-    rgba(6, 14, 12, 0.90) 100%);
+.adhan-stage-name {
+  margin: 2px 0 0;
+  font-family: "Amiri", "Tajawal", serif;
+  font-size: clamp(30px, 9vw, 52px); font-weight: 700; line-height: 1.2;
+  color: var(--adhan-accent);
+  text-shadow: 0 4px 26px rgba(0, 0, 0, 0.45);
 }
-.adhan-screen-card-body {
-  position: relative; z-index: 1; width: 100%;
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
-  padding: clamp(14px, 4vw, 22px) clamp(14px, 5vw, 26px) calc(18px + env(safe-area-inset-bottom));
+.adhan-stage-rule {
+  width: min(200px, 52vw); height: 12px;
+  color: var(--adhan-accent); opacity: 0.75;
+}
+.adhan-stage-time {
+  margin: 0;
+  font-family: "Tajawal", system-ui, sans-serif;
+  font-size: clamp(58px, 20vw, 104px); font-weight: 300;
+  letter-spacing: 0.02em; line-height: 1; color: #f7f1e3;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 6px 30px rgba(0, 0, 0, 0.5);
+}
+.adhan-stage-phrase {
+  margin: 8px 0 0; max-width: 30ch;
+  font-family: "Tajawal", system-ui, sans-serif;
+  font-size: clamp(13px, 3.6vw, 15px); line-height: 1.8;
+  color: rgba(247, 241, 227, 0.86);
+}
+.adhan-stage-foot {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
   text-align: center;
 }
-.adhan-screen-kicker {
-  font-family: "Tajawal", system-ui, sans-serif;
-  font-size: 11.5px; font-weight: 700; letter-spacing: 0.12em;
-  color: rgba(231, 199, 132, 0.85);
-}
-.adhan-screen-title {
-  margin: 0;
-  font-family: "Amiri", "Tajawal", serif;
-  font-size: clamp(24px, 6vw, 34px); font-weight: 700;
-  color: #e7c784; line-height: 1.25;
-}
-.adhan-screen-time {
+.adhan-stage-date {
   margin: 0;
   font-family: "Tajawal", system-ui, sans-serif;
-  font-size: clamp(38px, 12vw, 56px); font-weight: 500;
-  letter-spacing: 0.04em; color: #f7f1e3;
-  font-variant-numeric: tabular-nums;
-  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.6);
+  font-size: 12.5px; color: rgba(247, 241, 227, 0.72);
 }
-.adhan-screen-hijri {
+.adhan-stage-hijri {
   margin: 0;
   font-family: "Tajawal", system-ui, sans-serif;
   font-size: 12.5px; font-weight: 600;
-  color: rgba(231, 199, 132, 0.88);
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  color: var(--adhan-accent); opacity: 0.9;
 }
-.adhan-screen-date {
-  margin: 0;
+.adhan-stage-city {
+  margin: 2px 0 0;
   font-family: "Tajawal", system-ui, sans-serif;
-  font-size: 12.5px; color: rgba(247, 241, 227, 0.7);
+  font-size: 11px; letter-spacing: 0.1em;
+  color: rgba(247, 241, 227, 0.5);
 }
-.adhan-screen-motivation {
-  margin: 4px 0 0;
-  max-width: 36ch;
+.adhan-stage-muezzin {
+  margin: 6px 0 0;
   font-family: "Tajawal", system-ui, sans-serif;
-  font-size: 14px; line-height: 1.65;
-  color: rgba(247, 241, 227, 0.92);
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
+  font-size: 12.5px; font-weight: 600;
+  color: rgba(247, 241, 227, 0.82);
 }
 @keyframes adhan-fade { from { opacity: 0; } to { opacity: 1; } }
 
-@media (min-height: 760px) {
-  .adhan-screen-panel { padding: 14px 14px 16px; }
+@media (max-height: 620px) {
+  .adhan-stage-motif { width: 60vh; height: 60vh; }
+  .adhan-stage-name { font-size: clamp(24px, 6vh, 34px); }
+  .adhan-stage-time { font-size: clamp(44px, 12vh, 64px); }
+  .adhan-stage-phrase { line-height: 1.6; }
 }
 
 /* ============ بطاقة أذونات وقت الصلاة والتنزيل دون إنترنت ============ */
@@ -4683,6 +4745,37 @@ html, body { max-width: 100%; overflow-x: hidden; }
   color: inherit; font: inherit; font-size: 13px; text-align: center; outline: none;
 }
 .tasbih-target-input:focus { border-color: var(--primary, #0f5f4e); }
+.tasbih-text { max-height: 92px; overflow-y: auto; overscroll-behavior: contain; }
+.tasbih-rounds { gap: 6px; }
+.tasbih-round-reset {
+  width: 20px; height: 20px; padding: 0; border-radius: 999px;
+  border: 1px solid var(--border, #e5e7eb); background: var(--card, #fff); color: var(--muted);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.tasbih-round-reset:disabled { opacity: 0.35; cursor: default; }
+.tasbih-library {
+  display: flex; flex-direction: column; gap: 8px;
+  border: 1px solid var(--border, #e5e7eb); border-radius: 14px;
+  padding: 12px; background: var(--card, #fff);
+}
+.tasbih-library-head { display: flex; flex-direction: column; gap: 2px; }
+.tasbih-library-head .muted { font-size: 11.5px; }
+.tasbih-library-search {
+  width: 100%; padding: 9px 12px; border-radius: 10px;
+  border: 1px solid var(--border, #e5e7eb); background: var(--bg-2, #f9fafb);
+  color: inherit; font: inherit; font-size: 13px;
+}
+.tasbih-library-list { display: flex; flex-direction: column; gap: 6px; max-height: 44vh; overflow-y: auto; }
+.tasbih-library-item {
+  text-align: start; border: 1px solid var(--border, #e5e7eb); border-radius: 10px;
+  background: var(--bg-2, #f9fafb); color: inherit; padding: 9px 11px; cursor: pointer;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.tasbih-library-text {
+  font-family: "Amiri", serif; font-size: 14px; line-height: 1.7;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.tasbih-library-item small { font-size: 11px; }
 
 /* ============ صفحة الإفتاء: بمقاس الشاشة ============ */
 .fatwa-page {
@@ -5663,6 +5756,51 @@ html, body { max-width: 100%; overflow-x: hidden; }
   border: 1px solid rgba(15, 95, 78, 0.22);
   background: #fff;
   color: #123;
+}
+/* خانة تكرار الفقرة: إدخال مباشر لعدد المرات + تكرار مستمر + اختيارات سريعة. */
+.ayah-audio-repeat-controls { display: flex; align-items: center; gap: 8px; }
+.ayah-audio-repeat-input {
+  width: 66px;
+  font-family: "Tajawal", system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  padding: 7px 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 95, 78, 0.22);
+  background: #fff;
+  color: #123;
+}
+.ayah-audio-repeat-input:disabled { opacity: 0.5; }
+.ayah-audio-repeat-unit { font-size: 12.5px; font-weight: 700; color: #0b5c48; }
+.ayah-audio-repeat-endless {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: "Tajawal", system-ui, sans-serif;
+  font-size: 12.5px;
+  color: #0b5c48;
+  cursor: pointer;
+}
+.ayah-audio-repeat-endless input { width: 16px; height: 16px; accent-color: #0b5c48; }
+.ayah-audio-repeat-endless span { font-size: 12.5px; font-weight: 600; color: #0b5c48; }
+.ayah-audio-repeat-presets { display: flex; gap: 6px; justify-content: flex-end; }
+.ayah-audio-repeat-presets button {
+  min-width: 34px;
+  padding: 5px 8px;
+  border-radius: 9px;
+  border: 1px solid rgba(15, 95, 78, 0.22);
+  background: #fff;
+  color: #0b5c48;
+  font-family: "Tajawal", system-ui, sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ayah-audio-repeat-presets button.is-active {
+  background: linear-gradient(160deg, #1a7f63, #0b5c48);
+  border-color: #0b5c48;
+  color: #fff;
 }
 .ayah-audio-modes { display: flex; gap: 8px; }
 .ayah-audio-modes button {
@@ -7233,14 +7371,16 @@ html, body { max-width: 100%; overflow-x: hidden; }
   word-spacing: var(--qp-word-spacing);
   padding-top: max(4px, env(safe-area-inset-top));
   padding-bottom: max(4px, env(safe-area-inset-bottom));
-  padding-inline: clamp(6px, 1vw, 12px);
+  padding-inline: clamp(4px, 0.9vw, 12px);
 }
 .qp-page .qp-line {
   line-height: 1.62;
-  word-spacing: var(--qp-word-spacing);
+  /* لكل سطر توزيع مسافاته الخاص حتى يمتلئ عرض الصفحة (يُحسب في fitPage). */
+  word-spacing: var(--qp-line-ws, var(--qp-word-spacing));
 }
 .qp-page .qp-ayah-text {
-  word-spacing: var(--qp-word-spacing);
+  /* يرث توزيع سطره بدل تثبيته على قيمة الصفحة. */
+  word-spacing: inherit;
   font-size: inherit;
 }
 .qp-page .ayah-mark {

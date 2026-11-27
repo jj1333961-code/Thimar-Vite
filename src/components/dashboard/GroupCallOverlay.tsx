@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CloudflareSfuClient, SfuError, parseSfuTrackName, sfuTrackName, type SfuSessionHandle } from "../../lib/sfu";
 import { CALL_MAX_PARTICIPANTS, CALL_SIGNALING_BASE } from "../../lib/callConfig";
 import { closeCall, getIceServers, getLocalStream, createChannel, sendSignal, subscribeChannel, userChannelName } from "../../lib/call";
-import { RoomSignaling, readSessionToken, type CallSignalingHandle } from "../../lib/callSignaling";
+import { RoomSignaling, type CallSignalingHandle } from "../../lib/callSignaling";
+import { cachedSessionToken, ensureSessionToken } from "../../lib/sessionStore";
 import type { CallMode, CallSignal } from "../../lib/callTypes";
 import { loadAccounts } from "../../lib/auth";
 import { Icon } from "./ui";
@@ -147,7 +148,13 @@ export default function GroupCallOverlay({
       if (err.code === "ROOM_FULL") setNotice(`المكالمة ممتلئة (الحد ${CALL_MAX_PARTICIPANTS} مشاركين).`);
       else if (err.code === "SFU_NOT_CONFIGURED") setError("المكالمات الجماعية غير مفعّلة على الخادم بعد.");
       else if (err.code === "NOT_A_PARTICIPANT") setError("لم تُتحقق عضويتك في هذه المحادثة.");
-      else if (err.code === "AUTH_REQUIRED") setError("انتهت صلاحية جلستك. سجّل الدخول من جديد.");
+      else if (err.code === "AUTH_REQUIRED") {
+        /* عميل SFU يجدّد الرمز ويعيد المحاولة تلقائيًا؛ وصول الخطأ هنا يعني
+           تعذّر التجديد (شبكة) لا انتهاء الجلسة. */
+        setError(cachedSessionToken()
+          ? "تعذّر تجديد جلستك الأمنية الآن (غالبًا بسبب الشبكة). أعد المحاولة بعد لحظات."
+          : "لا توجد جلسة دخول على هذا الجهاز. سجّل الدخول من جديد.");
+      }
       else setError(err.message);
     } else {
       setError(err instanceof Error ? err.message : "تعذّر الاتصال بخادم الوسائط.");
@@ -328,10 +335,15 @@ export default function GroupCallOverlay({
         setStatus("error");
         return;
       }
-      sfuRef.current = new CloudflareSfuClient({ roomId });
+      /* نضمن رمز جلسة صالحًا (يُجدّد تلقائيًا إن كان قريب الانتهاء). */
+      const sessionToken = await ensureSessionToken();
+      if (!sessionToken) {
+        throw new Error(cachedSessionToken()
+          ? "تعذّر تجديد جلستك الأمنية الآن (غالبًا بسبب الشبكة). أعد المحاولة بعد لحظات."
+          : "لا توجد جلسة دخول على هذا الجهاز. سجّل الدخول من جديد.");
+      }
 
-      const sessionToken = readSessionToken();
-      if (!sessionToken) throw new Error("انتهت صلاحية جلستك. سجّل الدخول من جديد.");
+      sfuRef.current = new CloudflareSfuClient({ roomId, sessionToken });
       const signaling = new RoomSignaling({
         roomId,
         selfId,

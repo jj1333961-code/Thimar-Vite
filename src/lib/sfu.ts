@@ -1,5 +1,6 @@
 import { CALL_MAX_PARTICIPANTS, CALL_SIGNALING_BASE } from "./callConfig";
 import { readSessionToken } from "./callSignaling";
+import { cachedSessionToken, ensureSessionToken } from "./sessionStore";
 
 /**
  * عميل Cloudflare Realtime SFU (واجهة HTTPS للاتصال).
@@ -43,12 +44,14 @@ export class SfuError extends Error {
   }
 }
 
-type RequestOptions = { method: "GET" | "POST" | "PUT"; body?: unknown; sessionToken?: string };
+type RequestOptions = { method: "GET" | "POST" | "PUT"; body?: unknown; sfuSession?: string };
 
 export type SfuClientOptions = {
   baseUrl?: string;
   /** رمز جلسة ثمار (ليس رمز SFU). */
   sessionToken?: string | null;
+  /** مصدر رمز الجلسة (يُستخدم في الاختبارات). الافتراضي: التجديد التلقائي. */
+  sessionTokenProvider?: () => Promise<string | null>;
   roomId: string;
   fetchImpl?: typeof fetch;
 };
@@ -56,29 +59,58 @@ export type SfuClientOptions = {
 export class CloudflareSfuClient {
   #baseUrl: string;
   #sessionToken: string | null;
+  #tokenProvider: () => Promise<string | null>;
   #roomId: string;
   #fetch: typeof fetch;
 
   constructor(options: SfuClientOptions) {
     this.#baseUrl = (options.baseUrl ?? CALL_SIGNALING_BASE).replace(/\/+$/, "");
     this.#sessionToken = options.sessionToken ?? readSessionToken();
+    this.#tokenProvider = options.sessionTokenProvider ?? (async () => {
+      /* جلسة المكالمة الجماعية قد تطول أكثر من عمر الرمز (٣ ساعات): نطلب رمزًا
+         صالحًا عند كل عملية SFU بدل تثبيت رمز واحد حتى انتهائه. */
+      const renewed = await ensureSessionToken();
+      return renewed ?? cachedSessionToken() ?? this.#sessionToken;
+    });
     this.#roomId = options.roomId;
     this.#fetch = options.fetchImpl ?? fetch;
   }
 
-  async #request<T>(path: string, { method, body, sessionToken }: RequestOptions): Promise<T> {
-    if (!this.#sessionToken) throw new SfuError("AUTH_REQUIRED");
-    if (!this.#baseUrl) throw new SfuError("SFU_NOT_CONFIGURED");
-    const response = await this.#fetch(`${this.#baseUrl}/api/calls${path}`, {
+  async #currentToken(): Promise<string> {
+    try {
+      const fresh = await this.#tokenProvider();
+      if (fresh) this.#sessionToken = fresh;
+    } catch { /* يُستمر بالرمز الحالي ما دام موجودًا */ }
+    return this.#sessionToken ?? cachedSessionToken() ?? "";
+  }
+
+  async #send(token: string, path: string, method: string, body: unknown, sfuSession?: string): Promise<Response> {
+    return this.#fetch(`${this.#baseUrl}/api/calls${path}`, {
       method,
       headers: {
-        Authorization: `Bearer ${this.#sessionToken}`,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
-        ...(sessionToken ? { "X-Sfu-Session": sessionToken } : {}),
+        ...(sfuSession ? { "X-Sfu-Session": sfuSession } : {}),
       },
-      body: body === undefined ? undefined : JSON.stringify({ ...body, roomId: this.#roomId }),
+      body: body === undefined ? undefined : JSON.stringify({ ...(body as Record<string, unknown>), roomId: this.#roomId }),
       cache: "no-store",
     });
+  }
+
+  async #request<T>(path: string, { method, body, sfuSession }: RequestOptions): Promise<T> {
+    if (!this.#baseUrl) throw new SfuError("SFU_NOT_CONFIGURED");
+    let token = await this.#currentToken();
+    if (!token) throw new SfuError("AUTH_REQUIRED");
+    let response = await this.#send(token, path, method, body, sfuSession);
+    if (response.status === 401) {
+      /* الرمز انتهى أثناء المكالمة: تجديد آمن ثم إعادة المحاولة مرة واحدة. */
+      const renewed = await ensureSessionToken({ force: true }).catch(() => null);
+      if (renewed && renewed !== token) {
+        token = renewed;
+        this.#sessionToken = renewed;
+        response = await this.#send(token, path, method, body, sfuSession);
+      }
+    }
     if (response.status === 401) throw new SfuError("AUTH_REQUIRED", 401);
     if (response.status === 403) throw new SfuError("NOT_A_PARTICIPANT", 403);
     if (response.status === 409) throw new SfuError("ROOM_FULL", 409);
@@ -104,7 +136,7 @@ export class CloudflareSfuClient {
   ): Promise<SfuTracksResponse> {
     return this.#request<SfuTracksResponse>("/session/tracks/new", {
       method: "POST",
-      sessionToken: session.token,
+      sfuSession: session.token,
       body: { sessionId: session.sessionId, tracks, sessionDescription },
     });
   }
@@ -112,7 +144,7 @@ export class CloudflareSfuClient {
   renegotiate(session: SfuSessionHandle, answer: RTCSessionDescriptionInit): Promise<unknown> {
     return this.#request("/session/renegotiate", {
       method: "PUT",
-      sessionToken: session.token,
+      sfuSession: session.token,
       body: { sessionId: session.sessionId, sessionDescription: answer },
     });
   }
@@ -120,7 +152,7 @@ export class CloudflareSfuClient {
   closeTracks(session: SfuSessionHandle, mids: string[]): Promise<unknown> {
     return this.#request("/session/tracks/close", {
       method: "PUT",
-      sessionToken: session.token,
+      sfuSession: session.token,
       body: { sessionId: session.sessionId, tracks: mids.map((mid) => ({ mid })) },
     });
   }

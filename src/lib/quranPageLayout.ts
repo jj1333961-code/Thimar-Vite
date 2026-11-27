@@ -57,18 +57,39 @@ const chunkPromises = new Map<string, Promise<LocalLines | null>>();
 /** بيانات الأسطر المطبوعة (نسخة المدينة): لكل صفحة قائمة أسطر، كل سطر قائمة [سورة، آية، فهرس الكلمة]. */
 type PageLinesChunk = Record<string, { lines: number[][][]; lineNums: number[]; surahStarts: number[][] }>;
 const linesChunkPromises = new Map<string, Promise<PageLinesChunk | null>>();
+const linesChunksReady = new Map<string, PageLinesChunk>();
 
-export async function loadPageLines(page: number): Promise<{ lines: number[][][]; lineNums: number[]; surahStarts: number[][] } | null> {
+export type PageLines = { lines: number[][][]; lineNums: number[]; surahStarts: number[][] };
+
+export async function loadPageLines(page: number): Promise<PageLines | null> {
   const path = chunkPath(page);
   let promise = linesChunkPromises.get(path);
   if (!promise) {
     promise = fetch(path)
       .then((response) => (response.ok ? (response.json() as Promise<PageLinesChunk>) : null))
-      .catch(() => null);
+      .catch(() => null)
+      .then((chunk) => {
+        if (chunk) linesChunksReady.set(path, chunk);
+        return chunk;
+      });
     linesChunkPromises.set(path, promise);
   }
   const chunk = await promise;
   return chunk?.[String(page)] ?? null;
+}
+
+/** أسطر الصفحة إن كانت حِزمتها محمّلة أصلًا — بلا انتظار ولا شاشة تحميل. */
+export function cachedPageLines(page: number): PageLines | null {
+  const chunk = linesChunksReady.get(chunkPath(page));
+  return chunk?.[String(page)] ?? null;
+}
+
+/** تحميل مسبق لصفحات قريبة حتى يكون تقليب الصفحات فوريًا. */
+export function prefetchPageLines(page: number): void {
+  if (!Number.isFinite(page) || page < 1 || page > 604) return;
+  const path = chunkPath(page);
+  if (linesChunkPromises.has(path)) return;
+  void loadPageLines(page);
 }
 
 /** ملف الأسطر المطبوع مقسّم إلى أجزاء (100 صفحة) ليعمل دون إنترنت بحجم صغير لكل تحميل. */

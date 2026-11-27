@@ -6,6 +6,12 @@ const STORAGE_KEY = "thimar.adhkar.counts.v1";
 
 const DUA_CATEGORIES = new Set(["duas", "quranic", "distress", "healing", "knowledge", "parents", "children"]);
 
+function isDuaCategory(item: AdhkarCategory) {
+  return item.kind ? item.kind === "dua" : DUA_CATEGORIES.has(item.id);
+}
+
+const PAGE_SIZE = 40;
+
 function normalize(text: string) {
   return text
     .replace(/[\u064B-\u0652\u0670\u0640]/g, "")
@@ -26,6 +32,7 @@ export default function AdhkarPage() {
   const [active, setActive] = useState(adhkar[0]?.id ?? "");
   const [query, setQuery] = useState("");
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [visible, setVisible] = useState(PAGE_SIZE);
 
   useEffect(() => {
     try {
@@ -43,9 +50,13 @@ export default function AdhkarPage() {
   }, [counts]);
 
   const categoriesOfKind = useMemo(
-    () => adhkar.filter((item) => (kind === "duas" ? DUA_CATEGORIES.has(item.id) : !DUA_CATEGORIES.has(item.id))),
+    () => adhkar.filter((item) => (kind === "duas" ? isDuaCategory(item) : !isDuaCategory(item))),
     [kind],
   );
+
+  useEffect(() => {
+    setVisible(PAGE_SIZE);
+  }, [active, kind, query]);
 
   useEffect(() => {
     if (!categoriesOfKind.some((item) => item.id === active)) {
@@ -58,7 +69,7 @@ export default function AdhkarPage() {
   const results = useMemo(() => {
     if (q) {
       return adhkar
-        .filter((item) => (kind === "duas" ? DUA_CATEGORIES.has(item.id) : !DUA_CATEGORIES.has(item.id)))
+        .filter((item) => (kind === "duas" ? isDuaCategory(item) : !isDuaCategory(item)))
         .flatMap((item) => item.items.map((entry) => ({ ...entry, categoryTitle: item.title })))
         .filter((entry) => normalize(`${entry.text} ${entry.source} ${entry.categoryTitle}`).includes(q));
     }
@@ -67,7 +78,7 @@ export default function AdhkarPage() {
 
   const totalOfKind = useMemo(
     () => adhkar
-      .filter((item) => (kind === "duas" ? DUA_CATEGORIES.has(item.id) : !DUA_CATEGORIES.has(item.id)))
+      .filter((item) => (kind === "duas" ? isDuaCategory(item) : !isDuaCategory(item)))
       .reduce((sum, item) => sum + item.items.length, 0),
     [kind],
   );
@@ -122,7 +133,7 @@ export default function AdhkarPage() {
 
       <div className="adhkar-list adhkar-list--page">
         {results.length === 0 ? <p className="muted">لا توجد نتائج مطابقة.</p> : null}
-        {results.map((item) => {
+        {results.slice(0, visible).map((item) => {
           const count = counts[item.id] ?? 0;
           const done = count >= item.repeat;
           return (
@@ -145,6 +156,11 @@ export default function AdhkarPage() {
             </button>
           );
         })}
+        {results.length > visible ? (
+          <button type="button" className="ghost-button adhkar-more" onClick={() => setVisible((value) => value + PAGE_SIZE)}>
+            عرض المزيد ({results.length - visible} متبقي)
+          </button>
+        ) : null}
       </div>
 
       <p className="muted adhkar-hint">اضغط على الذكر أو الدعاء لعدّه. يُحفظ تقدّم اليوم تلقائيًا.</p>

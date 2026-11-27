@@ -1,3 +1,5 @@
+import { CalculationMethod, Coordinates, PrayerTimes, type CalculationParameters } from "adhan";
+
 export type Hadith = {
   id: string;
   title: string;
@@ -153,6 +155,74 @@ function timeToDate(value: string): Date {
   return date;
 }
 
+/* حساب المواقيت داخل الجهاز عند تعذّر الشبكة — يضمن العمل دون إنترنت. */
+const ADHAN_METHODS: Record<number, () => CalculationParameters> = {
+  1: () => CalculationMethod.Karachi(),
+  2: () => CalculationMethod.NorthAmerica(),
+  3: () => CalculationMethod.MuslimWorldLeague(),
+  4: () => CalculationMethod.UmmAlQura(),
+  5: () => CalculationMethod.Egyptian(),
+  7: () => CalculationMethod.Tehran(),
+  8: () => CalculationMethod.MuslimWorldLeague(),
+  9: () => CalculationMethod.Kuwait(),
+  10: () => CalculationMethod.Qatar(),
+  11: () => CalculationMethod.Singapore(),
+  12: () => CalculationMethod.Turkey(),
+  15: () => CalculationMethod.MoonsightingCommittee(),
+  16: () => CalculationMethod.Dubai(),
+};
+
+function pad2(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function computeTimings(lat: number, lng: number, method: number, date: Date): PrayerTimings {
+  const factory = ADHAN_METHODS[method] ?? ADHAN_METHODS[3];
+  const times = new PrayerTimes(new Coordinates(lat, lng), date, factory());
+  const format = (value: Date) => `${pad2(value.getHours())}:${pad2(value.getMinutes())}`;
+  return {
+    Fajr: format(times.fajr),
+    Sunrise: format(times.sunrise),
+    Dhuhr: format(times.dhuhr),
+    Asr: format(times.asr),
+    Maghrib: format(times.maghrib),
+    Isha: format(times.isha),
+  };
+}
+
+function buildPrayerData(timings: PrayerTimings, city: string, dateLabel: string): PrayerData {
+  const schedule: Array<{ name: PrayerName; value: string }> = [
+    { name: "الفجر", value: timings.Fajr },
+    { name: "الظهر", value: timings.Dhuhr },
+    { name: "العصر", value: timings.Asr },
+    { name: "المغرب", value: timings.Maghrib },
+    { name: "العشاء", value: timings.Isha },
+  ];
+  const now = new Date();
+  let next = schedule.find((item) => timeToDate(item.value) > now);
+  if (!next) {
+    const tomorrow = timeToDate(timings.Fajr);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return {
+      timings,
+      city,
+      dateLabel,
+      nextName: "الفجر",
+      nextAt: tomorrow,
+      minutesLeft: Math.max(1, Math.round((tomorrow.getTime() - now.getTime()) / 60000)),
+    };
+  }
+  const nextAt = timeToDate(next.value);
+  return {
+    timings,
+    city,
+    dateLabel,
+    nextName: next.name,
+    nextAt,
+    minutesLeft: Math.max(1, Math.round((nextAt.getTime() - now.getTime()) / 60000)),
+  };
+}
+
 export async function fetchPrayerTimes(
   lat: number,
   lng: number,
@@ -165,63 +235,41 @@ export async function fetchPrayerTimes(
     today.getMonth() + 1,
   ).padStart(2, "0")}-${today.getFullYear()}`;
   const url = `https://api.aladhan.com/v1/timings/${dateKey}?latitude=${lat}&longitude=${lng}&method=${method}`;
-  let response: Response;
+  const offline = () => buildPrayerData(computeTimings(lat, lng, method, today), city, "حساب محلي — دون إنترنت");
+  let response: Response | null = null;
   try {
     response = await fetch(url, { signal, headers: { Accept: "application/json" } });
-    if (response.ok) {
-      const cache = await caches.open("thimar-prayer-v1");
-      cache.put(url, response.clone()).catch(() => {});
+    if (response.ok && typeof caches !== "undefined") {
+      try {
+        const cache = await caches.open("thimar-prayer-v1");
+        cache.put(url, response.clone()).catch(() => {});
+      } catch { /* التخزين غير متاح: نكمل بالرد الشبكي */ }
     }
   } catch {
-    const cache = await caches.open("thimar-prayer-v1");
-    // نستخدم آخر مواقيت مخزّنة حتى لو كانت ليوم سابق ليعمل التطبيق دون إنترنت.
-    const cached = (await cache.match(url)) || (await cache.match((await cache.keys())[0] ?? ""));
+    let cached: Response | undefined;
+    if (typeof caches !== "undefined") {
+      try {
+        const cache = await caches.open("thimar-prayer-v1");
+        // مواقيت اليوم نفسه فقط؛ يوم سابق لا يصلح لموعد الصلاة الحالي.
+        cached = await cache.match(url);
+      } catch { /* لا Cache API: نحسب محليًا */ }
+    }
     if (cached) response = cached;
-    else throw new Error("تعذّر تحميل مواقيت الصلاة.");
+    else return offline();
   }
-  if (!response.ok) throw new Error("تعذّر تحميل مواقيت الصلاة.");
-  const payload = (await response.json()) as {
-    data?: {
-      timings: PrayerTimings;
-      date?: { readable?: string };
+  if (!response || !response.ok) return offline();
+  try {
+    const payload = (await response.json()) as {
+      data?: {
+        timings: PrayerTimings;
+        date?: { readable?: string };
+      };
     };
-  };
-  if (!payload.data?.timings) throw new Error("بيانات المواقيت غير مكتملة.");
-  const timings = payload.data.timings;
-
-  const schedule: Array<{ name: PrayerName; value: string }> = [
-    { name: "الفجر", value: timings.Fajr },
-    { name: "الظهر", value: timings.Dhuhr },
-    { name: "العصر", value: timings.Asr },
-    { name: "المغرب", value: timings.Maghrib },
-    { name: "العشاء", value: timings.Isha },
-  ];
-
-  const now = new Date();
-  let next = schedule.find((item) => timeToDate(item.value) > now);
-  if (!next) {
-    next = { name: "الفجر", value: timings.Fajr };
-    const tomorrow = timeToDate(timings.Fajr);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return {
-      timings,
-      city,
-      dateLabel: payload.data.date?.readable ?? "",
-      nextName: "الفجر",
-      nextAt: tomorrow,
-      minutesLeft: Math.max(1, Math.round((tomorrow.getTime() - now.getTime()) / 60000)),
-    };
+    if (!payload.data?.timings) return offline();
+    return buildPrayerData(payload.data.timings, city, payload.data.date?.readable ?? "");
+  } catch {
+    return offline();
   }
-
-  const nextAt = timeToDate(next.value);
-  return {
-    timings,
-    city,
-    dateLabel: payload.data.date?.readable ?? "",
-    nextName: next.name,
-    nextAt,
-    minutesLeft: Math.max(1, Math.round((nextAt.getTime() - now.getTime()) / 60000)),
-  };
 }
 
 export type CalendarDay = {
@@ -240,33 +288,55 @@ export async function fetchAdhanMonth(
   month: number,
   signal?: AbortSignal,
 ): Promise<CalendarDay[]> {
+  const localMonth = () => {
+    const total = new Date(year, month, 0).getDate();
+    return Array.from({ length: total }, (_, index) => {
+      const day = new Date(year, month - 1, index + 1);
+      return {
+        date: `${year}-${pad2(month)}-${pad2(index + 1)}`,
+        hijri: "",
+        timings: computeTimings(lat, lng, method, day),
+      };
+    });
+  };
   const url = `https://api.aladhan.com/v1/calendar/${year}/${month}?latitude=${lat}&longitude=${lng}&method=${method}`;
-  let response: Response;
+  let response: Response | null = null;
   try {
     response = await fetch(url, { signal, headers: { Accept: "application/json" } });
-    if (response.ok) {
-      const cache = await caches.open("thimar-prayer-calendar-v1");
-      cache.put(url, response.clone()).catch(() => {});
+    if (response.ok && typeof caches !== "undefined") {
+      try {
+        const cache = await caches.open("thimar-prayer-calendar-v1");
+        cache.put(url, response.clone()).catch(() => {});
+      } catch { /* التخزين غير متاح: نكمل بالرد الشبكي */ }
     }
   } catch {
-    const cache = await caches.open("thimar-prayer-calendar-v1");
-    const cached = await cache.match(url);
+    let cached: Response | undefined;
+    if (typeof caches !== "undefined") {
+      try {
+        cached = await (await caches.open("thimar-prayer-calendar-v1")).match(url);
+      } catch { /* لا Cache API: نحسب محليًا */ }
+    }
     if (cached) response = cached;
-    else throw new Error("تعذّر تحميل تقويم الأذان — تحقّق من الاتصال.");
+    else return localMonth();
   }
-  if (!response.ok) throw new Error("تعذّر تحميل تقويم الأذان.");
-  const payload = (await response.json()) as {
-    data?: Array<{
-      timings: PrayerTimings;
-      date?: { gregorian?: { date?: string }; hijri?: { date?: string } };
-    }>;
-  };
-  const days = payload.data ?? [];
-  return days.map((day) => ({
-    date: (day.date?.gregorian?.date ?? "").split("-").reverse().join("-"),
-    hijri: day.date?.hijri?.date ?? "",
-    timings: day.timings,
-  }));
+  if (!response || !response.ok) return localMonth();
+  try {
+    const payload = (await response.json()) as {
+      data?: Array<{
+        timings: PrayerTimings;
+        date?: { gregorian?: { date?: string }; hijri?: { date?: string } };
+      }>;
+    };
+    const days = payload.data ?? [];
+    if (!days.length) return localMonth();
+    return days.map((day) => ({
+      date: (day.date?.gregorian?.date ?? "").split("-").reverse().join("-"),
+      hijri: day.date?.hijri?.date ?? "",
+      timings: day.timings,
+    }));
+  } catch {
+    return localMonth();
+  }
 }
 
 /** اتجاه القبلة بالدرجات من الشمال الحقيقي. */

@@ -2,6 +2,51 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "versionName": "1.11.9",
+      "versionCode": 31,
+      "releaseDate": "2026-11-27",
+      "shortDescription": {
+        "ar": "تحديث 1.11.9 — مصحف بلا وميض، أذان فوق التطبيقات، ورسائل فورية.",
+        "en": "Update 1.11.9 — flicker-free Mushaf, prayer screen over apps, and instant messages."
+      },
+      "releaseNotes": {
+        "ar": {
+          "features": [
+            "شاشة الأذان تظهر فوق التطبيقات الأخرى بعد منح إذن العرض فوق التطبيقات.",
+            "كتم الأذان وفتحه بزرّي الصوت في الهاتف.",
+            "تحرير الميكروفون فور انتهاء المكالمة، مع زر كتم/فتح أثناءها."
+          ],
+          "improvements": [
+            "المصحف: لا تُعرض أسطر صفحة قبل جهوز أسطر الصفحة المطلوبة، فلا وميض ولا عدم تطابق عند التقليب.",
+            "المصحف مضمّن بالكامل: لا شاشة «جار تحميل المصحف» عند الدخول.",
+            "الرسائل تُرفع فور الإرسال وتُسحب أسرع أثناء فتح المحادثات.",
+            "تجديد رمز الجلسة تلقائيًا في المكالمات بدل مطالبة المستخدم بالخروج والدخول."
+          ],
+          "bugFixes": [
+            "إصلاح تأخر وصول الرسائل إلى الطرف الآخر، وإصلاح وميض صفحات المصحف."
+          ],
+          "securityUpdates": []
+        },
+        "en": {
+          "features": [
+            "Prayer screen appears over other apps after granting the display-over-apps permission.",
+            "Mute and unmute the adhan with the phone volume buttons.",
+            "Microphone is released as soon as a call ends, with mute/unmute during the call."
+          ],
+          "improvements": [
+            "Mushaf: a page is not drawn until its own lines are ready, eliminating flicker and mismatched pages while flipping.",
+            "The Mushaf is fully bundled: no “loading Mushaf” screen on entry.",
+            "Messages upload immediately on send and incoming messages sync faster while chats are open.",
+            "Call session tokens renew automatically instead of asking the user to sign out and in."
+          ],
+          "bugFixes": [
+            "Fixed delayed message delivery to the other party and flickering Mushaf pages."
+          ],
+          "securityUpdates": []
+        }
+      }
+    },
+    {
       "versionName": "1.11.3",
       "versionCode": 25,
       "releaseDate": "2026-11-22",

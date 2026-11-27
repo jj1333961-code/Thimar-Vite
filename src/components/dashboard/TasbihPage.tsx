@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { adhkarLibrary } from "../../data/adhkarLibrary";
 import { Icon } from "./ui";
 
 const KEY = "thimar.tasbih.v3";
@@ -18,8 +19,19 @@ const BASE_DHIKR: Dhikr[] = [
 const PRESET_TARGETS = [33, 100, 1000];
 const BEADS = 33;
 
+type ShapeId = "ring" | "chain";
+
+const SHAPES: Array<{ id: ShapeId; label: string }> = [
+  { id: "ring", label: "حلقة" },
+  { id: "chain", label: "سلسلة مائلة" },
+];
+
+/* ألوان حلقات السلسلة؛ تتكرر على طول الخط المائل. */
+const CHAIN_COLORS = ["#0f5f4e", "#c9933f", "#b85555", "#3f6fa8", "#7a579e", "#4f8a5b", "#b06b8c"];
+
 type Saved = {
   activeId: string;
+  shape: ShapeId;
   counts: Record<string, number>;
   rounds: Record<string, number>;
   targets: Record<string, number>;
@@ -35,8 +47,10 @@ function load(): Saved {
       const activeId = [...BASE_DHIKR, ...custom].some((item) => item.id === parsed.activeId)
         ? String(parsed.activeId)
         : BASE_DHIKR[0].id;
+      const shape = SHAPES.some((item) => item.id === parsed.shape) ? (parsed.shape as ShapeId) : "ring";
       return {
         activeId,
+        shape,
         counts: parsed.counts ?? {},
         rounds: parsed.rounds ?? {},
         targets: parsed.targets ?? {},
@@ -46,7 +60,21 @@ function load(): Saved {
   } catch {
     /* ignore */
   }
-  return { activeId: BASE_DHIKR[0].id, counts: {}, rounds: {}, targets: {}, custom: [] };
+  return { activeId: BASE_DHIKR[0].id, shape: "ring", counts: {}, rounds: {}, targets: {}, custom: [] };
+}
+
+function shortText(text: string, limit = 34) {
+  const clean = text.replace(/\s+/g, " ").trim();
+  return clean.length > limit ? `${clean.slice(0, limit)}…` : clean;
+}
+
+function normalize(text: string) {
+  return text
+    .replace(/[\u064B-\u0652\u0670\u0640]/g, "")
+    .replace(/[إأآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .trim();
 }
 
 type Float = { id: number; left: number; top: number };
@@ -58,6 +86,9 @@ export default function TasbihPage() {
   const [draftText, setDraftText] = useState("");
   const [draftTarget, setDraftTarget] = useState("33");
   const [customTarget, setCustomTarget] = useState("");
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [libraryQuery, setLibraryQuery] = useState("");
+  const [chainStep, setChainStep] = useState(0);
   const floatId = useRef(0);
 
   const all = useMemo(() => [...BASE_DHIKR, ...state.custom], [state.custom]);
@@ -75,13 +106,34 @@ export default function TasbihPage() {
     }
   }, [state]);
 
+  const libraryResults = useMemo(() => {
+    const q = normalize(libraryQuery);
+    const source = q
+      ? adhkarLibrary.filter((item) =>
+          normalize(`${item.text} ${item.category} ${item.reference}`).includes(q),
+        )
+      : adhkarLibrary;
+    return source.slice(0, 80);
+  }, [libraryQuery]);
+
   const setTarget = (value: number) => {
     const clean = Math.max(1, Math.min(100000, Math.round(value) || 1));
     setState((prev) => ({ ...prev, targets: { ...prev.targets, [current.id]: clean } }));
   };
 
+  const chainBeads = Array.from({ length: 11 }, (_, index) => {
+    const offset = index - 5;
+    const id = chainStep + offset;
+    return {
+      id,
+      offset,
+      color: CHAIN_COLORS[((id % CHAIN_COLORS.length) + CHAIN_COLORS.length) % CHAIN_COLORS.length],
+    };
+  });
+
   const tap = () => {
     navigator.vibrate?.(10);
+    setChainStep((step) => step + 1);
     const id = (floatId.current += 1);
     setFloats((prev) => [...prev.slice(-6), { id, left: 50 + (Math.random() * 22 - 11), top: 42 + (Math.random() * 12 - 6) }]);
     window.setTimeout(() => setFloats((prev) => prev.filter((item) => item.id !== id)), 900);
@@ -98,6 +150,10 @@ export default function TasbihPage() {
     });
   };
 
+  const resetRounds = () => {
+    setState((prev) => ({ ...prev, rounds: { ...prev.rounds, [current.id]: 0 } }));
+  };
+
   const addCustom = () => {
     const text = draftText.trim();
     if (!text) return;
@@ -111,6 +167,21 @@ export default function TasbihPage() {
     setDraftText("");
     setDraftTarget("33");
     setComposerOpen(false);
+  };
+
+  const pickFromLibrary = (id: string, text: string, repeat: number) => {
+    setState((prev) => {
+      const exists = prev.custom.some((item) => item.id === id);
+      const custom = exists
+        ? prev.custom
+        : [
+            ...prev.custom,
+            { id, text, target: Math.max(1, Math.min(1000, repeat || 33)), custom: true as const },
+          ];
+      return { ...prev, activeId: id, custom };
+    });
+    setLibraryOpen(false);
+    setLibraryQuery("");
   };
 
   const removeCustom = (id: string) => {
@@ -143,8 +214,9 @@ export default function TasbihPage() {
               type="button"
               className={`chip ${state.activeId === item.id ? "active" : ""}`}
               onClick={() => setState((prev) => ({ ...prev, activeId: item.id }))}
+              title={item.text}
             >
-              {item.text}
+              {shortText(item.text)}
               {item.custom ? (
                 <span
                   role="button"
@@ -167,6 +239,30 @@ export default function TasbihPage() {
           <button type="button" className="chip tasbih-add" onClick={() => setComposerOpen((v) => !v)}>
             <Icon name="plus" size={14} /> أضف ذكرك
           </button>
+          <button
+            type="button"
+            className={`chip tasbih-add${libraryOpen ? " active" : ""}`}
+            onClick={() => setLibraryOpen((v) => !v)}
+            aria-expanded={libraryOpen}
+          >
+            <Icon name="book" size={14} /> المكتبة ({adhkarLibrary.length})
+          </button>
+        </div>
+
+        {/* شكل السبحة: حلقة دائرية أو سلسلة مائلة فقط. */}
+        <div className="tasbih-shapes" role="group" aria-label="شكل السبحة">
+          <span>الشكل</span>
+          {SHAPES.map((shape) => (
+            <button
+              key={shape.id}
+              type="button"
+              className={`shape-dot ${state.shape === shape.id ? "active" : ""}`}
+              aria-pressed={state.shape === shape.id}
+              onClick={() => setState((prev) => ({ ...prev, shape: shape.id }))}
+            >
+              {shape.label}
+            </button>
+          ))}
         </div>
 
         {/* ضبط عدد التكرار: 33 أو 100 أو 1000 أو أي عدد يكتبه المستخدم. */}
@@ -218,25 +314,87 @@ export default function TasbihPage() {
         </div>
       ) : null}
 
-      <div className="tasbih-stage">
-        <button type="button" className="tasbih-touch" onClick={tap} aria-label={`عدّ ${current.text}`}>
-          <span className="tasbih-ring" style={{ ["--progress" as string]: `${progress * 360}deg` }} />
-
-          <span className="beads-ring" aria-hidden="true">
-            {Array.from({ length: BEADS }, (_, index) => (
-              <span
-                key={index}
-                className={`bead${index < Math.round(progress * BEADS) ? " lit" : ""}`}
-                style={{ ["--angle" as string]: `${(index / BEADS) * 360}deg` }}
-              />
+      {libraryOpen ? (
+        <div className="tasbih-library">
+          <div className="tasbih-library-head">
+            <strong>أذكار وأدعية للتسبيح</strong>
+            <span className="muted">{adhkarLibrary.length} نصًا من حصن المسلم — دون إنترنت</span>
+          </div>
+          <input
+            className="tasbih-library-search"
+            value={libraryQuery}
+            onChange={(event) => setLibraryQuery(event.target.value)}
+            placeholder="ابحث في الأذكار والأدعية…"
+            aria-label="بحث في المكتبة"
+          />
+          <div className="tasbih-library-list">
+            {libraryResults.length === 0 ? <p className="muted">لا توجد نتائج مطابقة.</p> : null}
+            {libraryResults.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className="tasbih-library-item"
+                onClick={() => pickFromLibrary(item.id, item.text, item.repeat)}
+              >
+                <span className="tasbih-library-text">{item.text}</span>
+                <small className="muted">
+                  {[item.reference, item.category].filter(Boolean).join(" — ")}
+                </small>
+              </button>
             ))}
-          </span>
+          </div>
+        </div>
+      ) : null}
 
-          <span className="tasbih-inner">
-            <span className="tasbih-text">{current.text}</span>
-            <strong className="tasbih-count">{count}</strong>
-            <span className="tasbih-target">من {target}</span>
-          </span>
+      {/* الذكر المختار خارج السبحه ودائرة العدّ، كما طُلب. */}
+      <div className="tasbih-current" aria-live="polite">
+        <span className="tasbih-current-label">الذكر المختار</span>
+        <p>{current.text}</p>
+      </div>
+
+      <div className={`tasbih-stage tasbih-shape-${state.shape}`}>
+        <button
+          type="button"
+          className={`tasbih-touch${state.shape === "chain" ? " tasbih-touch--chain" : ""}`}
+          onClick={tap}
+          aria-label={`عدّ ${current.text}`}
+        >
+          {state.shape === "ring" ? (
+            <span className="tasbih-dial">
+              <span className="tasbih-ring" style={{ ["--progress" as string]: `${progress * 360}deg` }} />
+              <span className="beads-ring" aria-hidden="true">
+                {Array.from({ length: BEADS }, (_, index) => (
+                  <span
+                    key={index}
+                    className={`bead${index < Math.round(progress * BEADS) ? " lit" : ""}`}
+                    style={{ ["--angle" as string]: `${(index / BEADS) * 360}deg` }}
+                  />
+                ))}
+              </span>
+              <span className="tasbih-inner">
+                <strong className="tasbih-count">{count}</strong>
+                <span className="tasbih-target">من {target}</span>
+              </span>
+            </span>
+          ) : (
+            <>
+              <span className="tasbih-chain" aria-hidden="true">
+                <span className="tasbih-chain-track">
+                  {chainBeads.map((bead) => (
+                    <span
+                      key={bead.id}
+                      className={`tasbih-chain-bead${bead.offset === 0 ? " is-active" : ""}${bead.offset < 0 ? " is-past" : ""}`}
+                      style={{ "--offset": bead.offset, "--bead-color": bead.color } as CSSProperties}
+                    />
+                  ))}
+                </span>
+              </span>
+              <span className="tasbih-chain-count">
+                <strong>{count}</strong>
+                <span>من {target}</span>
+              </span>
+            </>
+          )}
         </button>
 
         {floats.map((item) => (
@@ -247,8 +405,18 @@ export default function TasbihPage() {
       </div>
 
       <div className="tasbih-actions">
-        <span className="muted">
+        <span className="muted tasbih-rounds">
           <Icon name="refresh" size={14} /> {rounds} دورة مكتملة
+          <button
+            type="button"
+            className="tasbih-round-reset"
+            onClick={resetRounds}
+            disabled={rounds === 0}
+            aria-label="حذف عدد الدورات المكتملة"
+            title="حذف عدد الدورات المكتملة"
+          >
+            <Icon name="down" size={12} />
+          </button>
         </span>
         <button
           type="button"

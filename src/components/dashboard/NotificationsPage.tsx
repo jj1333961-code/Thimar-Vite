@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { type Account } from "../../lib/auth";
 import {
   notificationsFor,
+  deleteNotification,
   markAllNotificationsRead,
   markNotificationRead,
   teacherLinkRequestsFor,
@@ -198,6 +199,21 @@ export default function NotificationsPage({
                 ) : null}
               </div>
               {!item.read ? <span className="unread-dot" /> : null}
+              {account.type === "admin" ? (
+                <button
+                  type="button"
+                  className="notification-delete"
+                  aria-label="حذف الإشعار"
+                  title="حذف الإشعار"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    deleteNotification(item.id);
+                    refresh();
+                  }}
+                >
+                  <Icon name="trash" size={15} />
+                </button>
+              ) : null}
             </div>
           ))}
         </div>

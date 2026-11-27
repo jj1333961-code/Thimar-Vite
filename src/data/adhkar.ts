@@ -1,11 +1,15 @@
+import { adhkarLibrary } from "./adhkarLibrary";
+
 export type AdhkarCategory = {
   id: string;
   title: string;
   subtitle: string;
+  /** قسم أدعية أو أذكار (تُستخدم لتصنيف تبويبات صفحة الأذكار). */
+  kind?: "dua" | "dhikr";
   items: Array<{ id: string; text: string; repeat: number; source: string }>;
 };
 
-export const adhkar: AdhkarCategory[] = [
+const baseAdhkar: AdhkarCategory[] = [
   {
     id: "morning",
     title: "أذكار الصباح",
@@ -493,3 +497,37 @@ export const adhkar: AdhkarCategory[] = [
     ],
   },
 ];
+
+/* مكتبة موسعة (316 نصًا) من حصن المسلم، مضمّنة داخل التطبيق وتعمل دون إنترنت. */
+const libraryCategories: AdhkarCategory[] = [
+  {
+    id: "duas-library",
+    kind: "dua",
+    title: "أدعية مأثورة موسعة",
+    subtitle: "أكثر من ٢٣٠ دعاءً من حصن المسلم — تعمل دون إنترنت",
+    items: adhkarLibrary
+      .filter((item) => item.kind === "dua")
+      .map((item) => ({
+        id: item.id,
+        text: item.text,
+        repeat: item.repeat,
+        source: [item.reference, item.category].filter(Boolean).join(" — "),
+      })),
+  },
+  {
+    id: "adhkar-library",
+    kind: "dhikr",
+    title: "أذكار موسعة",
+    subtitle: "تسبيح وتهليل وتكبير وأذكار المناسبات — تعمل دون إنترنت",
+    items: adhkarLibrary
+      .filter((item) => item.kind === "dhikr")
+      .map((item) => ({
+        id: item.id,
+        text: item.text,
+        repeat: item.repeat,
+        source: [item.reference, item.category].filter(Boolean).join(" — "),
+      })),
+  },
+];
+
+export const adhkar: AdhkarCategory[] = [...baseAdhkar, ...libraryCategories];

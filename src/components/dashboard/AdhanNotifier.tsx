@@ -1,11 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { fetchPrayerTimes, getCoordinates } from "../../lib/islamic";
 import { getAdhan } from "../../data/adhan";
 import { loadSettings } from "../../lib/appStore";
 import { recordAdhan } from "../../lib/adhanLog";
 import { showSystemNotification } from "../../lib/notify";
 import { PRAYER_ART, prayerImageUrl, type PrayerKey } from "../../data/prayerImages";
-import { gregorianLabel, hijriLabel } from "../../lib/adhanWindow";
+import {
+  adhanLookFor,
+  gregorianLabel,
+  hijriLabel,
+  type AdhanPrayerId,
+} from "../../lib/adhanWindow";
 import { scheduleIosAdhan, registerAdhanTapHandler } from "../../lib/adhanNative";
 import { hasNativeAdhan, scheduleNativeAdhan, syncAdhanAssets } from "../../lib/adhanBridge";
 import { Icon } from "./ui";
@@ -17,7 +22,7 @@ function toMinutes(t: string): number {
   return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
 }
 
-type AdhanScreen = { key: PrayerKey; time: string; city: string };
+type AdhanScreen = { key: PrayerKey; time: string; city: string; muezzin?: string };
 
 /* نطلب إذن الإشعارات مرة واحدة فقط في كل تشغيل — إشعار وقت الصلاة هو ما يفتح شاشة الصلاة. */
 let askedPrayerNotificationPermission = false;
@@ -92,7 +97,9 @@ export default function AdhanNotifier() {
                 audio.volume = Math.min(1, Math.max(0, settings.adhanVolume ?? 0.9));
                 void audio.play().catch(() => undefined);
               }
-              if (settings.adhanScreen !== false) setScreen({ key, time: t, city: data.city || "موقعك" });
+              if (settings.adhanScreen !== false) {
+                setScreen({ key, time: t, city: data.city || "موقعك", muezzin: adhan.muezzin || "" });
+              }
               if (settings.notifications) {
                 void showSystemNotification(`حان وقت ${art.label}`, art.phrase, {
                   image: prayerImageUrl(key),
@@ -129,6 +136,10 @@ export default function AdhanNotifier() {
               urls,
               defaultUrl: getAdhan(settings.adhanByPrayer?.[PRAYERS[0]] || settings.adhanId).url,
               volume: settings.adhanVolume ?? 0.9,
+              volumeKeyMute: settings.adhanVolumeKeyMute !== false,
+              city: data.city || "موقعك",
+              lang: settings.language === "en" ? "en" : "ar",
+              theme: settings.theme,
               imageUrls: Object.fromEntries(PRAYERS.map((key) => [key, prayerImageUrl(key)])),
             };
             const signature = JSON.stringify(payload);
@@ -185,41 +196,128 @@ export default function AdhanNotifier() {
   };
 
   if (!screen) return null;
-  const art = PRAYER_ART[screen.key];
   const today = new Date();
+  /* هوية كل صلاة: لون وعبارة وزخرفة مختلفة — بلا أي صورة. */
+  const look = adhanLookFor(screen.key.toLowerCase(), today);
   const gregorian = gregorianLabel(today, "ar");
   const hijri = hijriLabel(today, "ar");
+  const style = {
+    "--adhan-accent": look.accent,
+    "--adhan-deep": look.deep,
+  } as CSSProperties;
 
-  /* بطاقة واحدة: كل المعلومات داخل مساحة الصورة، ولا شريط تحكم أسفلها. */
   return (
-    <div className="adhan-screen" role="dialog" aria-modal="true" aria-label={art.label}>
-      <div
-        className="adhan-screen-backdrop"
-        style={{ backgroundImage: `url(${art.image})` }}
-        aria-hidden="true"
-      />
-      <div className="adhan-screen-panel">
-        <div className="adhan-screen-card">
-          <img
-            className="adhan-screen-card-img"
-            src={art.image}
-            alt={`${art.label} — ${art.phrase}`}
-            draggable={false}
-          />
-          <div className="adhan-screen-card-shade" aria-hidden="true" />
-          <button type="button" className="adhan-screen-close" onClick={dismiss} aria-label="إغلاق شاشة الصلاة">
-            <Icon name="x" size={16} />
+    <div
+      className={`adhan-stage adhan-stage--${look.id}`}
+      style={style}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`صلاة ${look.arabic}`}
+    >
+      <div className="adhan-stage-glow" aria-hidden="true" />
+      <PrayerMotif id={look.id} />
+      <div className="adhan-stage-frame" aria-hidden="true" />
+      <div className="adhan-stage-inner">
+        <header className="adhan-stage-head">
+          <span className="adhan-stage-brand">ثمار • وقت الصلاة</span>
+          <button type="button" className="adhan-stage-close" onClick={dismiss} aria-label="إغلاق شاشة الصلاة">
+            <Icon name="x" size={18} />
           </button>
-          <div className="adhan-screen-card-body">
-            <span className="adhan-screen-kicker">ثمار — حان وقت الصلاة</span>
-            <h2 className="adhan-screen-title">{art.label}</h2>
-            <p className="adhan-screen-time">{screen.time}</p>
-            <p className="adhan-screen-date">{gregorian} • {screen.city}</p>
-            {hijri ? <p className="adhan-screen-hijri">{hijri}</p> : null}
-            <p className="adhan-screen-motivation">{art.phrase}</p>
-          </div>
+        </header>
+
+        <div className="adhan-stage-center">
+          <span className="adhan-stage-overline">حان وقت الصلاة</span>
+          <h2 className="adhan-stage-name">صلاة {look.arabic}</h2>
+          <svg
+            className="adhan-stage-rule"
+            viewBox="0 0 200 12"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M0 6h78" />
+            <path d="M122 6h78" />
+            <path d="M100 1.5 104.5 6 100 10.5 95.5 6Z" fill="currentColor" stroke="none" />
+          </svg>
+          <p className="adhan-stage-time">{screen.time}</p>
+          <p className="adhan-stage-phrase">{look.greetingAr}</p>
         </div>
+
+        <footer className="adhan-stage-foot">
+          {hijri ? <p className="adhan-stage-hijri">{hijri}</p> : null}
+          <p className="adhan-stage-date">{gregorian}</p>
+          <p className="adhan-stage-city">{screen.city}</p>
+          {screen.muezzin ? <p className="adhan-stage-muezzin">بصوت المؤذن: {screen.muezzin}</p> : null}
+        </footer>
       </div>
     </div>
+  );
+}
+
+/* زخرفة لكل صلاة: هلال الفجر، شمس الظهر، شمس العصر المائلة، غروب المغرب، نجوم العشاء، أقواس الجمعة. */
+function PrayerMotif({ id }: { id: AdhanPrayerId }) {
+  return (
+    <svg
+      className="adhan-stage-motif"
+      viewBox="0 0 240 240"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {id === "fajr" ? (
+        <>
+          <path d="M156 66a66 66 0 1 0 0 108 52 52 0 1 1 0-108Z" />
+          <circle cx="72" cy="72" r="2.6" fill="currentColor" stroke="none" />
+          <circle cx="98" cy="46" r="1.8" fill="currentColor" stroke="none" />
+          <circle cx="56" cy="112" r="1.5" fill="currentColor" stroke="none" />
+        </>
+      ) : null}
+
+      {id === "dhuhr" || id === "asr" ? (
+        <>
+          <circle cx="120" cy="120" r={id === "asr" ? 34 : 40} />
+          <path d="M120 62v-20M120 178v20M178 120h20M62 120H42" />
+          <path d="M161 79l14-14M79 79 65 65M161 161l14 14M79 161l-14 14" />
+          {id === "asr" ? <path d="M60 196h120" /> : null}
+        </>
+      ) : null}
+
+      {id === "maghrib" ? (
+        <>
+          <path d="M76 150a44 44 0 0 1 88 0" />
+          <path d="M120 74v-14M162 94l10-10M78 94 68 84M186 128h14M54 128H40" />
+          <path d="M56 150h128" />
+          <path d="M76 168h88" opacity="0.6" />
+        </>
+      ) : null}
+
+      {id === "isha" ? (
+        <>
+          <path d="M142 46a34 34 0 1 0 0 56 27 27 0 1 1 0-56Z" />
+          <circle cx="76" cy="62" r="2.4" fill="currentColor" stroke="none" />
+          <circle cx="104" cy="122" r="1.8" fill="currentColor" stroke="none" />
+          <circle cx="58" cy="110" r="1.5" fill="currentColor" stroke="none" />
+          <path d="M52 184h136" />
+          <path d="M92 184a28 28 0 0 1 56 0" />
+          <path d="M112 156v-16" opacity="0.7" />
+        </>
+      ) : null}
+
+      {id === "jumuah" ? (
+        <>
+          <path d="M62 182v-34a22 22 0 0 1 44 0v34" />
+          <path d="M98 182v-46a22 22 0 0 1 44 0v46" />
+          <path d="M134 182v-34a22 22 0 0 1 44 0v34" />
+          <path d="M52 182h136" />
+          <circle cx="120" cy="66" r="2.6" fill="currentColor" stroke="none" />
+        </>
+      ) : null}
+    </svg>
   );
 }

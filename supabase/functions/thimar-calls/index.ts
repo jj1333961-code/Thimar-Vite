@@ -82,7 +82,13 @@ async function verifySessionToken(token: string, secret: string): Promise<Sessio
   return { sub, jti, exp };
 }
 
-/** الجلسة صالحة فقط إن كانت مسجّلة وغير مُبطلة وغير منتهية. */
+/**
+ * الجلسة صالحة إن كانت مسجّلة، غير منتهية، وغير مُبطلة.
+ *
+ * رمز دوّره التجديد (revoked_reason = "rotated") يبقى صالحًا حتى انتهاء عمره
+ * الأصلي: التدوير ليس إبطالًا، ومعاملته كإبطال كانت تُفشل مكالمة جهاز تأخر
+ * رمزه لحظة عن التجديد فتُظهر رسالة انتهاء الجلسة رغم أن الحساب نشط.
+ */
 async function sessionIsLive(
   supabase: ReturnType<typeof createClient>,
   claims: SessionClaims,
@@ -90,11 +96,12 @@ async function sessionIsLive(
   if (claims.exp * 1000 <= Date.now()) return false;
   const { data: row, error } = await supabase
     .from("thimar_sessions")
-    .select("account_id,expires_at,revoked_at")
+    .select("account_id,expires_at,revoked_at,revoked_reason")
     .eq("id", claims.jti)
     .maybeSingle();
   if (error || !row) return false;
-  if (row.account_id !== claims.sub || row.revoked_at) return false;
+  if (row.account_id !== claims.sub) return false;
+  if (row.revoked_at && String(row.revoked_reason ?? "") !== "rotated") return false;
   return new Date(row.expires_at).getTime() > Date.now();
 }
 

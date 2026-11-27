@@ -119,15 +119,30 @@ public class AdhanAlarmReceiver extends BroadcastReceiver {
       builder.setStyle(new NotificationCompat.BigTextStyle().bigText(details));
     }
     if (screen) {
-      // لا نطلب صلاحية ملء الشاشة الخاصة؛ يبقى الإشعار واضحًا وقابلًا للضغط لفتح شاشة الصلاة.
       builder.addAction(0, "عرض شاشة الصلاة", actionPi);
+      /* إشعار ملء الشاشة: يفتح شاشة الصلاة تلقائيًا حين يسمح النظام بذلك. */
+      try {
+        builder.setFullScreenIntent(screenPi, true);
+      } catch (Exception ignored) {
+        // يبقى الإشعار العادي قابلًا للضغط.
+      }
     }
 
     /*
-     * لا نطلب SYSTEM_ALERT_WINDOW ولا نحاول تجاوز قيود تشغيل الأنشطة من الخلفية.
-     * يعتمد العرض التلقائي على Full-screen notification عندما يسمح أندرويد،
-     * وإلا يبقى إشعار وقت الصلاة قابلًا للضغط لفتح شاشة الصلاة.
+     * شاشة الأذان فوق التطبيقات الأخرى: إذن «العرض فوق التطبيقات» منحه المستخدم
+     * بنفسه من الإعدادات، وهو استثناء رسمي يسمح بتشغيل الشاشة من الخلفية.
+     * بلا الإذن يبقى إشعار وقت الصلاة هو الطريق إلى الشاشة.
      */
+    if (screen && FloatingOverlayService.canDrawOverlays(context)) {
+      try {
+        context.startActivity(screenIntent);
+        LaunchLog.add(context, "شاشة الصلاة: فُتحت تلقائيًا فوق التطبيقات");
+      } catch (Exception error) {
+        LaunchLog.add(context, "تعذّر فتح شاشة الصلاة فوق التطبيقات: " + error.getMessage());
+      }
+    } else if (screen) {
+      LaunchLog.add(context, "شاشة الصلاة: إذن العرض فوق التطبيقات غير ممنوح — يُعرض إشعار");
+    }
 
     boolean posted = false;
     if (!NotificationHelper.canPost(context)) {

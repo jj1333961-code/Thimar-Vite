@@ -468,6 +468,18 @@ export default function MemorizationPathPage({ account }: { account: Account }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /*
+   * مغادرة الخطوة/الشاشة التي تحتاج الميكروفون أو الكاميرا تُغلقهما فورًا،
+   * حتى لو بقيت الصفحة نفسها مفتوحة في خطوة أخرى لا تحتاجهما.
+   */
+  useEffect(() => {
+    return () => {
+      stopRecog();
+      stopCameraAndMic();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, activePath, activeStep]);
+
   function stopAudio() {
     playTokenRef.current += 1;
     if (audioRef.current) {

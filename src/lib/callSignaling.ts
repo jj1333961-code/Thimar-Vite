@@ -1,5 +1,5 @@
 import { CALL_SIGNALING_BASE } from "./callConfig";
-import { cachedSessionToken, SESSION_TOKEN_KEY } from "./sessionStore";
+import { cachedSessionToken, ensureSessionToken, SESSION_TOKEN_KEY } from "./sessionStore";
 import type { CallSignal, CallSignalHandler, SignalingState } from "./callTypes";
 
 /**
@@ -90,26 +90,42 @@ export class RoomSignaling {
     this.#setState(this.#attempt > 0 ? "reconnecting" : "connecting");
     const fetchImpl = this.#options.fetchImpl ?? fetch;
     let ticket = "";
+    let unauthorized = false;
     try {
-      const response = await fetchImpl(`${this.#baseUrl}/api/rooms/${encodeURIComponent(this.#options.roomId)}/token`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.#options.token}`,
-          "Content-Type": "application/json",
-        },
-        cache: "no-store",
-        body: JSON.stringify({}),
-      });
-      if (this.#closed) return;
-      if (response.status === 401 || response.status === 403) {
-        // جلسة منتهية: لا فائدة من إعادة المحاولة بلا تسجيل دخول جديد.
+      /* نطلب بطاقة الغرفة بأحدث رمز جلسة؛ التجديد يحدث هنا تلقائيًا
+         بدل إغلاق الاتصال ومطالبة المستخدم بالخروج والدخول. */
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const token = attempt === 0
+          ? (await ensureSessionToken()) ?? this.#options.token
+          : (await ensureSessionToken({ force: true })) ?? cachedSessionToken() ?? "";
+        if (this.#closed) return;
+        const response = await fetchImpl(`${this.#baseUrl}/api/rooms/${encodeURIComponent(this.#options.roomId)}/token`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          cache: "no-store",
+          body: JSON.stringify({}),
+        });
+        if (this.#closed) return;
+        if (response.status === 401 || response.status === 403) {
+          const renewed = await ensureSessionToken({ force: true });
+          if (renewed && renewed !== token) continue;
+          unauthorized = true;
+          break;
+        }
+        if (!response.ok) throw new Error(`TICKET_${response.status}`);
+        const body = (await response.json()) as { ticket?: string };
+        ticket = String(body?.ticket ?? "");
+        if (!ticket) throw new Error("TICKET_MISSING");
+        break;
+      }
+      if (unauthorized) {
         this.#setState("closed");
         this.#closed = true;
         return;
       }
-      if (!response.ok) throw new Error(`TICKET_${response.status}`);
-      const body = (await response.json()) as { ticket?: string };
-      ticket = String(body?.ticket ?? "");
       if (!ticket) throw new Error("TICKET_MISSING");
     } catch {
       this.#scheduleReconnect();

@@ -15,6 +15,14 @@ const TTL_SECONDS = (() => {
 /** يُقبل التجديد بعد انتهاء الرمز ما دام التوقيع صحيحًا ولم تُبطَل الجلسة. */
 const REFRESH_GRACE_SECONDS = 30 * 24 * 60 * 60;
 
+/**
+ * التجديد يدوّر الرمز (rotated). كان إبطال الرمز الأب فورًا يعني أن أي ردّ
+ * تجديد يضيع في الشبكة — أو أي تبويب/جهاز يخسر سباق التدوير — يبقى عالقًا
+ * برمز مُبطَل لا يمكن تجديده، فتظهر رسالة «انتهت صلاحية الجلسة» بلا سبب.
+ * نسمح للأب المُدوَّر بالتجديد داخل هذه المهلة فقط، ثم يصبح مُبطَلًا نهائيًا.
+ */
+const ROTATED_REFRESH_GRACE_SECONDS = 60 * 60;
+
 const corsHeaders = (origin: string) => ({
   "Access-Control-Allow-Origin": origin || "*",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, x-session-token",
@@ -152,10 +160,19 @@ Deno.serve(async (request) => {
       if (!claims) return new Response(JSON.stringify({ error: "INVALID_SESSION" }), { status: 401, headers });
       const { data: row } = await supabase
         .from("thimar_sessions")
-        .select("id,account_id,expires_at,revoked_at")
+        .select("id,account_id,expires_at,revoked_at,revoked_reason")
         .eq("id", claims.jti)
         .maybeSingle();
-      if (!row || row.revoked_at || row.account_id !== claims.sub) {
+      if (!row || row.account_id !== claims.sub) {
+        return new Response(JSON.stringify({ error: "SESSION_REVOKED" }), { status: 401, headers });
+      }
+      const revokedAtMs = row.revoked_at ? Date.parse(String(row.revoked_at)) : 0;
+      const rotatedRecently =
+        Boolean(row.revoked_at) &&
+        String(row.revoked_reason ?? "") === "rotated" &&
+        Number.isFinite(revokedAtMs) &&
+        Date.now() - revokedAtMs < ROTATED_REFRESH_GRACE_SECONDS * 1000;
+      if (row.revoked_at && !rotatedRecently) {
         return new Response(JSON.stringify({ error: "SESSION_REVOKED" }), { status: 401, headers });
       }
       const graceEnds = new Date(row.expires_at).getTime() / 1000 + REFRESH_GRACE_SECONDS;

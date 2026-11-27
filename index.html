@@ -72,9 +72,16 @@
           لم تكتمل تهيئة الواجهة. تحقّق من اتصال الإنترنت ثم أعد المحاولة. بياناتك المحفوظة لم تُمسّ.
         </p>
         <button
+          id="boot-fallback-repair"
+          type="button"
+          style="padding: 12px 28px; font-size: 16px; font-family: inherit; border: 0; border-radius: 12px; background: #2F5C4A; color: #fff; font-weight: 700; margin: 4px"
+        >
+          إصلاح وتحديث النسخة
+        </button>
+        <button
           type="button"
           onclick="window.location.reload()"
-          style="padding: 12px 28px; font-size: 16px; font-family: inherit; border: 0; border-radius: 12px; background: #2F5C4A; color: #fff; font-weight: 700"
+          style="padding: 12px 28px; font-size: 16px; font-family: inherit; border: 1px solid #2F5C4A; border-radius: 12px; background: transparent; color: #2F5C4A; font-weight: 700; margin: 4px"
         >
           إعادة المحاولة
         </button>
@@ -84,35 +91,119 @@
       (function () {
         var fallback = document.getElementById("boot-fallback");
         var message = document.getElementById("boot-fallback-message");
+        var repair = document.getElementById("boot-fallback-repair");
         var root = document.getElementById("root");
         var settled = false;
+        var shown = false;
         function show(text) {
           if (settled || !fallback) return;
           if (root && root.childElementCount > 0) return;
           if (text && message) message.textContent = text;
           fallback.style.display = "block";
+          shown = true;
         }
         function clear() {
           settled = true;
           if (fallback) fallback.style.display = "none";
         }
-        window.addEventListener("error", function () {
-          show("حدث خطأ أثناء تحميل الواجهة. أعد المحاولة، وإن تكرّر فأبلغ الدعم مع سجل التشخيص.");
-        });
+        /*
+         * إصلاح فعلي: يزيل عامل الخدمة وكل الكاش ثم يعيد التحميل. هذا ما يعالج
+         * الحالة الأشيع لظهور صفحة بيضاء: صفحة index قديمة محفوظة في الكاش
+         * تشير إلى حزمة JS تغيّر اسمها بعد النشر.
+         */
+        function repairAndReload() {
+          var jobs = [];
+          try {
+            if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+              jobs.push(
+                navigator.serviceWorker.getRegistrations().then(function (regs) {
+                  return Promise.all(
+                    regs.map(function (reg) {
+                      return reg.unregister();
+                    }),
+                  );
+                }),
+              );
+            }
+          } catch (e) {}
+          try {
+            if (window.caches && window.caches.keys) {
+              jobs.push(
+                window.caches.keys().then(function (keys) {
+                  return Promise.all(
+                    keys.map(function (key) {
+                      return window.caches.delete(key);
+                    }),
+                  );
+                }),
+              );
+            }
+          } catch (e) {}
+          Promise.all(jobs).catch(function () {}).then(function () {
+            var next = new URL(window.location.href);
+            next.searchParams.set("v", String(Date.now()));
+            window.location.replace(next.toString());
+          });
+        }
+        if (repair) repair.addEventListener("click", repairAndReload);
+
+        function recover(reason) {
+          /*
+           * إذا فشل تحميل الحزمة ونحن متصلون، فالمقصود دائمًا صفحة قديمة في
+           * الكاش أو نسخة قديمة من عامل الخدمة: ننظّف تلقائيًا مرة واحدة فقط
+           * خلال دقيقة حتى لا ندخل في حلقة تحديث. في وضع عدم الاتصال لا نحذف
+           * شيئًا، لأن الكاش هو ما يشغّل التطبيق دون إنترنت.
+           */
+          var online = navigator.onLine !== false;
+          var key = "thimar.boot.recovery";
+          var last = 0;
+          try {
+            last = Number(sessionStorage.getItem(key) || 0) || 0;
+          } catch (e) {}
+          if (online && Date.now() - last > 60000) {
+            try {
+              sessionStorage.setItem(key, String(Date.now()));
+            } catch (e) {}
+            show("تحديث الواجهة إلى أحدث نسخة…");
+            repairAndReload();
+            return;
+          }
+          show(reason);
+        }
+
+        /* أخطاء تحميل الموارد (سكربت/ستايل) لا تصل إلى window إلا في مرحلة الالتقاط. */
+        window.addEventListener(
+          "error",
+          function (event) {
+            var target = event && event.target;
+            var tag = target && target.tagName;
+            if (tag === "SCRIPT" || tag === "LINK") {
+              recover("تعذّر تحميل ملفات الواجهة. اضغط «إصلاح وتحديث النسخة» لإزالة النسخة القديمة من الكاش.");
+              return;
+            }
+            if (event && event.message) {
+              recover("حدث خطأ أثناء تحميل الواجهة. أعد المحاولة، وإن تكرّر فأبلغ الدعم مع سجل التشخيص.");
+            }
+          },
+          true,
+        );
         window.addEventListener("unhandledrejection", function () {
           show("تعذّر إكمال تهيئة بعض الخدمات. أعد المحاولة — بياناتك المحفوظة لم تُمسّ.");
         });
         window.setTimeout(function () {
           if (root && root.childElementCount > 0) clear();
           else show("تأخر تحميل الواجهة. تحقّق من الاتصال ثم أعد المحاولة. بياناتك المحفوظة لم تُمسّ.");
-        }, 12000);
+        }, 8000);
         if (root) {
           new MutationObserver(function () {
             if (root.childElementCount > 0) clear();
           }).observe(root, { childList: true });
         }
+        window.__thimarBootShown = function () {
+          return shown;
+        };
       })();
     </script>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="/src/main.tsx" id="thimar-entry"></script>
   </body>
 </html>

@@ -10,6 +10,7 @@ import {
   type CallSignal,
 } from "../../lib/call";
 import type { CallSignalingHandle } from "../../lib/callSignaling";
+import { ensureSessionToken } from "../../lib/sessionStore";
 import { loadChats, sendChatMessage, type ChatMessage } from "../../lib/appStore";
 import { Icon } from "./ui";
 import "./CallConnect.css";
@@ -694,8 +695,20 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
     if (serverResult?.error) {
       if (serverResult.error === "EXPIRED") setError("انتهت صلاحية المكالمة.");
       else if (serverResult.error === "DUPLICATE_OR_INVALID_ACCEPT") setError("تم قبول المكالمة من جهاز آخر.");
-      else if (["SESSION_REQUIRED", "INVALID_SESSION", "AUTH_REQUIRED"].includes(String(serverResult.error)))
-        setError("انتهت صلاحية جلستك الأمنية. سجّل الخروج ثم الدخول من جديد لاستقبال المكالمات.");
+      else if (["SESSION_REQUIRED", "INVALID_SESSION", "AUTH_REQUIRED", "SESSION_EXPIRED", "SESSION_REVOKED"].includes(String(serverResult.error))) {
+        /* callServer جدّد الرمز وأعاد المحاولة بالفعل؛ نُعيد المحاولة هنا مرة
+           أخرى بعد لحظة قبل أي مطالبة بإعادة الدخول. */
+        await new Promise((resolve) => setTimeout(resolve, 700));
+        const retry = await callServer("accept", { callerId: selfId, callId });
+        if (retry && !retry.error) {
+          serverResult.error = "";
+        } else {
+          const token = await ensureSessionToken();
+          setError(token
+            ? "تعذّر التحقق من جلستك الآن (غالبًا بسبب الشبكة). أعد المحاولة بعد لحظات."
+            : "لا توجد جلسة دخول على هذا الجهاز. سجّل الدخول لاستقبال المكالمات.");
+        }
+      }
       else setError(`تعذّر قبول المكالمة: ${serverResult.error}`);
       finish("فشل القبول");
       return;

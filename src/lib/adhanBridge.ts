@@ -17,6 +17,9 @@ type NativeAdhan = {
 export type AdhanPermissionState = {
   notifications?: boolean;
   exactAlarms?: boolean;
+  /** «العرض فوق التطبيقات»: يسمح بفتح شاشة الأذان تلقائيًا من الخلفية. */
+  overlay?: boolean;
+  volumeKeyMute?: boolean;
   android?: number;
 };
 
@@ -31,6 +34,7 @@ export type AdhanStatus = {
   };
   scheduled?: Record<string, string>;
   lastPlayed?: string;
+  volumeKeyMute?: boolean;
   assetsBytes?: number;
   error?: string;
 };

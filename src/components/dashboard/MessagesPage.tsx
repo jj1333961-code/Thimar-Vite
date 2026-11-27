@@ -28,6 +28,7 @@ import { useMediaSrc } from "../../lib/mediaRef";
 import { setActiveConversation } from "../../lib/nativePush";
 import { aiChat, buildCompanionMessages, offlineCompanionReply } from "../../lib/ai";
 import { callServer, type CallMode } from "../../lib/call";
+import { ensureSessionToken } from "../../lib/sessionStore";
 import { announceInvite } from "../../lib/callInbox";
 import CallOverlay from "./CallOverlay";
 import CallSimulator from "./CallSimulator";
@@ -148,7 +149,8 @@ export default function MessagesPage({
 
   /** بدء مكالمة حقيقية: نطلب من الخادم إنشاء سجل المكالمة (تفويض/مشغول)،
    *  ثم نرسل دعوة إلى قناة المستخدم الآخر ونفتح واجهة المكالمة. */
-  /* أخطاء الهوية تعني أن رمز الجلسة الموقّع مفقود أو منتهٍ — الحل إعادة الدخول. */
+  /* أخطاء الهوية: callServer يجدّد الرمز تلقائيًا ويعيد المحاولة. لا نُطالب
+     المستخدم بإعادة الدخول إلا إذا لم تكن هناك جلسة أصلًا على هذا الجهاز. */
   const SESSION_ERRORS = new Set(["SESSION_REQUIRED", "INVALID_SESSION", "AUTH_REQUIRED", "SESSION_EXPIRED", "SESSION_REVOKED"]);
 
   const startCall = async (mode: CallMode) => {
@@ -166,8 +168,12 @@ export default function MessagesPage({
       console.warn("[call-diag] create failed", { error, peer, mode });
       if (error === "CALLEE_BUSY") alert("المستخدم مشغول في مكالمة أخرى.");
       else if (error === "CALLER_BUSY") alert("لديك مكالمة نشطة بالفعل.");
-      else if (SESSION_ERRORS.has(String(error)))
-        alert("انتهت صلاحية جلستك الأمنية. سجّل الخروج ثم الدخول من جديد لتتمكن من إجراء المكالمات.");
+      else if (SESSION_ERRORS.has(String(error))) {
+        const token = await ensureSessionToken();
+        alert(token
+          ? "تعذّر تجديد جلستك الأمنية الآن (غالبًا بسبب الشبكة). تحقّق من الاتصال ثم أعد المحاولة."
+          : "لا توجد جلسة دخول على هذا الجهاز. سجّل الدخول لتتمكن من إجراء المكالمات.");
+      }
       else if (error === "CALLEE_UNAVAILABLE") alert("لا يمكن الاتصال بهذا الحساب الآن.");
       else if (error === "RATE_LIMITED") alert("محاولات كثيرة سريعة. انتظر لحظات ثم أعد المحاولة.");
       else if (error === "TOO_MANY_REQUESTS_TO_USER") alert("تجاوزت عدد المحاولات المسموح لهذا الشخص. جرّب لاحقًا.");
@@ -219,6 +225,31 @@ export default function MessagesPage({
     window.addEventListener("thimar:cloud", handler);
     return () => window.removeEventListener("thimar:cloud", handler);
   }, []);
+
+  /* الرسائل الواردة: لا ننتظر دورة المزامنة العامة (20 ثانية). نسحب فور فتح
+     صفحة الرسائل ثم كل بضع ثوانٍ ما دامت ظاهرة، فتظهر رسالة الطرف الآخر
+     مباشرة بدل أن تبدو كأنها لم تُرسل. */
+  useEffect(() => {
+    let stopped = false;
+    const sync = () => {
+      if (stopped || document.visibilityState === "hidden") return;
+      void pullCloud().then((changed) => {
+        if (!stopped && changed) refresh();
+      });
+    };
+    sync();
+    const timer = window.setInterval(sync, 6000);
+    const onVisible = () => sync();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", onVisible);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", onVisible);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account.id]);
 
   useEffect(() => {
     setActiveConversation(selectedId);

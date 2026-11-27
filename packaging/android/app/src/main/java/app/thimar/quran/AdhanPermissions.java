@@ -53,6 +53,10 @@ public final class AdhanPermissions {
       json.put("exactAlarms", canScheduleExact(context));
       json.put("android", Build.VERSION.SDK_INT);
       json.put("screenOnWhenLocked", true);
+      /* إذن العرض فوق التطبيقات: به تُفتح شاشة الأذان تلقائيًا من الخلفية. */
+      json.put("overlay", FloatingOverlayService.canDrawOverlays(context));
+      json.put("volumeKeyMute",
+          AdhanScheduler.prefs(context).getBoolean(AdhanScheduler.KEY_VOLUME_KEY_MUTE, true));
     } catch (Exception ignored) {
       // تبقى القيم الافتراضية.
     }
@@ -83,6 +87,12 @@ public final class AdhanPermissions {
       case "exactAlarms":
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
           open(context, new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+              .setData(Uri.parse("package:" + context.getPackageName())));
+        }
+        return;
+      case "overlay":
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+          open(context, new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
               .setData(Uri.parse("package:" + context.getPackageName())));
         }
         return;

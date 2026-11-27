@@ -1,5 +1,5 @@
 /* ثمار — عامل الخدمة: يشغّل التطبيق والمصحف والتحفة والأذكار والأحاديث دون إنترنت. */
-const VERSION = "v41";
+const VERSION = "v44";
 const SHELL_CACHE = `thimar-shell-${VERSION}`;
 const DATA_CACHE = "thimar-data-v1";
 const RUNTIME_CACHE = "thimar-runtime-v1";
@@ -25,6 +25,9 @@ const ADHAN_ASSETS = [
   "/adhan/prayer/maghrib.jpg",
   "/adhan/prayer/isha.jpg",
   "/adhan/azan1.mp3",
+  "/adhan/imadi.mp3",
+  "/adhan/hamathani.mp3",
+  "/adhan/afasy-fajr.mp3",
 ];
 
 /** يجلب ملفات البناء المضفّرة (assets/*.js و*.css) من صفحة index. */
@@ -193,6 +196,7 @@ self.addEventListener("fetch", (event) => {
     "cdn.jsdelivr.net",
     "api.qurancdn.com",
     "static.qurancdn.com",
+    "hadeethenc.com",
   ];
 
   if (url.origin !== self.location.origin) {
@@ -221,9 +225,16 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       (async () => {
         try {
-          const response = await fetch(request);
-          const cache = await caches.open(SHELL_CACHE);
-          cache.put("/index.html", response.clone());
+          /*
+           * لا نثق بكاش المتصفح لصفحة الإقلاع: بعد كل نشر تتغيّر أسماء حزم JS،
+           * وخدمة صفحة قديمة من الكاش تعني الوصول إلى ملف غير موجود = صفحة
+           * بيضاء. نجلب دائمًا أحدث HTML، والكاش لا يُستخدم إلا دون إنترنت.
+           */
+          const response = await fetch(request, { cache: "no-store" });
+          if (response.ok) {
+            const cache = await caches.open(SHELL_CACHE);
+            await cache.put("/index.html", response.clone());
+          }
           return response;
         } catch {
           const cached =
@@ -351,6 +362,17 @@ self.addEventListener("message", (event) => {
   }
   if (data.type === "SKIP_WAITING") {
     self.skipWaiting();
+  }
+  /* إصلاح من داخل التطبيق: حذف كل الكاش وإعادة تحميل نظيفة. */
+  if (data.type === "thimar-clear-caches") {
+    event.waitUntil(
+      (async () => {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((key) => caches.delete(key)));
+        const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+        list.forEach((client) => client.postMessage({ type: "thimar-caches-cleared" }));
+      })(),
+    );
   }
 });
 

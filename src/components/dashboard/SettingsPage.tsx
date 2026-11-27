@@ -26,7 +26,7 @@ import {
 } from "../../lib/notify";
 import { serverTestPush, subscribeToPush } from "../../lib/push";
 
-import { adhanOptions, getAdhan } from "../../data/adhan";
+import { adhanLabel, adhanOptions, getAdhan } from "../../data/adhan";
 import { PRAYER_KEYS, prayerImageUrl } from "../../data/prayerImages";
 import AdhanPermissionsCard from "./AdhanPermissionsCard";
 import { applyVibrationSetting, installVibrationGate } from "../../lib/sound";
@@ -86,6 +86,7 @@ export default function SettingsPage({
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [autoCheckUpdates, setAutoCheckUpdates] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [adhanQuery, setAdhanQuery] = useState("");
   const adhanPreviewRef = useRef<HTMLAudioElement | null>(null);
 
   /* مفتاح الاهتزاز العام: يُطبّق فورًا على كل اهتزازات التطبيق. */
@@ -1135,11 +1136,22 @@ export default function SettingsPage({
             </select>
           </label>
           <label>
+            <span>كتم الأذان بأزرار الصوت</span>
+            <select
+              value={settings.adhanVolumeKeyMute === false ? "no" : "yes"}
+              onChange={(event) => update("adhanVolumeKeyMute", event.target.value === "yes")}
+            >
+              <option value="yes">مفعّل — زر رفع/خفض الصوت يكتم الأذان</option>
+              <option value="no">معطّل — يبقى الأذان مسموعًا</option>
+            </select>
+            <small className="muted">يعمل داخل تطبيق أندرويد عند ظهور شاشة الأذان.</small>
+          </label>
+          <label>
             <span>نغمة الأذان المناسبة</span>
             <select value={settings.adhanId} onChange={(event) => update("adhanId", event.target.value)}>
               {adhanOptions.map((option) => (
                 <option key={option.id} value={option.id}>
-                  {option.name}
+                  {adhanLabel(option)}
                 </option>
               ))}
             </select>
@@ -1209,7 +1221,7 @@ export default function SettingsPage({
                   }}
                 >
                   {adhanOptions.map((option) => (
-                    <option key={option.id} value={option.id}>{option.name}</option>
+                    <option key={option.id} value={option.id}>{adhanLabel(option)}</option>
                   ))}
                 </select>
               </label>
@@ -1217,12 +1229,29 @@ export default function SettingsPage({
           </div>
           <div className="adhan-preview">
             <span className="adhan-preview-title">تجربة صوت المؤذن</span>
+            <input
+              type="search"
+              className="adhan-preview-search"
+              placeholder="ابحث باسم المؤذن…"
+              value={adhanQuery}
+              onChange={(event) => setAdhanQuery(event.target.value)}
+              aria-label="بحث في أصوات المؤذنين"
+            />
             <ul>
-              {adhanOptions.map((option) => {
+              {adhanOptions
+                .filter((option) => {
+                  const query = adhanQuery.trim();
+                  if (!query) return true;
+                  return `${option.name} ${option.muezzin || ""} ${option.description}`.includes(query);
+                })
+                .map((option) => {
                 const isPlaying = previewId === option.id;
                 return (
                   <li key={option.id}>
-                    <span>{option.name}</span>
+                    <span>
+                      <strong>{option.name}</strong>
+                      <small className="muted">{option.description}</small>
+                    </span>
                     <button
                       type="button"
                       className={`adhan-preview-btn${isPlaying ? " playing" : ""}`}

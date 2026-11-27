@@ -109,7 +109,7 @@ body {
   background:var(--accent); box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 40%,transparent);
 }
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible {
-  outline:3px solid color-mix(in srgb,var(--accent) 70%,transparent); outline-offset:2px;
+  outline:2px solid color-mix(in srgb,var(--primary) 55%,transparent); outline-offset:2px;
 }
 [data-theme="dark"] .welcome-strip {
   background:radial-gradient(circle at 82% 20%,rgba(224,190,111,.18),transparent 28%),linear-gradient(125deg,#092f29,#075343 56%,#123d34);

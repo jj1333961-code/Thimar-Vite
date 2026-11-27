@@ -32,6 +32,12 @@ public class AdhanScheduler {
   public static final String KEY_DEFAULT_URL = "default_url";
   public static final String KEY_URLS = "urls_json";
   public static final String KEY_VOLUME = "volume";
+  /** كتم الأذان بأزرار الصوت (إعداد من شاشة ثمار). */
+  public static final String KEY_VOLUME_KEY_MUTE = "volume_key_mute";
+  /** بيانات عرض شاشة الأذان: المدينة واللغة والسمة. */
+  public static final String KEY_CITY = "adhan_city";
+  public static final String KEY_LANG = "adhan_lang";
+  public static final String KEY_THEME = "adhan_theme";
   public static final String KEY_LAST_PLAYED = "last_played";
   public static final String KEY_LAST_PLAYED_AT = "last_played_at";
   /** آخر جدولة ناجحة (JSON) — تُعرض في التشخيص وتُثبت أن المنبهات وُضعت. */
@@ -70,6 +76,16 @@ public class AdhanScheduler {
       .putString(KEY_DEFAULT_URL, defaultUrl)
       .putFloat(KEY_VOLUME, volume)
       .apply();
+  }
+
+  /** يحفظ خيارات العرض القادمة من ثمار (لا تؤثر في مواعيد المنبهات). */
+  public static void savePresentation(Context c, boolean volumeKeyMute, String city, String lang, String theme) {
+    prefs(c).edit()
+        .putBoolean(KEY_VOLUME_KEY_MUTE, volumeKeyMute)
+        .putString(KEY_CITY, city == null ? "" : city.trim())
+        .putString(KEY_LANG, "en".equalsIgnoreCase(lang) ? "en" : "ar")
+        .putString(KEY_THEME, theme == null ? "" : theme.trim())
+        .apply();
   }
 
   public static void saveUrls(Context c, JSONObject urls) {

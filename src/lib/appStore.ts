@@ -31,6 +31,8 @@ export type Settings = {
   adhanScreen: boolean;
   adhanId: string;
   adhanVolume: number;
+  /** كتم صوت الأذان بأزرار الصوت في الهاتف (يعمل داخل تطبيق أندرويد). */
+  adhanVolumeKeyMute: boolean;
   adhanByPrayer: Record<string, string>;
   adhanPrayerEnabled: Record<string, boolean>;
   robotVisible: boolean;
@@ -54,6 +56,7 @@ export const defaultSettings: Settings = {
   adhanScreen: true,
   adhanId: "adhan-1",
   adhanVolume: 0.9,
+  adhanVolumeKeyMute: true,
   adhanByPrayer: {},
   adhanPrayerEnabled: { Fajr: true, Dhuhr: true, Asr: true, Maghrib: true, Isha: true },
   robotVisible: true,
@@ -535,6 +538,10 @@ export function markAllNotificationsRead(account: Account): void {
       : notification,
   );
   saveNotifications(notifications);
+}
+
+export function deleteNotification(notificationId: string): void {
+  saveNotifications(loadNotifications().filter((notification) => notification.id !== notificationId));
 }
 
 export function markNotificationRead(notificationId: string): void {
@@ -1220,6 +1227,10 @@ export function sendChatMessage(
     createdAt: Number(message.createdAt ?? Date.now()),
   });
   saveChats(conversations);
+  /* ارفع الرسالة فورًا بدل انتظار دورة المزامنة الدورية. بدون هذا كانت
+     الرسالة تبقى محلية إن أغلق المرسل التطبيق قبل دورة السحب التالية، فلا
+     تصل إلى الطرف الآخر أبدًا. */
+  void pushChats([conv]).catch(() => undefined);
 
   // إشعار فوري على أجهزة بقية الأعضاء — يصل من الخادم حتى والتطبيق مغلق.
   // رسائل المكالمة تُحفظ بصمت لأن الطرفين داخل المكالمة أصلًا.

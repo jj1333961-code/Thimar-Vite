@@ -4,7 +4,7 @@ import { surahs } from "../../data/surahs";
 import { useHistoryBack } from "../../lib/useHistoryBack";
 import { ayahKey, loadHafsAyahs, loadHafsOrder, type HafsAyah } from "../../lib/mushafText";
 import { selectionAfterTap } from "../../lib/ayahSelectionCore";
-import { loadPageLines } from "../../lib/quranPageLayout";
+import { cachedPageLines, loadPageLines, prefetchPageLines, type PageLines } from "../../lib/quranPageLayout";
 import type { TasmeeWord, WordStatus } from "../../lib/mushafTasmee";
 import MushafAyahMenu from "./MushafAyahMenu";
 import AyahAudioSheet from "./AyahAudioSheet";
@@ -26,6 +26,17 @@ const BASE = import.meta.env.BASE_URL || "/";
 const HIDDEN_KEY = "thimar.mushaf.hidden.v1";
 const BASMALA = "بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ";
 const LONG_PRESS_MS = 480;
+
+/* علامات زخرفية/وقف قائمة بذاتها (مثل ۞) ليست كلمات في تخطيط الصفحة،
+   وتعدادها ككلمة كان يُزيح فهرس الكلمات فيختلّ نص الآية وترتيبه. */
+const STANDALONE_MARK = /^[\s\u0610-\u061A\u06D6-\u06ED\u08D3-\u08FF\u200E\u200F\uFEFF]+$/;
+
+/** كلمات الآية بنفس التقسيم الذي يعتمده تخطيط الصفحة المطبوع. */
+function ayahWords(encoded: string): string[] {
+  return tajweedText(encoded)
+    .split(/\s+/)
+    .filter((word) => word.length > 0 && !STANDALONE_MARK.test(word));
+}
 
 function arabicNumber(value: number): string {
   return String(value).replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[Number(d)]);
@@ -86,7 +97,9 @@ export default function MushafPagesText({
   const [audioAyahs, setAudioAyahs] = useState<HafsAyah[] | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(() => readHidden());
   const [fontPx, setFontPx] = useState(0);
-  const [linesData, setLinesData] = useState<{ lines: number[][][]; lineNums: number[]; surahStarts: number[][] } | null>(null);
+  /* أسطر الصفحة مرتبطة برقمها: لا يجوز أبدًا رسم أسطر صفحة سابقة فوق صفحة
+     جديدة ولو لإطار واحد، فهذا هو الوميض الذي يراه القارئ عند التقليب. */
+  const [linesData, setLinesData] = useState<{ page: number; value: PageLines } | null>(null);
   const [tasmeeOpen, setTasmeeOpen] = useState(false);
   const [tasmeeWordsList, setTasmeeWordsList] = useState<TasmeeWord[]>([]);
   const [tasmeeStatuses, setTasmeeStatuses] = useState<WordStatus[]>([]);
@@ -112,16 +125,24 @@ export default function MushafPagesText({
     };
   }, []);
 
+  /* أسطر الصفحة: تُقرأ فورًا من الذاكرة إن كانت حِزمتها محمّلة (بلا شاشة
+     تحميل)، ويُحمّل ما حولها مسبقًا حتى يكون التقليب فوريًا. */
   useEffect(() => {
+    const cached = cachedPageLines(page);
+    if (cached) {
+      setLinesData({ page, value: cached });
+      for (let offset = -2; offset <= 2; offset += 1) prefetchPageLines(page + offset);
+      return;
+    }
     let cancelled = false;
-    setLinesData(null);
     loadPageLines(page)
       .then((value) => {
-        if (cancelled) return;
-        setLinesData(value);
+        if (cancelled || !value) return;
+        setLinesData({ page, value });
+        for (let offset = -2; offset <= 2; offset += 1) prefetchPageLines(page + offset);
       })
       .catch(() => {
-        /* بقاء null */
+        /* لا نعرض أسطر صفحة أخرى مكانها */
       });
     return () => {
       cancelled = true;
@@ -164,6 +185,13 @@ export default function MushafPagesText({
     return map[page - 1] ?? [];
   }, [map, page]);
 
+  /* الأسطر المعروضة لهذه الصفحة فقط. القراءة المتزامنة من الذاكرة تمنع ظهور
+     أسطر الصفحة السابقة للحظة عند التقليب داخل الجزء نفسه. */
+  const pageLines = useMemo(
+    () => (linesData?.page === page ? linesData.value : cachedPageLines(page)),
+    [linesData, page],
+  );
+
   /* رقم الجزء من أول آية في الصفحة. */
   const juz = useMemo(() => {
     const first = rows[0];
@@ -191,6 +219,32 @@ export default function MushafPagesText({
 
   const pageKeys = useMemo(() => rows.map(([s, a]) => ayahKey(s, a)), [rows]);
 
+  /* أول آية في الصفحة التالية: بها نعرف أن آيةً ما زالت مستمرة عبر الصفحة. */
+  const nextPageFirstKey = useMemo(() => {
+    const first = map?.[page]?.[0];
+    return first ? ayahKey(first[0], first[1]) : null;
+  }, [map, page]);
+
+  /* كلمات كل آية في الصفحة + آخر سطر تظهر فيه + أكبر فهرس يطلبه التخطيط،
+     لكشف الكلمات التي سقطت من بيانات الأسطر واستدراكها في نهايتها. */
+  const pageWords = useMemo(() => {
+    const tokens = new Map<string, string[]>();
+    const maxIndex = new Map<string, number>();
+    const lastLine = new Map<string, number>();
+    for (const key of pageKeys) {
+      const encoded = data?.verses[key];
+      tokens.set(key, encoded ? ayahWords(encoded) : []);
+    }
+    (pageLines?.lines ?? []).forEach((lineWords, lineIndex) => {
+      for (const [surah, ayah, wordIndex] of lineWords) {
+        const key = ayahKey(surah, ayah);
+        maxIndex.set(key, Math.max(maxIndex.get(key) ?? -1, wordIndex));
+        lastLine.set(key, lineIndex);
+      }
+    });
+    return { tokens, maxIndex, lastLine };
+  }, [data, pageKeys, pageLines]);
+
   /* فهرس كلمات التسميع: مفتاح "سورة:آية:فهرس الكلمة" → فهرس في tasmeeWordsList. */
   const tasmeeWordIndex = useMemo(() => {
     const map = new Map<string, number>();
@@ -211,18 +265,35 @@ export default function MushafPagesText({
     return Number.isFinite(value) ? value : null;
   }, [initialHighlight]);
 
-  /* ضبط حجم الخط حتى تدخل الصفحة كاملة في الشاشة وبأكبر حجم ممكن.
-     لكل سطر حجمه الخاص: السطر الطويل لا يفرض حجمًا صغيرًا على القصير،
-     فيختفي الفراغ الأفقي الكبير الذي كانت توزّعه محاذاة الضبط. */
+  /* ضبط حجم الخط حتى تدخل الصفحة كاملة في الشاشة.
+     حجم واحد لكل سطور الصفحة (لا حجم لكل سطر): الحجم المختلف لكل سطر كان
+     يجعل كلمة واحدة تملأ الشاشة وأخرى صغيرة في الصفحة نفسها. ثم تُوزّع
+     الزيادة المتبقية في عرض السطر على المسافات بين الكلمات (word-spacing)
+     فيمتلئ الجانب بالكامل ولا يبقى فراغ بعد نهاية الآية. */
   const fitPage = useCallback(() => {
     const pageEl = pageRef.current;
     const bodyEl = bodyRef.current;
     const stageEl = stageRef.current;
     if (!pageEl || !bodyEl || !stageEl) return;
 
-    const availableWidth = stageEl.clientWidth;
-    const availableHeight = stageEl.clientHeight;
-    if (availableWidth < 40 || availableHeight < 40) return;
+    /*
+     * مقاس الصفحة من صندوق المحتوى لا من clientWidth/clientHeight: هذان يشملان
+     * حشو الـstage، فكانت الصفحة تزيد ٨ بكسل عن المساحة المتاحة ويُقتطع آخر
+     * سطر عند حد الشاشة.
+     */
+    const stageStyle = window.getComputedStyle(stageEl);
+    const padX = (parseFloat(stageStyle.paddingLeft) || 0) + (parseFloat(stageStyle.paddingRight) || 0);
+    const padY = (parseFloat(stageStyle.paddingTop) || 0) + (parseFloat(stageStyle.paddingBottom) || 0);
+    const stageWidth = stageEl.clientWidth - padX;
+    const stageHeight = stageEl.clientHeight - padY;
+    if (stageWidth < 40 || stageHeight < 40) return;
+    /*
+     * الصفحة تملأ عرض المساحة المتاحة بالكامل: عرضها = عرض الـstage وارتفاعها =
+     * ارتفاعه. تثبيت العرض صراحةً قبل القياس يضمن أن حساب حجم الخط يتم على
+     * المساحة الفعلية، فلا يبقى فراغ جانبي غير مستغل.
+     */
+    const availableWidth = Math.max(220, stageWidth);
+    const availableHeight = stageHeight;
     pageEl.style.width = `${availableWidth}px`;
     pageEl.style.height = `${availableHeight}px`;
 
@@ -265,78 +336,74 @@ export default function MushafPagesText({
       }
       return true;
     };
-    const heightOk = () => bodyEl.scrollHeight <= available + 1 && linesStaySingle();
+    /* ارتفاع المحتوى الحقيقي = مجموع ارتفاع الأبناء. `scrollHeight` لا يصلح
+       هنا: جسم الصفحة flex مع justify-content: space-between، فيساوي ارتفاع
+       الصندوق دائمًا ويُوهم بأن الصفحة ممتلئة فتوقف البحث عند خط صغير. */
+    const contentHeight = () => {
+      const children = Array.from(bodyEl.children) as HTMLElement[];
+      let total = 0;
+      for (const child of children) total += child.offsetHeight || 0;
+      const gap = parseFloat(window.getComputedStyle(bodyEl).rowGap) || 0;
+      if (children.length > 1 && gap > 0) total += gap * (children.length - 1);
+      return total;
+    };
+    const heightOk = () => contentHeight() <= available + 1 && linesStaySingle();
 
     const lines = Array.from(bodyEl.querySelectorAll<HTMLElement>(".qp-line"));
-    const clearLineSizes = () => {
-      for (const line of lines) line.style.removeProperty("--qp-line-fs");
+    /* لا أسطر بعد (البيانات في الطريق): لا نضبط حجمًا على صفحة فارغة ونترك
+       البحث يصل إلى الحد الأعلى. نعيد الضبط عند وصول الأسطر. */
+    if (lines.length === 0 && !isSpecialPageRef.current) return;
+    const clearLineMetrics = () => {
+      for (const line of lines) {
+        line.style.removeProperty("--qp-line-fs");
+        line.style.removeProperty("--qp-line-ws");
+      }
     };
 
-    /* الصفحتان الأولى والثانية نصّهما مُوسَّط لا مُسطَّر: حجم واحد للصفحة. */
-    if (isSpecialPageRef.current || lines.length === 0) {
-      clearLineSizes();
-      let low = 9;
-      let high = 80;
-      let best = 0;
-      for (let step = 0; step < 11; step += 1) {
-        const mid = (low + high) / 2;
-        applyBase(mid);
-        if (heightOk()) {
-          best = mid;
-          low = mid;
-        } else {
-          high = mid;
-        }
-      }
-      applyBase(best || 9);
-      setFontPx(best || 9);
-      return;
-    }
-
-    /* أكبر حجم يبقى فيه السطر سطرًا واحدًا داخل عرضه المتاح. */
-    const largestFit = (line: HTMLElement) => {
-      const fits = () => {
+    /* توزيع الفراغ المتبقي بعد آخر كلمة على المسافات بين الكلمات، بسقف
+       يمنع التمدّد القبيح في سطر قصير جدًا. */
+    const justifyLines = () => {
+      for (const line of lines) {
+        line.style.removeProperty("--qp-line-ws");
         const metrics = measureLine(line);
-        if (!metrics) return true;
-        return !metrics.wrapped && metrics.width <= metrics.box.width + 1;
-      };
-      let low = 8;
-      let high = 80;
-      let best = 8;
-      for (let step = 0; step < 11; step += 1) {
-        const mid = (low + high) / 2;
-        line.style.setProperty("--qp-line-fs", `${mid.toFixed(2)}px`);
-        if (fits()) {
-          best = mid;
-          low = mid;
-        } else {
-          high = mid;
-        }
-      }
-      line.style.setProperty("--qp-line-fs", `${best.toFixed(2)}px`);
-      return best;
-    };
-
-    const sizes = lines.map(largestFit);
-
-    /* تصغير متناسب فقط إذا لم تدخل الأسطر كلها في الارتفاع المتاح. */
-    const fitHeight = () => {
-      for (let pass = 0; pass < 14 && !heightOk(); pass += 1) {
-        const overflow = bodyEl.scrollHeight / Math.max(available, 1);
-        const scale = Math.max(0.55, Math.min(0.995, 1 / overflow));
-        for (let i = 0; i < lines.length; i += 1) {
-          sizes[i] = Math.max(8, sizes[i] * scale);
-          lines[i].style.setProperty("--qp-line-fs", `${sizes[i].toFixed(2)}px`);
-        }
+        if (!metrics) continue;
+        const words = (line.textContent ?? "").trim().split(/\s+/).filter(Boolean).length;
+        const gaps = words - 1;
+        const extra = metrics.box.width - metrics.width - 2;
+        if (gaps <= 0 || extra <= 0.5) continue;
+        const fontSize = parseFloat(window.getComputedStyle(line).fontSize) || 22;
+        line.style.setProperty("--qp-line-ws", `${Math.min(extra / gaps, fontSize * 0.85).toFixed(2)}px`);
       }
     };
 
-    /* عنوان السورة والبسملة يرثان حجم الصفحة، فنضبطه على أصغر سطر
-       حتى لا يتضخّم الرأس ويأكل ارتفاع السطور. */
-    applyBase(Math.min(...sizes));
-    fitHeight();
-    applyBase(Math.min(...sizes));
-    setFontPx(Math.min(...sizes));
+    /* حجم واحد للصفحة: أكبر حجم تبقى فيه كل الأسطر في سطر واحد وتدخل في
+       الارتفاع المتاح — ثم تُضبط المسافات لتملأ عرض الصفحة. */
+    clearLineMetrics();
+    let low = 9;
+    let high = 80;
+    let best = 9;
+    for (let step = 0; step < 13; step += 1) {
+      const mid = (low + high) / 2;
+      applyBase(mid);
+      if (heightOk()) {
+        best = mid;
+        low = mid;
+      } else {
+        high = mid;
+      }
+    }
+    applyBase(best);
+    /* الصفحتان الأولى والثانية نصّهما موسّط لا مسطّر: بلا توزيع مسافات. */
+    if (!isSpecialPageRef.current) {
+      justifyLines();
+      /* قد يزيد ارتفاع السطر بعد توزيع المسافات: نتحقق ونصغّر عند الحاجة. */
+      for (let guard = 0; guard < 3 && !heightOk(); guard += 1) {
+        best = Math.max(8, best * 0.98);
+        applyBase(best);
+        justifyLines();
+      }
+    }
+    setFontPx(best);
   }, []);
 
   useEffect(() => {
@@ -373,7 +440,7 @@ export default function MushafPagesText({
       visualViewport?.removeEventListener("resize", onResize);
       resizeObserver?.disconnect();
     };
-  }, [data, rows, page, fitPage, tasmeeOpen]);
+  }, [data, rows, page, fitPage, tasmeeOpen, pageLines]);
 
   const syncSelected = (keys: string[]) => {
     if (!keys.length) {
@@ -412,10 +479,15 @@ export default function MushafPagesText({
 
   /* الضغط المطوّل: فتح الأزرار الدائرية. */
   const openMenuFor = (key: string | null, x: number, y: number) => {
-    // الضغط المطوّل على كلمة يختار آيتها كاملة فقط، ولا يضيفها إلى تحديد قديم.
-    const keys = key ? [key] : selectionRef.current;
+    /*
+     * الضغط المطوّل لا يلغي تحديدًا قائمًا: إذا كانت الآية المضغوطة داخل
+     * المجموعة المحددة تبقى المجموعة كما هي (وهذا ما يتوقعه المستخدم عند فتح
+     * قائمة الخيارات لآيات اختارها). وإن كانت خارجها تُحدَّد وحدها.
+     */
+    const current = selectionRef.current;
+    const keys = key && !current.includes(key) ? [key] : current;
     if (!keys.length) return;
-    changeSelection(keys);
+    if (keys !== current) changeSelection(keys);
     setMenu({ x, y });
   };
 
@@ -426,8 +498,22 @@ export default function MushafPagesText({
     setMenu(null);
   };
 
+  /* لا نغيّر رقم الصفحة قبل أن تصبح أسطرها جاهزة. بهذا تبقى الصفحة الحالية
+     معروضة أثناء تجهيز التالية، بدل عرض أسطر لا تخصّها ولو لأجزاء من الثانية. */
+  const openPage = (target: number) => {
+    const next = Math.min(TOTAL_PAGES, Math.max(1, Math.round(target)));
+    if (next === page) return;
+    if (cachedPageLines(next)) {
+      setPage(next);
+      return;
+    }
+    void loadPageLines(next).then((value) => {
+      if (value) setPage(next);
+    });
+  };
+
   const go = (delta: number) => {
-    setPage((current) => Math.min(TOTAL_PAGES, Math.max(1, current + delta)));
+    openPage(page + delta);
   };
 
   const endPress = () => {
@@ -536,13 +622,13 @@ export default function MushafPagesText({
           style={fontPx ? ({ "--qp-fs": `${fontPx.toFixed(2)}px` } as React.CSSProperties) : undefined}
         >
           <div className="qp-page-body" ref={bodyRef}>
-            {!data ? <p className="qp-page-status">جارٍ تحميل المصحف…</p> : null}
-            {data && !linesData ? <p className="qp-page-status">جارٍ تحميل صفحات المصحف…</p> : null}
+            {/* لا شاشة "جارٍ تحميل": بيانات المصحف تُحمّل مسبقًا وتُخزّن،
+                والصفحة تظهر مباشرة بدل إظهار رسالة انتظار للمستخدم. */}
             {data && rows.length === 0 ? <p className="qp-page-status">تعذّر عرض هذه الصفحة.</p> : null}
 
-            {linesData && data
-              ? linesData.lines.map((lineWords, lineIdx) => {
-                  const renderedSurahStarts = (linesData.surahStarts || []).filter(([idx]) => idx === lineIdx);
+            {pageLines && data
+              ? pageLines.lines.map((lineWords, lineIdx) => {
+                  const renderedSurahStarts = (pageLines.surahStarts || []).filter(([idx]) => idx === lineIdx);
                   // group words into ayah runs
                   const runs: { surah: number; ayah: number; wordIndexes: number[] }[] = [];
                   for (const [s, a, widx] of lineWords) {
@@ -566,8 +652,14 @@ export default function MushafPagesText({
                       <div className="qp-line">
                         {runs.map((run, runIdx) => {
                           const key = ayahKey(run.surah, run.ayah);
-                          const encoded = data.verses[key];
-                          const words = encoded ? tajweedText(encoded).split(/\s+/).filter(Boolean) : [];
+                          const words = pageWords.tokens.get(key) ?? [];
+                          const isLastOnPage = pageWords.lastLine.get(key) === lineIdx;
+                          const continuesNextPage = nextPageFirstKey === key;
+                          /* كلمات سقطت من أواخر بعض الآيات في بيانات الأسطر:
+                             تُضاف في نهايتها بدل أن تختفي من الصفحة. */
+                          const tailWords = isLastOnPage && !continuesNextPage
+                            ? words.slice((pageWords.maxIndex.get(key) ?? -1) + 1)
+                            : [];
                           const isSelected = selection.includes(key);
                           const isHidden = hidden.has(key);
                           const inTasmee =
@@ -578,8 +670,7 @@ export default function MushafPagesText({
                             data.chapters.slice(0, run.surah - 1).reduce((n, c) => n + c.verses_count, 0) +
                               run.ayah ===
                               highlightGlobal;
-                          const lastWordIndex = words.length - 1;
-                          const showMark = run.wordIndexes.includes(lastWordIndex);
+                          const showMark = isLastOnPage && !continuesNextPage;
                           return (
                             <a
                               key={`${key}-${runIdx}`}
@@ -618,6 +709,9 @@ export default function MushafPagesText({
                                     </Fragment>
                                   );
                                 })}
+                                {tailWords.map((word, index) => (
+                                  <Fragment key={`tail-${index}`}>{word} </Fragment>
+                                ))}
                               </span>
                               {showMark ? (
                                 <span className="ayah-mark" data-len={String(arabicNumber(run.ayah)).length} aria-hidden="true">
@@ -647,7 +741,7 @@ export default function MushafPagesText({
           onClearSelection={clearSelection}
           onToggleHidden={toggleHidden}
           onToast={setToast}
-          onOpenPage={(next) => setPage(Math.min(TOTAL_PAGES, Math.max(1, next)))}
+          onOpenPage={(next) => openPage(next)}
           onStartTasmee={() => {
             setMenu(null);
             setTasmeeOpen(true);

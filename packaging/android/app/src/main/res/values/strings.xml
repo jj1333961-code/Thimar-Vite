@@ -9,4 +9,8 @@
   <string name="adhan_pause">إيقاف مؤقت</string>
   <string name="adhan_resume">استئناف</string>
   <string name="adhan_volume">مستوى صوت الأذان</string>
+  <string name="adhan_close_hint">اضغط زر الإغلاق للعودة</string>
+  <string name="adhan_dismiss_seconds">يُغلق تلقائيًا خلال %1$s ثانية — أو استخدم زر الإغلاق</string>
+  <string name="adhan_muted">كُتم صوت الأذان — اضغط زر الصوت مرة أخرى للاستئناف</string>
+  <string name="adhan_volume_key_hint">اضغط زر رفع أو خفض الصوت لكتم الأذان</string>
 </resources>

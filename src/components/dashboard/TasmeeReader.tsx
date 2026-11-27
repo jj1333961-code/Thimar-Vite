@@ -543,6 +543,14 @@ export default function TasmeeReader({
     setPausedPrompt(false);
   };
 
+  /* مغادرة الصفحة (أو الانتقال لقسم آخر) تُغلق الميكروفون فورًا: لا يبقى مفتوحًا بلا حاجة. */
+  useEffect(() => {
+    return () => {
+      stopRecitation();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const saveTasmeeSession = () => {
     try {
       const raw = localStorage.getItem("thimar.tasmeeSessions");

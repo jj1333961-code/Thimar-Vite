@@ -1,14 +1,20 @@
 /*
- * صورة مشاركة الآيات: تُرسم على canvas بنص الآيات المحددة فقط، بخط عربي
- * واضح، مع اسم السورة وأرقام الآيات وشعار ثمار الرسمي (أيقونة التطبيق نفسها).
+ * صورة مشاركة الآيات: تُرسم على canvas بنص الآيات المحددة فقط، بخط المصحف
+ * (QuranUthmani) بعد التأكد من تحميله، مع اسم السورة وأرقام الآيات وشعار ثمار.
+ *
+ * التصميم مقسّم إلى مناطق رأسية مستقلة (شعار/عنوان/نص/تذييل) تُحسب ارتفاعاتها
+ * أولًا ثم تُرسم بالتتابع، فلا يمكن أن يتداخل النص القرآني مع الشعار أو العنوان،
+ * ولا أن تخرج الآيات عن حدود الصورة.
  */
 
 import { surahs } from "../data/surahs";
 import type { HafsAyah } from "./mushafText";
 
-const LOGO_URL = `${import.meta.env.BASE_URL || "/"}icons/icon-192.png`;
-const WIDTH = 1200;
-const PADDING = 84;
+const BASE = import.meta.env.BASE_URL || "/";
+const LOGO_URL = `${BASE}icons/icon-192.png`;
+const WIDTH = 1080;
+const PADDING = 56;
+const MAX_HEIGHT = 3400;
 
 const ARABIC_DIGITS = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
 
@@ -64,26 +70,24 @@ function roundedRect(
   height: number,
   radius: number,
 ): void {
+  const r = Math.min(radius, width / 2, height / 2);
   ctx.beginPath();
-  ctx.moveTo(x + radius, y);
-  ctx.arcTo(x + width, y, x + width, y + height, radius);
-  ctx.arcTo(x + width, y + height, x, y + height, radius);
-  ctx.arcTo(x, y + height, x, y, radius);
-  ctx.arcTo(x, y, x + width, y, radius);
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
   ctx.closePath();
 }
 
-function wrapText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number,
-): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
+/** يلفّ النص العربي حسب العرض المتاح دون كسر الكلمات. */
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const words = text.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
   const lines: string[] = [];
   let current = "";
   for (const word of words) {
     const candidate = current ? `${current} ${word}` : word;
-    if (ctx.measureText(candidate).width <= maxWidth || !current) {
+    if (!current || ctx.measureText(candidate).width <= maxWidth) {
       current = candidate;
     } else {
       lines.push(current);
@@ -91,17 +95,59 @@ function wrapText(
     }
   }
   if (current) lines.push(current);
-  return lines;
+  return lines.length ? lines : [""];
 }
 
-function drawPattern(ctx: CanvasRenderingContext2D, height: number): void {
+/*
+ * عنوان الخط: خط المصحف المضمَّن يعمل دون إنترنت، ثم بدائل عربية إن لم يتوفر.
+ * نُحمّل الخط فعليًا قبل القياس والرسم حتى لا تختلف عروض الكلمات بين القياس
+ * والرسم (وهو سبب تداخل الكلمات في الصورة القديمة).
+ */
+const BODY_FAMILY = '"Hafs", "QuranUthmani", "Amiri Quran", "Scheherazade New", "Amiri", serif';
+
+async function ensureFonts(fontSize: number): Promise<void> {
+  const fonts = typeof document !== "undefined" ? document.fonts : undefined;
+  if (!fonts) return;
+  try {
+    await fonts.ready;
+  } catch {
+    /* المتابعة بالخط البديل */
+  }
+  /* خط المصحف نفسه المستخدم في صفحة القراءة («Hafs» = عثماني حفص) ثم البديل. */
+  const loads = [
+    fonts.load(`400 ${fontSize}px "Hafs"`),
+    fonts.load(`400 ${fontSize}px "QuranUthmani"`),
+    fonts.load(`700 40px "Tajawal"`),
+    fonts.load(`600 30px "Tajawal"`),
+    fonts.load(`700 46px "Aref Ruqaa"`),
+  ];
+  await Promise.all(loads.map((job) => job.catch(() => undefined)));
+  try {
+    await fonts.ready;
+  } catch {
+    /* المتابعة */
+  }
+  /*
+   * لا نرسم بخط لم يُحمَّل: القياس بخط والرسم بآخر هو سبب تداخل الكلمات في
+   * الصورة القديمة. إن فشل تحميل خط المصحف ننتظر حتى ينتهي التحميل الجاري.
+   */
+  if (!fonts.check(`400 ${fontSize}px "Hafs"`)) {
+    try {
+      await fonts.load(`400 ${fontSize}px "Hafs"`);
+    } catch {
+      /* نكمل بالخط المتاح */
+    }
+  }
+}
+
+function drawPattern(ctx: CanvasRenderingContext2D, width: number, height: number): void {
   ctx.save();
-  ctx.strokeStyle = "rgba(15, 95, 78, 0.07)";
+  ctx.strokeStyle = "rgba(15, 95, 78, 0.06)";
   ctx.lineWidth = 1.4;
-  const step = 56;
+  const step = 54;
   for (let y = step; y < height; y += step) {
-    for (let x = step; x < WIDTH; x += step) {
-      const size = 13;
+    for (let x = step; x < width; x += step) {
+      const size = 12;
       ctx.beginPath();
       ctx.moveTo(x, y - size);
       ctx.lineTo(x + size, y);
@@ -120,6 +166,65 @@ export type AyahImageResult = {
   dataUrl: string;
 };
 
+type Layout = {
+  fontSize: number;
+  lineHeight: number;
+  wrapped: string[][];
+  bodyHeight: number;
+  ayahGap: number;
+  headerHeight: number;
+  titleHeight: number;
+  footerHeight: number;
+  height: number;
+};
+
+/**
+ * يحسب التوزيع الرأسي كاملًا قبل الرسم: اختيار حجم الخط ثم عدد الأسطر ثم
+ * ارتفاع كل منطقة، مع تصغير تدريجي حتى تدخل الصورة في الحد الأقصى للارتفاع.
+ */
+function computeLayout(measure: CanvasRenderingContext2D, ayahs: HafsAyah[]): Layout {
+  const textWidth = WIDTH - PADDING * 2;
+  const totalChars = ayahs.reduce((total, ayah) => total + ayah.text.length, 0);
+  let fontSize = totalChars <= 220 ? 56 : totalChars <= 520 ? 50 : totalChars <= 1000 ? 44 : 38;
+
+  const headerHeight = 250;
+  const titleHeight = 96;
+  const footerHeight = 150;
+
+  for (;;) {
+    const lineHeight = Math.round(fontSize * 2.15);
+    const markerHeight = Math.round(fontSize * 0.86);
+    // مساحة محجوزة في نهاية آخر سطر لعلامة رقم الآية، فلا تتراكب مع النص أبدًا.
+    const markerReserve = Math.round(markerHeight * 0.85) + 14;
+    const wrapWidth = Math.max(180, textWidth - markerReserve);
+    measure.font = `400 ${fontSize}px ${BODY_FAMILY}`;
+    measure.direction = "rtl";
+
+    const wrapped = ayahs.map((ayah) => wrapText(measure, ayah.text, wrapWidth));
+    const lineCount = wrapped.reduce((total, lines) => total + lines.length, 0);
+    const ayahGap = Math.round(lineHeight * 0.42);
+    const bodyHeight = lineCount * lineHeight + Math.max(0, ayahs.length - 1) * ayahGap;
+    const height = Math.round(
+      PADDING + headerHeight + titleHeight + bodyHeight + Math.max(0, ayahs.length - 1) * 6 + footerHeight + PADDING,
+    );
+
+    if (height <= MAX_HEIGHT || fontSize <= 24) {
+      return {
+        fontSize,
+        lineHeight,
+        wrapped,
+        bodyHeight,
+        ayahGap,
+        headerHeight,
+        titleHeight,
+        footerHeight,
+        height: Math.max(720, height),
+      };
+    }
+    fontSize -= 3;
+  }
+}
+
 /** يرسم صورة المشاركة ويعيدها مع رابط بيانات للمعاينة. */
 export async function buildAyahImage(ayahs: HafsAyah[]): Promise<AyahImageResult> {
   if (!ayahs.length) throw new Error("لا توجد آيات محددة");
@@ -128,32 +233,19 @@ export async function buildAyahImage(ayahs: HafsAyah[]): Promise<AyahImageResult
   const measure = measuring.getContext("2d");
   if (!measure) throw new Error("تعذّر إنشاء الصورة على هذا الجهاز");
 
-  await document.fonts?.ready?.catch(() => undefined);
-  try { await document.fonts?.load?.('64px "QuranUthmani"'); } catch { /* ignore */ }
-  try { await document.fonts?.load?.('40px "Tajawal"'); } catch { /* ignore */ }
+  await ensureFonts(56);
 
-  const totalChars = ayahs.reduce((total, ayah) => total + ayah.text.length, 0);
-  // حجم خط ثابت نسبيًا (لا تقلّص للنص) — الارتفاع يُحسب تلقائيًا.
-  const fontSize = totalChars <= 260 ? 62 : totalChars <= 600 ? 56 : 50;
-  const lineHeight = Math.round(fontSize * 1.95);
-  const bodyFont = `${fontSize}px "QuranUthmani", "Amiri Quran", "Amiri", serif`;
-  measure.font = bodyFont;
-  measure.direction = "rtl";
-
-  const textWidth = WIDTH - PADDING * 2;
-  // كل آية تُلفّ وحدها، وتُرسم علامة المصحف الدائرية في نهاية سطرها الأخير.
-  const wrapped = ayahs.map((ayah) => wrapText(measure, ayah.text, textWidth));
-  const bodyLines = wrapped.reduce((total, lines) => total + lines.length, 0);
-  const gapBetweenAyahs = Math.round(lineHeight * 0.55);
-  const markerSize = Math.round(fontSize * 0.9);
-  const markerUrl = `${import.meta.env.BASE_URL || "/"}images/ayah-mark.svg`;
-  let markerImage: HTMLImageElement | null = null;
-  try { markerImage = await loadImage(markerUrl); } catch { /* يبقى رقم الآية ظاهرًا نصيًا */ }
-
-  const headerHeight = 300;
-  const footerHeight = 130;
-  const bodyHeight = bodyLines * lineHeight + (ayahs.length - 1) * gapBetweenAyahs;
-  const height = Math.max(760, Math.round(headerHeight + bodyHeight + footerHeight + PADDING));
+  const layout = computeLayout(measure, ayahs);
+  const {
+    fontSize,
+    lineHeight,
+    wrapped,
+    ayahGap,
+    headerHeight,
+    titleHeight,
+    footerHeight,
+    height,
+  } = layout;
 
   const canvas = document.createElement("canvas");
   canvas.width = WIDTH;
@@ -161,118 +253,170 @@ export async function buildAyahImage(ayahs: HafsAyah[]): Promise<AyahImageResult
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("تعذّر إنشاء الصورة على هذا الجهاز");
 
-  // خلفية عاجية.
+  /* ---------- الخلفية والإطار ---------- */
   const background = ctx.createLinearGradient(0, 0, WIDTH, height);
   background.addColorStop(0, "#fffdf7");
   background.addColorStop(0.55, "#fbf4e4");
-  background.addColorStop(1, "#f3e8ce");
+  background.addColorStop(1, "#f1e6cb");
   ctx.fillStyle = background;
   ctx.fillRect(0, 0, WIDTH, height);
-  drawPattern(ctx, height);
+  drawPattern(ctx, WIDTH, height);
 
-  // إطار ذهبي مزدوج.
   ctx.strokeStyle = "#c9a24a";
   ctx.lineWidth = 6;
-  roundedRect(ctx, 30, 30, WIDTH - 60, height - 60, 34);
+  roundedRect(ctx, 26, 26, WIDTH - 52, height - 52, 34);
   ctx.stroke();
-  ctx.strokeStyle = "rgba(15, 95, 78, 0.55)";
+  ctx.strokeStyle = "rgba(15, 95, 78, 0.5)";
   ctx.lineWidth = 2;
-  roundedRect(ctx, 48, 48, WIDTH - 96, height - 96, 26);
+  roundedRect(ctx, 44, 44, WIDTH - 88, height - 88, 26);
   ctx.stroke();
 
-  // الشعار (الأيقونة الرسمية) + اسم التطبيق.
+  ctx.direction = "rtl";
+  ctx.textBaseline = "alphabetic";
+
+  /* ---------- منطقة الرأس: الشعار واسم التطبيق فقط ---------- */
+  const headerTop = PADDING;
+  const logoSize = 92;
   try {
     const logo = await loadImage(LOGO_URL);
-    const size = 112;
-    const logoX = WIDTH / 2 - size / 2;
-    const logoY = 62;
     ctx.save();
-    roundedRect(ctx, logoX, logoY, size, size, 24);
+    roundedRect(ctx, WIDTH / 2 - logoSize / 2, headerTop, logoSize, logoSize, 22);
     ctx.clip();
-    ctx.drawImage(logo, logoX, logoY, size, size);
+    ctx.drawImage(logo, WIDTH / 2 - logoSize / 2, headerTop, logoSize, logoSize);
     ctx.restore();
   } catch {
     /* يبقى التصميم صالحًا دون الشعار إن تعذّر تحميله. */
   }
 
-  ctx.direction = "rtl";
   ctx.textAlign = "center";
   ctx.fillStyle = "#0f5f4e";
-  ctx.font = '700 42px "Aref Ruqaa", "Reem Kufi", "Amiri", serif';
-  ctx.fillText("ثمار", WIDTH / 2, 228);
+  ctx.font = '700 44px "Aref Ruqaa", "Reem Kufi", "Amiri", serif';
+  ctx.fillText("ثمار", WIDTH / 2, headerTop + logoSize + 56);
 
   ctx.fillStyle = "#8a6a2f";
-  ctx.font = '600 22px "Tajawal", system-ui, sans-serif';
-  ctx.fillText("حفظ القرآن الكريم وتسميعه", WIDTH / 2, 262);
+  ctx.font = '600 26px "Tajawal", system-ui, sans-serif';
+  ctx.fillText("حفظ القرآن الكريم وتسميعه", WIDTH / 2, headerTop + logoSize + 96);
 
-  // اسم السورة وأرقام الآيات.
+  /* ---------- منطقة العنوان: مستقلة تمامًا عن النص ---------- */
+  const titleTop = headerTop + headerHeight;
   ctx.fillStyle = "#0f5f4e";
-  ctx.font = '700 32px "Tajawal", system-ui, sans-serif';
-  ctx.fillText(selectionTitle(ayahs), WIDTH / 2, 312);
+  ctx.font = '700 34px "Tajawal", system-ui, sans-serif';
+  ctx.fillText(selectionTitle(ayahs), WIDTH / 2, titleTop + 44);
 
-  ctx.strokeStyle = "rgba(201, 162, 74, 0.85)";
+  ctx.strokeStyle = "rgba(201, 162, 74, 0.9)";
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(WIDTH / 2 - 150, 332);
-  ctx.lineTo(WIDTH / 2 + 150, 332);
+  ctx.moveTo(WIDTH / 2 - 170, titleTop + 62);
+  ctx.lineTo(WIDTH / 2 + 170, titleTop + 62);
   ctx.stroke();
 
-  // نص الآيات بخط المصحف واتجاه RTL، مع علامة رقم الآية الدائرية الأصلية.
+  /* ---------- منطقة النص القرآني ---------- */
+  let markerImage: HTMLImageElement | null = null;
+  try {
+    markerImage = await loadImage(`${BASE}images/ayah-mark.svg`);
+  } catch {
+    markerImage = null;
+  }
+
+  const bodyFont = `400 ${fontSize}px ${BODY_FAMILY}`;
+  // نُعيد ضبط القياس بنفس الخط النهائي قبل الرسم للتأكد من تطابق العروض.
+  measure.font = bodyFont;
+  measure.direction = "rtl";
+
+  const markerHeight = Math.round(fontSize * 0.86);
+  const markerWidth = Math.round(markerHeight * 0.80542);
+  const textRight = WIDTH - PADDING;
+  /*
+   * عندما تكون الآيات قليلة يبقى فراغ أسفلها: نُوزّعه بالتساوي فوق النص وتحته
+   * بحد أقصى، فلا يلتصق النص بالعنوان ولا يترك فراغًا هائلًا في صورة صغيرة.
+   */
+  const bodyTop = titleTop + titleHeight;
+  const footerBandTop = height - PADDING - footerHeight;
+  const slack = Math.max(0, footerBandTop - bodyTop - layout.bodyHeight);
+  let y = bodyTop + Math.min(Math.round(slack / 2), 150);
+
   ctx.font = bodyFont;
-  ctx.fillStyle = "#1c1a14";
   ctx.direction = "rtl";
   ctx.textAlign = "right";
-  let y = headerHeight;
+  ctx.textBaseline = "alphabetic";
+
   wrapped.forEach((lines, index) => {
-    for (const line of lines) {
-      ctx.fillText(line, WIDTH - PADDING, y);
+    const ayah = ayahs[index];
+    lines.forEach((line, lineIndex) => {
+      const baseline = y + Math.round(lineHeight * 0.76);
+      ctx.fillStyle = "#17140e";
+      ctx.font = bodyFont;
+      ctx.fillText(line, textRight, baseline);
+
+      if (lineIndex === lines.length - 1) {
+        const lineWidth = measure.measureText(line).width;
+        const markerX = textRight - lineWidth - markerWidth - 10;
+        const markerY = baseline - Math.round(markerHeight * 0.78);
+        if (markerImage) {
+          ctx.drawImage(markerImage, markerX, markerY, markerWidth, markerHeight);
+          ctx.save();
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillStyle = "#007c89";
+          ctx.font = `600 ${Math.max(13, Math.round(fontSize * 0.36))}px "QuranUthmani", "Amiri", serif`;
+          ctx.fillText(
+            arabicNumber(ayah.ayah),
+            markerX + markerWidth / 2,
+            markerY + markerHeight * 0.52,
+          );
+          ctx.restore();
+        } else {
+          ctx.save();
+          ctx.textAlign = "right";
+          ctx.fillStyle = "#007c89";
+          ctx.font = `600 ${Math.round(fontSize * 0.5)}px "QuranUthmani", "Amiri", serif`;
+          ctx.fillText(`﴿${arabicNumber(ayah.ayah)}﴾`, markerX + markerWidth, markerY + markerHeight * 0.8);
+          ctx.restore();
+        }
+        ctx.font = bodyFont;
+        ctx.fillStyle = "#17140e";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "alphabetic";
+      }
       y += lineHeight;
-    }
-    const lastLine = lines[lines.length - 1] ?? "";
-    const textEndX = WIDTH - PADDING - measure.measureText(lastLine).width;
-    const markX = Math.max(PADDING, textEndX - markerSize - 10);
-    const markY = y - lineHeight + Math.round(fontSize * 0.12);
-    if (markerImage) {
-      ctx.drawImage(markerImage, markX, markY, markerSize * 0.80542, markerSize);
-      ctx.save();
-      ctx.direction = "rtl";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillStyle = "#007c89";
-      ctx.font = `600 ${Math.max(14, Math.round(fontSize * 0.39))}px "QuranUthmani", "Amiri", serif`;
-      ctx.fillText(arabicNumber(ayahs[index].ayah), markX + markerSize * 0.40271, markY + markerSize * 0.51);
-      ctx.restore();
-    } else {
-      ctx.save();
-      ctx.direction = "rtl";
-      ctx.textAlign = "left";
-      ctx.fillStyle = "#007c89";
-      ctx.font = `600 ${Math.round(fontSize * 0.48)}px "QuranUthmani", "Amiri", serif`;
-      ctx.fillText(`۞ ${arabicNumber(ayahs[index].ayah)} ۞`, markX, markY + markerSize * 0.7);
-      ctx.restore();
-    }
+    });
+
     if (index < wrapped.length - 1) {
-      y += gapBetweenAyahs;
-      ctx.fillStyle = "rgba(201, 162, 74, 0.45)";
-      ctx.fillRect(WIDTH - PADDING - 120, y - Math.round(lineHeight * 0.35), 120, 2);
-      ctx.fillStyle = "#1c1a14";
+      y += ayahGap;
+      ctx.save();
+      ctx.strokeStyle = "rgba(201, 162, 74, 0.35)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(WIDTH / 2 - 60, y - Math.round(ayahGap * 0.5));
+      ctx.lineTo(WIDTH / 2, y - Math.round(ayahGap * 0.5) - 6);
+      ctx.lineTo(WIDTH / 2 + 60, y - Math.round(ayahGap * 0.5));
+      ctx.stroke();
+      ctx.restore();
     }
   });
 
-  // تذييل.
+  /* ---------- منطقة التذييل ---------- */
+  const footerTop = footerBandTop;
+  ctx.strokeStyle = "rgba(201, 162, 74, 0.75)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(PADDING + 40, footerTop + 8);
+  ctx.lineTo(WIDTH - PADDING - 40, footerTop + 8);
+  ctx.stroke();
+
   const last = ayahs[ayahs.length - 1];
   ctx.textAlign = "center";
   ctx.direction = "rtl";
   ctx.fillStyle = "#6b6252";
-  ctx.font = '600 22px "Tajawal", system-ui, sans-serif';
+  ctx.font = '600 24px "Tajawal", system-ui, sans-serif';
   ctx.fillText(
     `مصحف حفص — رواية حفص عن عاصم • الجزء ${arabicNumber(last.juz)} • صفحة ${arabicNumber(last.page)}`,
     WIDTH / 2,
-    height - 78,
+    footerTop + 62,
   );
   ctx.fillStyle = "#0f5f4e";
-  ctx.font = '700 24px "Tajawal", system-ui, sans-serif';
-  ctx.fillText("تطبيق ثمار", WIDTH / 2, height - 42);
+  ctx.font = '700 26px "Tajawal", system-ui, sans-serif';
+  ctx.fillText("تطبيق ثمار", WIDTH / 2, footerTop + 108);
 
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((value) => {

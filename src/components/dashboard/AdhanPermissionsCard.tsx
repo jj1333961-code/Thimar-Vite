@@ -89,6 +89,13 @@ export default function AdhanPermissionsCard({ imageUrls, audioUrls, defaultAudi
       ok: permissions.notifications === true,
     },
     {
+      key: "overlay",
+      title: "العرض فوق التطبيقات",
+      why: "بعد السماح تُفتح شاشة الأذان تلقائيًا فوق أي تطبيق آخر عند دخول الوقت، وتُضيء شاشة الهاتف. بدونه يظهر إشعار فقط.",
+      ok: permissions.overlay === true,
+      optional: true,
+    },
+    {
       key: "exactAlarms",
       title: "المنبهات الدقيقة",
       why: "يضبط الأذان في وقته بالدقيقة بدل التأخير. بدونه قد يتأخر الإشعار دقائق.",
@@ -216,8 +223,10 @@ export default function AdhanPermissionsCard({ imageUrls, audioUrls, defaultAudi
 
       {message ? <small className="muted">{message}</small> : null}
       <p className="muted adhan-perms-note">
-        ثمار لا تتجاوز حماية أندرويد ولا تفتح قفل الجهاز تلقائيًا. إذا منع النظام العرض
-        الكامل، يظهر إشعار بالصورة ووقت الصلاة ويمكن فتح الشاشة بالضغط عليه.
+        ثمار لا تتجاوز حماية أندرويد ولا تفتح قفل الجهاز تلقائيًا. بعد منح «العرض فوق
+        التطبيقات» تُفتح شاشة الأذان وحدها فوق التطبيقات الأخرى وتُضيء الشاشة؛ وبلا الإذن
+        يظهر إشعار بوقت الصلاة يمكن الضغط عليه. ولكتم الصوت: اضغط زر رفع أو خفض الصوت
+        أثناء الأذان — يُفعّل من خانة «كتم الأذان بأزرار الصوت» في الإعدادات.
       </p>
     </div>
   );

@@ -9,6 +9,8 @@ type Scope = "selected" | "page" | "surah";
 type TimingReciter = { id: number; name: string; rewaya?: string; folder_url: string; soar_count?: number };
 type AyahTiming = { ayah: number; start_time: number; end_time: number };
 const AYAH_RECITERS = reciters;
+/* سرعات التلاوة المتاحة — ١× هي الأصلية. */
+const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -33,7 +35,9 @@ export default function AyahAudioSheet({
   const [timingReciters, setTimingReciters] = useState<TimingReciter[]>([]);
   const timingCache = useRef(new Map<string, AyahTiming[]>());
   const selectedTimingReciter = timingReciters.find((item) => `timing-${item.id}` === reciterId);
+  /* ‎0 = تكرار مستمر حتى يوقفه المستخدم. */
   const [repeat, setRepeat] = useState(2);
+  const [rate, setRate] = useState(1);
   const [scopeAyahs, setScopeAyahs] = useState<HafsAyah[]>(ayahs);
   const [scopeLoading, setScopeLoading] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -41,6 +45,7 @@ export default function AyahAudioSheet({
   const [miniVisible, setMiniVisible] = useState(true);
   const [error, setError] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const rateRef = useRef(1);
   const stopResolverRef = useRef<(() => void) | null>(null);
   const stopRef = useRef(true);
   const pausedRef = useRef(false);
@@ -161,9 +166,33 @@ export default function AyahAudioSheet({
     }
   }, []);
 
+  /*
+   * سرعة التلاوة: تُطبَّق على المشغّل الحالي فورًا (حتى أثناء التشغيل) وعلى كل
+   * مقطع يُشغَّل لاحقًا. تثبيت النغمة مفعّل حتى لا يتغيّر صوت القارئ.
+   */
+  useEffect(() => {
+    rateRef.current = rate;
+    const audio = audioRef.current;
+    if (audio && audio.playbackRate !== rate) {
+      audio.playbackRate = rate;
+    }
+  }, [rate]);
+
+  const applyRate = (audio: HTMLAudioElement) => {
+    try {
+      audio.defaultPlaybackRate = rateRef.current;
+      audio.playbackRate = rateRef.current;
+      // الحفاظ على نغمة القارئ عند تغيير السرعة في المتصفحات التي تدعمها.
+      (audio as HTMLAudioElement & { preservesPitch?: boolean }).preservesPitch = true;
+    } catch {
+      /* بعض المتصفحات القديمة لا تدعم تغيير السرعة */
+    }
+  };
+
   const playAyah = async (ayah: HafsAyah): Promise<boolean> => {
     const audio = audioRef.current ?? new Audio();
     audioRef.current = audio;
+    applyRate(audio);
     if (!selectedTimingReciter) {
       return new Promise((resolve) => {
         audio.src = ayahAudioUrl(reciterId, ayah.global);
@@ -215,6 +244,7 @@ export default function AyahAudioSheet({
       audio.src = `${selectedTimingReciter.folder_url.replace(/^http:/, "https:")}${String(ayah.surah).padStart(3, "0")}.mp3`;
       audio.onloadedmetadata = () => {
         if (stopRef.current) { finish(false); return; }
+        applyRate(audio);
         audio.currentTime = startAt;
         audio.ontimeupdate = () => {
           if (audio.currentTime >= endAt) {
@@ -241,7 +271,9 @@ export default function AyahAudioSheet({
     pausedRef.current = false;
     setPaused(false);
     setCompactMode(true);
-    for (let index = 0; index < repeat; index += 1) {
+    // ‎repeat === 0 يعني تكرارًا مستمرًا حتى الإيقاف.
+    const passes = repeat > 0 ? repeat : Number.POSITIVE_INFINITY;
+    for (let index = 0; index < passes; index += 1) {
       if (stopRef.current) return;
       for (const ayah of scopeAyahs) {
         while (pausedRef.current && !stopRef.current) await sleep(150);
@@ -331,12 +363,67 @@ export default function AyahAudioSheet({
             ) : null}
           </select>
         </label>
+        <div className="ayah-audio-field ayah-audio-repeat-field">
+          <span>تكرار الفقرة</span>
+          <div className="ayah-audio-repeat-controls">
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={100}
+              step={1}
+              className="ayah-audio-repeat-input"
+              aria-label="عدد مرات تكرار الآيات المحددة"
+              value={repeat > 0 ? repeat : 1}
+              disabled={repeat === 0}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                setRepeat(Number.isFinite(value) && value > 0 ? Math.min(100, Math.round(value)) : 1);
+              }}
+            />
+            <span className="ayah-audio-repeat-unit">مرة</span>
+            <label className="ayah-audio-repeat-endless">
+              <input
+                type="checkbox"
+                checked={repeat === 0}
+                onChange={(event) => setRepeat(event.target.checked ? 0 : 2)}
+              />
+              <span>مستمر</span>
+            </label>
+          </div>
+        </div>
+        <div className="ayah-audio-repeat-presets" role="group" aria-label="اختيارات سريعة لعدد التكرار">
+          {repeatOptions.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={repeat === option ? "is-active" : undefined}
+              onClick={() => setRepeat(option)}
+            >
+              {arabicNumber(option)}
+            </button>
+          ))}
+        </div>
+        <p className="mushaf-ayah-sheet-note ayah-audio-hint">
+          {repeat > 0
+            ? `تُكرَّر ${scope === "selected" ? "الآيات المحددة" : scope === "page" ? "الصفحة" : "السورة"} ${arabicNumber(repeat)} ${repeat === 1 ? "مرة" : repeat === 2 ? "مرتين" : "مرات"} ثم يتوقف المشغّل.`
+            : "يتكرر المقطع بلا توقف حتى تضغط زر الإيقاف في الشريط المصغّر."}
+        </p>
         <label className="ayah-audio-field">
-          <span>عدد مرات التكرار</span>
-          <select value={repeat} onChange={(event) => setRepeat(Number(event.target.value))}>
-            {repeatOptions.map((option) => <option key={option} value={option}>{arabicNumber(option)} مرة</option>)}
+          <span>سرعة القارئ</span>
+          <select value={rate} onChange={(event) => setRate(Number(event.target.value))}>
+            {PLAYBACK_RATES.map((option) => (
+              <option key={option} value={option}>
+                {option === 1 ? "السرعة الأصلية (١×)" : `${arabicNumber(option)}×`}
+              </option>
+            ))}
           </select>
         </label>
+        {rate !== 1 ? (
+          <button type="button" className="ghost-button ayah-audio-rate-reset" onClick={() => setRate(1)}>
+            إعادة السرعة الأصلية
+          </button>
+        ) : null}
         {surahOnly ? <p className="mushaf-ayah-sheet-note">هذا القارئ متاح بتسجيل السورة كاملة فقط؛ تشغيل نطاق آيات محدد يحتاج قارئًا يدعم ملفات الآيات.</p> : null}
         {scopeLoading ? <p className="mushaf-ayah-sheet-note">جارٍ تجهيز الآيات…</p> : null}
         <div className="ayah-audio-actions">

@@ -1,46 +1,41 @@
 package app.thimar.quran;
 
 import android.app.Activity;
-import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.PowerManager;
+import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.ImageButton;
-import android.widget.ImageView;
-import android.widget.SeekBar;
-import android.widget.TextView;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 
-import java.io.File;
-import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
 /**
- * شاشة وقت الصلاة: تُعرض تلقائيًا (فوق شاشة القفل) عند دخول وقت الصلاة،
- * وتعرض العمل الفني للصلاة مع اسمها ووقتها، وأدوات التحكم بالأذان،
- * وأزرار الإيقاف والإغلاق. تعمل على مختلف أحجام الشاشات عبر أوزان مرنة.
+ * شاشة وقت الصلاة: تُعرض تلقائيًا فوق التطبيقات الأخرى (بعد منح إذن
+ * «العرض فوق التطبيقات») وتُضيء الشاشة وتظهر فوق شاشة القفل.
  *
- * لا تُفتح إلا من داخل التطبيق (إشعار وقت الصلاة) وهي غير مُصدَّرة للخارج.
+ * التصميم بالكامل من AdhanWindowView: بلا أي صورة، ولكل صلاة لونها وزخرفتها
+ * وعبارتها. أزرار الصوت في الهاتف تكتم الأذان إن كان الخيار مفعّلًا في الإعدادات.
  */
-public class AdhanScreenActivity extends Activity {
+public class AdhanScreenActivity extends Activity implements AdhanWindowView.Actions {
   /** تُغلق الشاشة تلقائيًا بعد هذه المدة إن لم يلمسها المستخدم. */
   private static final long AUTO_DISMISS_MS = 90_000L;
 
-  private static final String[] PRAYER_KEYS = { "fajr", "dhuhr", "asr", "maghrib", "isha" };
-  private static final String[] PRAYER_NAMES = { "الفجر", "الظهر", "العصر", "المغرب", "العشاء" };
-
   private final Handler handler = new Handler(Looper.getMainLooper());
+  private AdhanWindowView card;
   private long dismissAt = 0;
-  private ImageButton toggleButton;
+  private boolean muted = false;
+  private float restoreVolume = 0.9f;
+  private boolean volumeKeyMute = true;
+  private boolean soundEnabled = false;
 
   private final Runnable autoDismiss = new Runnable() {
     @Override
@@ -57,8 +52,8 @@ public class AdhanScreenActivity extends Activity {
   private final Runnable playbackWatcher = new Runnable() {
     @Override
     public void run() {
-      updateToggleIcon();
-      handler.postDelayed(this, 700);
+      if (card != null) card.setPaused(AdhanService.isRunning() && AdhanService.isPaused());
+      handler.postDelayed(this, 900);
     }
   };
 
@@ -70,13 +65,18 @@ public class AdhanScreenActivity extends Activity {
     LaunchLog.init(this);
     LaunchLog.add(this, "شاشة وقت الصلاة: عرض");
 
-    Intent intent = getIntent();
-    if (intent != null) {
-      populate(intent);
-      ensureAdhanPlaying(intent);
+    volumeKeyMute = AdhanScheduler.prefs(this).getBoolean(AdhanScheduler.KEY_VOLUME_KEY_MUTE, true);
+
+    card = new AdhanWindowView(this);
+    card.setFill(true);
+    card.setActions(this);
+    LinearLayout host = (LinearLayout) findViewById(R.id.adhan_host);
+    if (host != null) {
+      host.addView(card, new LinearLayout.LayoutParams(
+          LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
     }
 
-    View root = findViewById(R.id.adhan_root);
+    FrameLayout root = (FrameLayout) findViewById(R.id.adhan_root);
     if (root != null) {
       /* لمس الشاشة يؤجّل الإغلاق التلقائي ولا يُغلقها فورًا. */
       root.setOnTouchListener(new View.OnTouchListener() {
@@ -88,82 +88,14 @@ public class AdhanScreenActivity extends Activity {
       });
     }
 
-    ImageButton close = (ImageButton) findViewById(R.id.adhan_close);
-    if (close != null) {
-      close.setOnClickListener(new View.OnClickListener() {
-        @Override
-        public void onClick(View view) {
-          finish();
-        }
-      });
-    }
-
-    View stop = findViewById(R.id.adhan_stop);
-    if (stop != null) {
-      stop.setOnClickListener(new View.OnClickListener() {
-        @Override
-        public void onClick(View view) {
-          AdhanService.stop(AdhanScreenActivity.this);
-          finish();
-        }
-      });
-    }
-
-    toggleButton = (ImageButton) findViewById(R.id.adhan_toggle);
-    if (toggleButton != null) {
-      toggleButton.setOnClickListener(new View.OnClickListener() {
-        @Override
-        public void onClick(View view) {
-          if (!AdhanService.isRunning()) {
-            ensureAdhanPlaying(getIntent());
-          } else {
-            AdhanService.toggle(AdhanScreenActivity.this);
-          }
-          handler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-              updateToggleIcon();
-            }
-          }, 250);
-        }
-      });
-    }
-
-    SeekBar volume = (SeekBar) findViewById(R.id.adhan_volume);
-    if (volume != null) {
-      int initial = Math.round(AdhanScheduler.prefs(this).getFloat(AdhanScheduler.KEY_VOLUME, 0.9f) * 100);
-      volume.setProgress(Math.min(100, Math.max(0, initial)));
-      volume.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-        @Override
-        public void onProgressChanged(SeekBar bar, int value, boolean fromUser) {
-          if (!fromUser) return;
-          AdhanService.setVolume(AdhanScreenActivity.this, value / 100f);
-          AdhanScheduler.prefs(AdhanScreenActivity.this).edit()
-              .putFloat(AdhanScheduler.KEY_VOLUME, value / 100f).apply();
-        }
-
-        @Override
-        public void onStartTrackingTouch(SeekBar bar) {}
-
-        @Override
-        public void onStopTrackingTouch(SeekBar bar) {}
-      });
-    }
-
-    /* عند تعطيل الصوت لا نعرض أدوات صوتية وهمية. */
-    if (intent == null || !intent.getBooleanExtra("sound", false)) {
-      if (toggleButton != null) toggleButton.setVisibility(View.GONE);
-      if (volume != null) volume.setVisibility(View.GONE);
-      if (stop != null) stop.setVisibility(View.GONE);
-      View volumeLabel = findViewById(R.id.adhan_hint);
-      if (volumeLabel != null) {
-        ((TextView) volumeLabel).setText("اضغط زر الإغلاق للعودة");
-      }
+    Intent intent = getIntent();
+    if (intent != null) {
+      populate(intent);
+      ensureAdhanPlaying(intent);
     }
 
     resetDismissTimer();
     handler.post(playbackWatcher);
-    updateToggleIcon();
   }
 
   private void resetDismissTimer() {
@@ -174,10 +106,20 @@ public class AdhanScreenActivity extends Activity {
   }
 
   private void updateHint() {
-    TextView hint = (TextView) findViewById(R.id.adhan_hint);
-    if (hint == null) return;
+    if (card == null) return;
+    if (!soundEnabled) {
+      card.setHint(getString(R.string.adhan_close_hint));
+      return;
+    }
     long seconds = Math.max(0, (dismissAt - System.currentTimeMillis()) / 1000);
-    hint.setText("يُغلق تلقائيًا خلال " + formatArabicNumber(seconds) + " ثانية — أو استخدم زر الإغلاق");
+    String countdown = getString(R.string.adhan_dismiss_seconds, formatArabicNumber(seconds));
+    if (muted) {
+      card.setHint(getString(R.string.adhan_muted) + " • " + countdown);
+    } else if (volumeKeyMute && AdhanService.isRunning()) {
+      card.setHint(getString(R.string.adhan_volume_key_hint) + " • " + countdown);
+    } else {
+      card.setHint(countdown);
+    }
   }
 
   /** أرقام عربية هندية بسيطة لعرض العدّاد. */
@@ -192,11 +134,48 @@ public class AdhanScreenActivity extends Activity {
     return out.toString();
   }
 
-  private void updateToggleIcon() {
-    if (toggleButton == null) return;
-    boolean paused = AdhanService.isRunning() && AdhanService.isPaused();
-    toggleButton.setImageResource(paused ? R.drawable.ic_adhan_play : R.drawable.ic_adhan_pause);
-    toggleButton.setContentDescription(getString(paused ? R.string.adhan_resume : R.string.adhan_pause));
+  /**
+   * أزرار الصوت في الهاتف: عند تفعيل الخيار في الإعدادات يكتم الزر الأذان
+   * بدل تغيير صوت الرنين، والضغط مرة أخرى يستأنف الصوت.
+   */
+  @Override
+  public boolean onKeyDown(int keyCode, KeyEvent event) {
+    if (isVolumeKey(keyCode) && shouldMuteWithVolumeKey()) {
+      toggleMute();
+      return true;
+    }
+    return super.onKeyDown(keyCode, event);
+  }
+
+  @Override
+  public boolean onKeyUp(int keyCode, KeyEvent event) {
+    if (isVolumeKey(keyCode) && shouldMuteWithVolumeKey()) return true;
+    return super.onKeyUp(keyCode, event);
+  }
+
+  private static boolean isVolumeKey(int keyCode) {
+    return keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN;
+  }
+
+  private boolean shouldMuteWithVolumeKey() {
+    return volumeKeyMute && soundEnabled && AdhanService.isRunning();
+  }
+
+  private void toggleMute() {
+    float saved = AdhanScheduler.prefs(this).getFloat(AdhanScheduler.KEY_VOLUME, 0.9f);
+    if (!muted) {
+      restoreVolume = saved > 0.01f ? saved : 0.9f;
+      AdhanService.setVolume(this, 0f);
+      muted = true;
+      if (card != null) card.setVolumeValue(0);
+      LaunchLog.add(this, "شاشة وقت الصلاة: كتم الأذان بزر الصوت");
+    } else {
+      AdhanService.setVolume(this, restoreVolume);
+      muted = false;
+      if (card != null) card.setVolumeValue(Math.round(restoreVolume * 100));
+      LaunchLog.add(this, "شاشة وقت الصلاة: استئناف الأذان بزر الصوت");
+    }
+    resetDismissTimer();
   }
 
   /** يضمن تشغيل الأذان حتى لو تعذّر على المستقبل بدء الخدمة (مثلاً فتح الشاشة يدويًا). */
@@ -229,14 +208,10 @@ public class AdhanScreenActivity extends Activity {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
       setShowWhenLocked(true);
       setTurnScreenOn(true);
-    } else {
-      getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
-          | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
-          );
     }
-    getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+    getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
         | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
-        | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED);
+        | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
       getWindow().setDecorFitsSystemWindows(false);
     }
@@ -258,7 +233,6 @@ public class AdhanScreenActivity extends Activity {
     populate(intent);
     ensureAdhanPlaying(intent);
     resetDismissTimer();
-    updateToggleIcon();
   }
 
   /**
@@ -276,158 +250,79 @@ public class AdhanScreenActivity extends Activity {
     String prayerKey = intent == null ? null : intent.getStringExtra("prayer");
     String prayerName = intent == null ? null : intent.getStringExtra("name");
     String time = intent == null ? null : intent.getStringExtra("time");
+    soundEnabled = intent != null && intent.getBooleanExtra("sound", false);
 
-    int index = indexOfPrayer(prayerKey);
-    String key = index >= 0 ? PRAYER_KEYS[index] : "fajr";
-    if (prayerName == null || prayerName.trim().isEmpty()) {
-      prayerName = index >= 0 ? PRAYER_NAMES[index] : "";
+    AdhanWindowView.Data data = new AdhanWindowView.Data();
+    data.prayer = AdhanWindowView.normalizePrayer(prayerKey);
+    data.name = prayerName == null ? "" : prayerName;
+    String shown = time == null ? "" : time.trim();
+    data.time = shown.isEmpty() ? new SimpleDateFormat("HH:mm", Locale.US).format(new Date()) : shown;
+    data.city = AdhanScheduler.prefs(this).getString(AdhanScheduler.KEY_CITY, "");
+    data.lang = "en".equalsIgnoreCase(AdhanScheduler.prefs(this).getString(AdhanScheduler.KEY_LANG, "ar"))
+        ? AdhanWindowView.LANG_EN
+        : AdhanWindowView.LANG_AR;
+    String theme = AdhanScheduler.prefs(this).getString(AdhanScheduler.KEY_THEME, "");
+    data.theme = theme == null || theme.trim().isEmpty() ? AdhanScheduler.theme(this) : theme;
+    data.sound = soundEnabled;
+
+    if (card != null) {
+      card.bind(data, false);
+      float volume = AdhanScheduler.prefs(this).getFloat(AdhanScheduler.KEY_VOLUME, 0.9f);
+      card.setVolumeValue(Math.round(volume * 100));
+      card.setPaused(AdhanService.isRunning() && AdhanService.isPaused());
     }
-
-    TextView prayerView = (TextView) findViewById(R.id.adhan_prayer);
-    if (prayerView != null) {
-      prayerView.setText(prayerName.isEmpty() ? "حان وقت الصلاة" : "صلاة " + prayerName);
-    }
-
-    TextView timeView = (TextView) findViewById(R.id.adhan_time);
-    if (timeView != null) {
-      String shown = time == null ? "" : time.trim();
-      if (shown.isEmpty()) shown = new SimpleDateFormat("HH:mm", Locale.US).format(new Date());
-      timeView.setText(shown);
-    }
-
-    TextView dateView = (TextView) findViewById(R.id.adhan_date);
-    if (dateView != null) {
-      dateView.setText(new SimpleDateFormat("EEEE، d MMMM yyyy", new Locale("ar")).format(new Date()));
-    }
-
-    TextView hijriView = (TextView) findViewById(R.id.adhan_hijri);
-    if (hijriView != null) {
-      String hijri = hijriDate();
-      hijriView.setText(hijri);
-      hijriView.setVisibility(hijri.isEmpty() ? View.GONE : View.VISIBLE);
-    }
-
-    TextView phraseView = (TextView) findViewById(R.id.adhan_phrase);
-    if (phraseView != null) {
-      phraseView.setText(PHRASES[index >= 0 ? index : 0]);
-    }
-
-    Bitmap art = decodeArt(key);
-    ImageView background = (ImageView) findViewById(R.id.adhan_background);
-    if (background != null && art != null) background.setImageBitmap(art);
-    ImageView backdrop = (ImageView) findViewById(R.id.adhan_backdrop);
-    if (backdrop != null && art != null) backdrop.setImageBitmap(art);
+    applyBackground(data.prayer, data.theme);
   }
 
-  private static final String[] PHRASES = {
-    "بورك فيمن بكّر — صلاة الفجر نور يبدأ به يومك",
-    "توقّف عن الدنيا لحظة… لصلاتك سكينة تعيد ترتيب يومك",
-    "حافظ على العصر… فهي صلاة من تركها حبط عمله",
-    "لحظة غروب… ذنوب تغيب مع دعاء المغرب",
-    "اختم يومك بالعشاء… وابدأ ليلك مطمئنًا",
-  };
-
-  private static int indexOfPrayer(String key) {
-    if (key == null) return -1;
-    String lower = key.trim().toLowerCase(Locale.US);
-    for (int i = 0; i < PRAYER_KEYS.length; i++) {
-      if (PRAYER_KEYS[i].equals(lower)) return i;
-    }
-    return -1;
+  /** خلفية متدرجة خاصة بكل صلاة: الفجر نيلي، الظهر زمردي، العصر عنبري، المغرب وردي، العشاء بنفسجي. */
+  private void applyBackground(String prayerKey, String theme) {
+    int[] colors = AdhanWindowView.windowColors(
+        prayerKey, AdhanWindowView.isFriday(), AdhanWindowView.lightTheme(this, theme));
+    GradientDrawable background = new GradientDrawable(GradientDrawable.Orientation.TL_BR, colors);
+    View root = findViewById(R.id.adhan_root);
+    if (root != null) root.setBackground(background);
   }
 
-  /** تاريخ هجري (أم القرى) حين توفّره المنصة، وإلا يبقى السطر مخفيًا. */
-  private static String hijriDate() {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return "";
-    try {
-      android.icu.util.IslamicCalendar calendar = new android.icu.util.IslamicCalendar();
-      calendar.setCalculationType(android.icu.util.IslamicCalendar.CalculationType.ISLAMIC_UMALQURA);
-      calendar.setTimeInMillis(System.currentTimeMillis());
-      android.icu.text.SimpleDateFormat format =
-          new android.icu.text.SimpleDateFormat("d MMMM yyyy", android.icu.util.ULocale.forLanguageTag("ar"));
-      return format.format(calendar.getTime()) + " هـ";
-    } catch (Throwable error) {
-      return "";
-    }
+  // ------------------------------------------------------------ Actions
+
+  @Override
+  public void onClose() {
+    finish();
   }
 
-  /**
-   * يقرأ العمل الفني بالترتيب: النسخة المحمّلة إلى التخزين الدائم،
-   * ثم الصورة المضمَّنة في الحزمة (كلاهما يعمل دون إنترنت).
-   */
-  private Bitmap decodeArt(String key) {
-    String resolved = AdhanAssets.resolveImage(this, key);
-    if (resolved != null) {
-      try {
-        if (resolved.startsWith("asset:")) {
-          Bitmap bitmap = decodeAsset(resolved.substring("asset:".length()));
-          if (bitmap != null) {
-            LaunchLog.add(this, "صورة الصلاة: " + resolved + " (" + bitmap.getWidth() + "x" + bitmap.getHeight() + ")");
-            return bitmap;
-          }
-        } else {
-          File file = new File(resolved);
-          if (file.isFile()) {
-            Bitmap bitmap = decodeFile(file);
-            if (bitmap != null) {
-              LaunchLog.add(this, "صورة الصلاة: " + resolved + " (" + bitmap.getWidth() + "x" + bitmap.getHeight() + ")");
-              return bitmap;
-            }
-          }
-        }
-      } catch (Exception error) {
-        LaunchLog.add(this, "تعذّر تحميل صورة الصلاة: " + resolved);
+  @Override
+  public void onOpen() {
+    finish();
+  }
+
+  @Override
+  public void onToggleAudio() {
+    if (!AdhanService.isRunning()) {
+      ensureAdhanPlaying(getIntent());
+    } else {
+      AdhanService.toggle(this);
+    }
+    handler.postDelayed(new Runnable() {
+      @Override
+      public void run() {
+        if (card != null) card.setPaused(AdhanService.isPaused());
+        updateHint();
       }
-    }
-    Bitmap fallback = decodeAsset("www/adhan/prayer/" + key + ".jpg");
-    LaunchLog.add(this, "صورة الصلاة: " + (fallback == null ? "غير متاحة" : "احتياطية مضمَّنة " + key));
-    return fallback;
+    }, 250);
   }
 
-  /** يقرأ الصورة من الأصول المضمَّنة في الحزمة (لا شبكة، لا ملفات خارجية). */
-  private Bitmap decodeAsset(String path) {
-    try {
-      BitmapFactory.Options bounds = new BitmapFactory.Options();
-      bounds.inJustDecodeBounds = true;
-      InputStream head = getAssets().open(path);
-      try {
-        BitmapFactory.decodeStream(head, null, bounds);
-      } finally {
-        head.close();
-      }
-      BitmapFactory.Options options = new BitmapFactory.Options();
-      options.inSampleSize = sampleSize(bounds);
-      InputStream data = getAssets().open(path);
-      try {
-        return BitmapFactory.decodeStream(data, null, options);
-      } finally {
-        data.close();
-      }
-    } catch (Exception error) {
-      LaunchLog.add(this, "صورة وقت الصلاة غير متوفرة: " + path);
-      return null;
-    }
+  @Override
+  public void onStopAudio() {
+    AdhanService.stop(this);
+    finish();
   }
 
-  /** يقرأ الصورة المحمّلة إلى التخزين الدائم. */
-  private Bitmap decodeFile(File file) {
-    try {
-      BitmapFactory.Options bounds = new BitmapFactory.Options();
-      bounds.inJustDecodeBounds = true;
-      BitmapFactory.decodeFile(file.getAbsolutePath(), bounds);
-      BitmapFactory.Options options = new BitmapFactory.Options();
-      options.inSampleSize = sampleSize(bounds);
-      return BitmapFactory.decodeFile(file.getAbsolutePath(), options);
-    } catch (Exception error) {
-      return null;
-    }
-  }
-
-  private static int sampleSize(BitmapFactory.Options bounds) {
-    int widest = Math.max(bounds.outWidth, bounds.outHeight);
-    int sample = 1;
-    while (widest > 0 && widest / sample > 1600) sample *= 2;
-    return sample;
+  @Override
+  public void onVolume(float value) {
+    AdhanService.setVolume(this, value);
+    AdhanScheduler.prefs(this).edit().putFloat(AdhanScheduler.KEY_VOLUME, value).apply();
+    muted = value <= 0.01f;
+    updateHint();
   }
 
   @Override

@@ -1,7 +1,7 @@
 import { cloud, SUPABASE_URL, SUPABASE_ANON_KEY } from "./cloud";
 import { CALL_SIGNALING_BASE, CALL_TURN_BASE } from "./callConfig";
 import { RoomSignaling, readSessionToken, type CallSignalingHandle } from "./callSignaling";
-import { refreshSessionToken } from "./sessionStore";
+import { ensureSessionToken } from "./sessionStore";
 import type { CallMode, CallSignal, CallSignalHandler, SignalingState } from "./callTypes";
 
 /**
@@ -86,7 +86,7 @@ export async function getIceConfig(): Promise<IceConfig> {
   if (iceRequest) return iceRequest;
 
   const request = (async (): Promise<IceConfig> => {
-    const token = readSessionToken();
+    const token = await ensureSessionToken();
     if (token) {
       const endpoints = [
         CALL_TURN_BASE ? `${CALL_TURN_BASE}/api/turn` : "",
@@ -235,11 +235,21 @@ export async function getLocalStream(mode: CallMode): Promise<MediaStream> {
   });
 }
 
-const SESSION_RENEW_ERRORS = new Set(["SESSION_EXPIRED", "SESSION_RENEW_REQUIRED"]);
+/* كل أخطاء الهوية تعني أن الرمز منتهٍ أو أُبطل أو أُعيد تدويره.
+   لا نُطالب المستخدم بإعادة الدخول: نجدّد ونعيد المحاولة أولًا. */
+const SESSION_RENEW_ERRORS = new Set([
+  "SESSION_EXPIRED",
+  "SESSION_REQUIRED",
+  "INVALID_SESSION",
+  "SESSION_REVOKED",
+  "SESSION_RENEW_REQUIRED",
+  "AUTH_REQUIRED",
+]);
 
 /**
- * استدعاء دالة المكالمات برمز الجلسة، مع تجديد تلقائي واحد عند انتهاء مدة
- * الرمز حتى لا ينقطع الاتصال كل ثلاث ساعات على المستخدم.
+ * استدعاء دالة المكالمات برمز جلسة صالح دائمًا: يُجدّد الرمز قبل الاستخدام
+ * وعند أي خطأ هوية تُعاد المحاولة برمز جديد (محاولتان) بدل مطالبة المستخدم
+ * بالخروج والدخول.
  */
 export async function callServer(action: string, payload: Record<string, unknown> = {}): Promise<any> {
   const send = async (token: string | null) => {
@@ -257,10 +267,15 @@ export async function callServer(action: string, payload: Record<string, unknown
     return await response.json().catch(() => ({}));
   };
   try {
-    let result = await send(readSessionToken());
-    if (result && SESSION_RENEW_ERRORS.has(String(result.error))) {
-      const renewed = await refreshSessionToken();
-      if (renewed) result = await send(renewed);
+    let token = await ensureSessionToken({ minValidityMs: 15 * 60_000 });
+    let result = await send(token);
+    for (let attempt = 0; attempt < 2 && result && SESSION_RENEW_ERRORS.has(String(result.error)); attempt += 1) {
+      const renewed = await ensureSessionToken({ force: true });
+      if (!renewed) break;
+      /* الرمز نفسه يعني أن التجديد لم ينجح فعلًا؛ لا نكرر بلا فائدة. */
+      if (renewed === token) break;
+      token = renewed;
+      result = await send(token);
     }
     return result;
   } catch (err) {

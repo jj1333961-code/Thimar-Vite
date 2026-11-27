@@ -378,6 +378,14 @@ export default function TuhfaTasmeeReader({ initialPhase, onOpenSettings }: { in
     setPausedPrompt(false);
   };
 
+  /* مغادرة الصفحة تُغلق الميكروفون فورًا: لا يبقى مفتوحًا بلا حاجة. */
+  useEffect(() => {
+    return () => {
+      stopRecitation();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const toggleRecitation = async () => {
     if (reciting) { stopRecitation(); return; }
     if (!hasSpeechRecognition()) {

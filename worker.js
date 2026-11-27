@@ -19,6 +19,61 @@ const MIME_BY_EXTENSION = {
   gz: "application/gzip",
 };
 
+/**
+ * امتدادات ملفات ثابتة لا يجوز أبدًا أن يُردّ عليها بصفحة HTML.
+ *
+ * عامل المواقع يردّ على أي مسار غير موجود بـ index.html (SPA fallback) بترميز
+ * text/html وحالة 200؛ فإذا كانت الحزمة المضفّرة المطلوبة قد تغيّر اسمها بعد
+ * تحديث (أو كان العميل يستعمل نسخة قديمة من index.html) يرفض المتصفح تشغيل
+ * الوحدة النمطية لخطأ MIME، فيبقى #root فارغًا وتظهر صفحة بيضاء بلا رسالة.
+ */
+const STATIC_EXTENSIONS = new Set([
+  ".js",
+  ".mjs",
+  ".cjs",
+  ".css",
+  ".map",
+  ".json",
+  ".wasm",
+  ".woff",
+  ".woff2",
+  ".ttf",
+  ".otf",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+  ".gif",
+  ".svg",
+  ".ico",
+  ".mp3",
+  ".mp4",
+  ".webm",
+  ".pdf",
+  ".txt",
+  ".xml",
+  ".webmanifest",
+]);
+
+function looksLikeStaticFile(pathname) {
+  const dot = pathname.lastIndexOf(".");
+  if (dot === -1) return false;
+  const ext = pathname.slice(dot).toLowerCase();
+  return STATIC_EXTENSIONS.has(ext);
+}
+
+function notFoundAsset(pathname) {
+  return new Response(`Not found: ${pathname}`, {
+    status: 404,
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      // لا نُخزّن 404: قد تُرفع الحزمة بعد لحظات أثناء التحديث.
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
+}
+
 function json(status, payload) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -258,6 +313,17 @@ export default {
     if (R2_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) {
       const asset = await serveFromR2(request, env, url);
       if (asset) return asset;
+      if (looksLikeStaticFile(url.pathname)) return notFoundAsset(url.pathname);
+    }
+
+    if (looksLikeStaticFile(url.pathname)) {
+      const asset = await env.ASSETS.fetch(request);
+      // عامل المواقع يعيد index.html لأي مسار غير موجود: نمنع ذلك للملفات
+      // الثابتة كي لا تصل حزمة JS بترميز HTML (سبب الصفحة البيضاء).
+      if (asset.ok && /text\/html/i.test(asset.headers.get("content-type") || "")) {
+        return notFoundAsset(url.pathname);
+      }
+      return asset;
     }
 
     return env.ASSETS.fetch(request);

@@ -81,6 +81,8 @@ public final class AdhanWindowView extends LinearLayout {
   private Data data = new Data();
   private Actions actions;
   private boolean compact;
+  /* وضع الشاشة الكاملة: بلا بطاقة مستديرة، الخلفية المتدرجة يضعها النشاط. */
+  private boolean fill;
   private boolean paused;
   private int volume = 90;
   private String hint = "";
@@ -98,6 +100,11 @@ public final class AdhanWindowView extends LinearLayout {
 
   public void setActions(Actions actions) {
     this.actions = actions;
+  }
+
+  /** شاشة كاملة بلا بطاقة عائمة فوقها (تُستدعى قبل bind). */
+  public void setFill(boolean fill) {
+    this.fill = fill;
   }
 
   /** يعيد بناء النافذة بالبيانات الحالية (يُستدعى أيضًا بعد تدوير الشاشة). */
@@ -155,8 +162,12 @@ public final class AdhanWindowView extends LinearLayout {
       kickerColor = blend(accent, Color.BLACK, 0.32f);
       headerColor = Color.rgb(15, 95, 78);
       logoSurface = Color.rgb(252, 249, 241);
-      setBackground(panelBackground(titleColor,
-          blend(accent, 0xFFFFFFFF, 0.86f), 0xFFFBF7EF));
+      if (fill) {
+        setBackground(null);
+      } else {
+        setBackground(panelBackground(titleColor,
+            blend(accent, 0xFFFFFFFF, 0.86f), 0xFFFBF7EF));
+      }
     } else {
       textStrong = CREAM;
       textMuted = CREAM_MUTED;
@@ -166,11 +177,15 @@ public final class AdhanWindowView extends LinearLayout {
       kickerColor = withAlpha(accent, 0xD9);
       headerColor = accent;
       logoSurface = Color.rgb(11, 26, 22);
-      setBackground(panelBackground(accent, blend(deep, INK, 0.42f), INK));
+      if (fill) {
+        setBackground(null);
+      } else {
+        setBackground(panelBackground(accent, blend(deep, INK, 0.42f), INK));
+      }
     }
-    setElevation(dp(compact ? 10 : 0));
-    int pad = compact ? dp(14) : dp(18);
-    setPadding(pad, dp(compact ? 12 : 16), pad, dp(compact ? 12 : 16));
+    setElevation(fill ? 0 : dp(compact ? 10 : 0));
+    int pad = fill ? dp(22) : compact ? dp(14) : dp(18);
+    setPadding(pad, dp(fill ? 26 : compact ? 12 : 16), pad, dp(fill ? 26 : compact ? 12 : 16));
 
     dragHandle = buildHeader(accent, english);
     addView(dragHandle, matchWrap());
