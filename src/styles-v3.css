@@ -6576,8 +6576,10 @@ html, body { max-width: 100%; overflow-x: hidden; }
   -webkit-touch-callout: none;
   flex: 0 0 auto;
   width: 100%;
+  /* حجم مستقل لكل سطر يملأ عرضه؛ المحاذاة لا تمدّد الفراغات */
+  font-size: var(--qp-line-fs, var(--qp-fs, 22px));
   text-align: justify;
-  text-align-last: justify;
+  text-align-last: auto;
   text-justify: inter-word;
   line-height: 1.86;
   white-space: normal;

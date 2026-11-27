@@ -1,6 +1,7 @@
 import { cloud, SUPABASE_URL, SUPABASE_ANON_KEY } from "./cloud";
 import { CALL_SIGNALING_BASE, CALL_TURN_BASE } from "./callConfig";
 import { RoomSignaling, readSessionToken, type CallSignalingHandle } from "./callSignaling";
+import { refreshSessionToken } from "./sessionStore";
 import type { CallMode, CallSignal, CallSignalHandler, SignalingState } from "./callTypes";
 
 /**
@@ -234,9 +235,14 @@ export async function getLocalStream(mode: CallMode): Promise<MediaStream> {
   });
 }
 
+const SESSION_RENEW_ERRORS = new Set(["SESSION_EXPIRED", "SESSION_RENEW_REQUIRED"]);
+
+/**
+ * استدعاء دالة المكالمات برمز الجلسة، مع تجديد تلقائي واحد عند انتهاء مدة
+ * الرمز حتى لا ينقطع الاتصال كل ثلاث ساعات على المستخدم.
+ */
 export async function callServer(action: string, payload: Record<string, unknown> = {}): Promise<any> {
-  try {
-    const token = readSessionToken();
+  const send = async (token: string | null) => {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       apikey: SUPABASE_ANON_KEY,
@@ -249,6 +255,14 @@ export async function callServer(action: string, payload: Record<string, unknown
       body: JSON.stringify({ action, ...payload }),
     });
     return await response.json().catch(() => ({}));
+  };
+  try {
+    let result = await send(readSessionToken());
+    if (result && SESSION_RENEW_ERRORS.has(String(result.error))) {
+      const renewed = await refreshSessionToken();
+      if (renewed) result = await send(renewed);
+    }
+    return result;
   } catch (err) {
     return { error: err instanceof Error ? err.message : "NETWORK_ERROR" };
   }

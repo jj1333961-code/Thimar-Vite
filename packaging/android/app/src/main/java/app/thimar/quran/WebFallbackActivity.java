@@ -406,6 +406,8 @@ public class WebFallbackActivity extends Activity {
     /* جسر تحديث الموارد (window.ThimarAssetUpdater) — تحديث تفاضلي مستمر. */
     assetUpdater = new ThimarAssetUpdater(this, webView);
     webView.addJavascriptInterface(assetUpdater, "ThimarAssetUpdater");
+    /* جسر تخزين رمز الجلسة مشفّرًا بمفتاح Android Keystore. */
+    webView.addJavascriptInterface(new SecureStore(this), "ThimarSecureStore");
     PushBridge.attach(webView, this);
 
     webView.loadUrl(APP_URL);

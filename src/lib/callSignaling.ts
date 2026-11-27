@@ -1,4 +1,5 @@
 import { CALL_SIGNALING_BASE } from "./callConfig";
+import { cachedSessionToken, SESSION_TOKEN_KEY } from "./sessionStore";
 import type { CallSignal, CallSignalHandler, SignalingState } from "./callTypes";
 
 /**
@@ -14,14 +15,11 @@ import type { CallSignal, CallSignalHandler, SignalingState } from "./callTypes"
  * - بطاقة غرفة قصيرة العمر (ticket) ولا يُرسل رمز الجلسة في كل رسالة.
  */
 
-export const SESSION_TOKEN_KEY = "thimar_session_token";
+export { SESSION_TOKEN_KEY };
 
 export function readSessionToken(): string | null {
-  try {
-    return localStorage.getItem(SESSION_TOKEN_KEY);
-  } catch {
-    return null;
-  }
+  /* يقرأ من المخزن الآمن (Keystore في أندرويد) مع تراجع للتخزين العادي. */
+  return cachedSessionToken();
 }
 
 /** تراجع أُسّي محدود: 1s, 2s, 4s … 15s مع اهتزاز ±20%. */

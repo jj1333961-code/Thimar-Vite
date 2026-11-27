@@ -148,7 +148,7 @@ export default function MessagesPage({
   /** بدء مكالمة حقيقية: نطلب من الخادم إنشاء سجل المكالمة (تفويض/مشغول)،
    *  ثم نرسل دعوة إلى قناة المستخدم الآخر ونفتح واجهة المكالمة. */
   /* أخطاء الهوية تعني أن رمز الجلسة الموقّع مفقود أو منتهٍ — الحل إعادة الدخول. */
-  const SESSION_ERRORS = new Set(["SESSION_REQUIRED", "INVALID_SESSION", "AUTH_REQUIRED"]);
+  const SESSION_ERRORS = new Set(["SESSION_REQUIRED", "INVALID_SESSION", "AUTH_REQUIRED", "SESSION_EXPIRED", "SESSION_REVOKED"]);
 
   const startCall = async (mode: CallMode) => {
     if (!selected) return;
@@ -168,6 +168,8 @@ export default function MessagesPage({
       else if (SESSION_ERRORS.has(String(error)))
         alert("انتهت صلاحية جلستك الأمنية. سجّل الخروج ثم الدخول من جديد لتتمكن من إجراء المكالمات.");
       else if (error === "CALLEE_UNAVAILABLE") alert("لا يمكن الاتصال بهذا الحساب الآن.");
+      else if (error === "RATE_LIMITED") alert("محاولات كثيرة سريعة. انتظر لحظات ثم أعد المحاولة.");
+      else if (error === "TOO_MANY_REQUESTS_TO_USER") alert("تجاوزت عدد المحاولات المسموح لهذا الشخص. جرّب لاحقًا.");
       else alert(`تعذّر بدء المكالمة: ${error}`);
       return;
     }

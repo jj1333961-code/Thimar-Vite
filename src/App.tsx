@@ -7,6 +7,7 @@ import { PendingScreen } from "./components/Portal";
 import RegisterPage from "./components/RegisterPage";
 import InternetStatusIndicator from "./components/InternetStatusIndicator";
 import { restoreRememberedAccount, signOut, type Account } from "./lib/auth";
+import { loadSessionToken } from "./lib/sessionStore";
 import { celebrate, celebrateOnce } from "./lib/celebrate";
 import { pullCloud, startCloudSync } from "./lib/cloud";
 import { requestAppPermissions } from "./lib/notify";
@@ -33,6 +34,9 @@ export default function App() {
       window.removeEventListener("keydown", ask);
     };
   }, []);
+
+  /* تحميل رمز الجلسة من المخزن الآمن قبل أي مكالمة أو إشارة. */
+  loadSessionToken();
 
   function handleLogout() {
     signOut();

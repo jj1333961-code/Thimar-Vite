@@ -211,14 +211,15 @@ export default function MushafPagesText({
     return Number.isFinite(value) ? value : null;
   }, [initialHighlight]);
 
-  /* ضبط حجم الخط حتى تدخل الصفحة كاملة في الشاشة دون تمرير وبأكبر حجم ممكن. */
+  /* ضبط حجم الخط حتى تدخل الصفحة كاملة في الشاشة وبأكبر حجم ممكن.
+     لكل سطر حجمه الخاص: السطر الطويل لا يفرض حجمًا صغيرًا على القصير،
+     فيختفي الفراغ الأفقي الكبير الذي كانت توزّعه محاذاة الضبط. */
   const fitPage = useCallback(() => {
     const pageEl = pageRef.current;
     const bodyEl = bodyRef.current;
     const stageEl = stageRef.current;
     if (!pageEl || !bodyEl || !stageEl) return;
 
-    // الصفحة تملأ مساحة العارض بالكامل (هاتف/تابلت/سطح مكتب) بدل صندوق بنسبة ثابتة.
     const availableWidth = stageEl.clientWidth;
     const availableHeight = stageEl.clientHeight;
     if (availableWidth < 40 || availableHeight < 40) return;
@@ -227,71 +228,115 @@ export default function MushafPagesText({
 
     const available = bodyEl.clientHeight;
     if (available < 40) return;
-    const apply = (size: number) => {
+
+    const applyBase = (size: number) => {
       pageEl.style.setProperty("--qp-fs", `${size.toFixed(2)}px`);
     };
-    /* رقم آخر آية في الصفحة يجب ألّا ينفرد في سطر وحده (كما في المصحف المطبوع).
-       كما ندمج ١–٣ كلمات منفردة في آخر سطر مع السطر الذي فوقه.
-       في صفحات الفاتحة وأول البقرة النص مُوسَّط، فلا نفرض تساوي الأسطر. */
-    const endsCleanly = () => {
-      if (isSpecialPageRef.current) return true;
-      const marks = bodyEl.querySelectorAll(".ayah-mark");
-      const last = marks[marks.length - 1] as HTMLElement | undefined;
-      const textEl = last?.parentElement?.querySelector(".qp-ayah-text") as HTMLElement | null;
-      if (!last || !textEl) return true;
-      const rects = Array.from(textEl.getClientRects());
-      if (!rects.length) return true;
-      let textBottom = 0;
-      for (const rect of rects) textBottom = Math.max(textBottom, rect.bottom);
-      // رقم الآية يجب أن يكون على نفس سطر النص (لا ينفرد في سطر وحده).
-      // لا نفرض طولًا أدنى لهذا السطر: نهاية الآية قد تكون قصيرة بطبيعتها،
-      // وفرض ٣٠% كان يدفع الخوارزمية إلى تصغير الخط بلا داعٍ.
-      return last.getBoundingClientRect().top < textBottom - 1;
+
+    /* قياس السطر عبر Range لا عبر scrollWidth: في RTL لا يمدّ النص
+       الفائض scrollWidth، فيبدو السطر داخلًا وهو خارج الحدود أو ملتفّ. */
+    const measureLine = (line: HTMLElement) => {
+      const range = document.createRange();
+      range.selectNodeContents(line);
+      const rects = Array.from(range.getClientRects()).filter((rect) => rect.width > 0 || rect.height > 0);
+      if (typeof range.detach === "function") range.detach();
+      if (rects.length === 0) return null;
+      const box = line.getBoundingClientRect();
+      let left = Infinity;
+      let right = -Infinity;
+      const tops: number[] = [];
+      for (const rect of rects) {
+        left = Math.min(left, rect.left);
+        right = Math.max(right, rect.right);
+        tops.push(rect.top);
+      }
+      tops.sort((a, b) => a - b);
+      /* الارتفاع يحكم: تشكيل الحروف والعلامات يجعل أعلى المستطيلات مختلفًا
+         ببضع بكسلات داخل السطر الواحد، فلا يصلح ذلك لكشف الالتفاف. */
+      const lineHeight = parseFloat(window.getComputedStyle(line).lineHeight) || 24;
+      return { box, width: right - left, wrapped: box.height > lineHeight * 1.4 };
     };
-    /* كل سطر منطقي يجب أن يبقى سطرًا واحدًا فعليًا: لا التفاف ولا كلمات
-       منفردة في سطر تالٍ، وبذلك تتساوى جميع الأسطر في الارتفاع والعرض. */
+
     const linesStaySingle = () => {
       const lines = bodyEl.querySelectorAll<HTMLElement>(".qp-line");
       for (const line of Array.from(lines)) {
-        const style = window.getComputedStyle(line);
-        const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.86 || 24;
-        if (line.scrollHeight > lineHeight * 1.35 + 2) return false;
+        const metrics = measureLine(line);
+        if (metrics && (metrics.wrapped || metrics.width > metrics.box.width + 1)) return false;
       }
       return true;
     };
     const heightOk = () => bodyEl.scrollHeight <= available + 1 && linesStaySingle();
-    let low = 9;
-    let high = 80;
-    let best = 0;
-    for (let step = 0; step < 11; step += 1) {
-      const mid = (low + high) / 2;
-      apply(mid);
-      if (heightOk()) {
-        best = mid;
-        low = mid;
-      } else {
-        high = mid;
+
+    const lines = Array.from(bodyEl.querySelectorAll<HTMLElement>(".qp-line"));
+    const clearLineSizes = () => {
+      for (const line of lines) line.style.removeProperty("--qp-line-fs");
+    };
+
+    /* الصفحتان الأولى والثانية نصّهما مُوسَّط لا مُسطَّر: حجم واحد للصفحة. */
+    if (isSpecialPageRef.current || lines.length === 0) {
+      clearLineSizes();
+      let low = 9;
+      let high = 80;
+      let best = 0;
+      for (let step = 0; step < 11; step += 1) {
+        const mid = (low + high) / 2;
+        applyBase(mid);
+        if (heightOk()) {
+          best = mid;
+          low = mid;
+        } else {
+          high = mid;
+        }
       }
+      applyBase(best || 9);
+      setFontPx(best || 9);
+      return;
     }
-    if (!best) {
-      apply(9);
-      best = 9;
-    }
-    for (let step = 0; step < 6; step += 1) {
-      const next = best + 0.25;
-      apply(next);
-      if (heightOk()) best = next;
-      else break;
-    }
-    /* ننزل قليلًا فقط إذا انفرد رقم آخر آية في سطر وحده (أقصى تصغير 0.5px). */
-    let clean = best;
-    for (let step = 0; step < 2 && clean > 9.5; step += 1) {
-      apply(clean);
-      if (endsCleanly()) break;
-      clean -= 0.25;
-    }
-    apply(clean);
-    setFontPx(clean);
+
+    /* أكبر حجم يبقى فيه السطر سطرًا واحدًا داخل عرضه المتاح. */
+    const largestFit = (line: HTMLElement) => {
+      const fits = () => {
+        const metrics = measureLine(line);
+        if (!metrics) return true;
+        return !metrics.wrapped && metrics.width <= metrics.box.width + 1;
+      };
+      let low = 8;
+      let high = 80;
+      let best = 8;
+      for (let step = 0; step < 11; step += 1) {
+        const mid = (low + high) / 2;
+        line.style.setProperty("--qp-line-fs", `${mid.toFixed(2)}px`);
+        if (fits()) {
+          best = mid;
+          low = mid;
+        } else {
+          high = mid;
+        }
+      }
+      line.style.setProperty("--qp-line-fs", `${best.toFixed(2)}px`);
+      return best;
+    };
+
+    const sizes = lines.map(largestFit);
+
+    /* تصغير متناسب فقط إذا لم تدخل الأسطر كلها في الارتفاع المتاح. */
+    const fitHeight = () => {
+      for (let pass = 0; pass < 14 && !heightOk(); pass += 1) {
+        const overflow = bodyEl.scrollHeight / Math.max(available, 1);
+        const scale = Math.max(0.55, Math.min(0.995, 1 / overflow));
+        for (let i = 0; i < lines.length; i += 1) {
+          sizes[i] = Math.max(8, sizes[i] * scale);
+          lines[i].style.setProperty("--qp-line-fs", `${sizes[i].toFixed(2)}px`);
+        }
+      }
+    };
+
+    /* عنوان السورة والبسملة يرثان حجم الصفحة، فنضبطه على أصغر سطر
+       حتى لا يتضخّم الرأس ويأكل ارتفاع السطور. */
+    applyBase(Math.min(...sizes));
+    fitHeight();
+    applyBase(Math.min(...sizes));
+    setFontPx(Math.min(...sizes));
   }, []);
 
   useEffect(() => {

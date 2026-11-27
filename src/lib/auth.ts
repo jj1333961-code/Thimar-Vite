@@ -73,6 +73,7 @@ export function accountTypeLabel(type: AccountType): string {
 // Supabase integration
 import { cloud, pushAccount, removeAccountFromCloud, SUPABASE_URL, SUPABASE_ANON_KEY } from "./cloud";
 import { authorizeDevice } from "./nativePush";
+import { revokeSession, saveSessionToken } from "./sessionStore";
 import { clearRememberedDevice, getRememberedAccountId, rememberThisDevice } from "./rememberedDevice.mjs";
 export { rememberThisDevice };
 import { hashPassword, newPasswordSalt, verifyPassword } from "./password";
@@ -325,9 +326,7 @@ async function issueSessionToken(username: string, password: string): Promise<vo
     });
     if (!response.ok) return;
     const data = await response.json().catch(() => ({}));
-    if (data?.token) {
-      try { localStorage.setItem("thimar_session_token", String(data.token)); } catch { /* ignore */ }
-    }
+    if (data?.token) saveSessionToken(String(data.token));
   } catch {
     /* الشبكة غير متاحة — تبقى الجلسة بدون رمز (توافق). */
   }
@@ -450,6 +449,8 @@ export function deleteAccount(accountId: string): boolean {
 }
 
 export function signOut(): void {
+  /* إبطال الجلسة على الخادم (فتسقط فورًا حتى لو بقي الرمز صالح التوقيع). */
+  void revokeSession();
   clearRememberedDevice();
   /* إلغاء ربط جهاز هذا الحساب بإشعارات FCM (إن كنا داخل تطبيق أندرويد). */
   try {
