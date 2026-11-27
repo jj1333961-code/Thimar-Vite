@@ -17,7 +17,7 @@ const REFRESH_GRACE_SECONDS = 30 * 24 * 60 * 60;
 
 const corsHeaders = (origin: string) => ({
   "Access-Control-Allow-Origin": origin || "*",
-  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, x-session-token",
   "Access-Control-Allow-Methods": "POST,OPTIONS",
 });
 
@@ -128,9 +128,11 @@ Deno.serve(async (request) => {
 
     const body = await request.json().catch(() => ({}));
     const action = String(body.action ?? "login").toLowerCase();
+    /* البوابة تستهلك Authorization لمفتاح Supabase، لذا يُرسل رمز الجلسة
+       في ترويسة مستقلة عند الخروج/التجديد (مع دعم Authorization للاختبارات). */
     const authHeader = request.headers.get("Authorization") ?? "";
     const bearerMatch = /^Bearer\s+(.+)$/i.exec(authHeader.trim());
-    const bearer = bearerMatch ? bearerMatch[1].trim() : "";
+    const bearer = (request.headers.get("X-Session-Token") ?? "").trim() || (bearerMatch ? bearerMatch[1].trim() : "");
 
     if (action === "logout") {
       const claims = await readToken(bearer, signingSecret);
