@@ -1,0 +1,533 @@
+{
+  "platform": "web",
+  "versionName": "1.11.8",
+  "versionCode": 30,
+  "resourceVersion": "1.11.8",
+  "resourceVersionCode": 30,
+  "nativeVersionCode": 30,
+  "nativeVersionName": "1.11.8",
+  "baseUrl": "/",
+  "generatedAt": "2026-11-27T12:15:03.646Z",
+  "files": [
+    {
+      "path": "adhan/afasy-fajr.mp3",
+      "bytes": 840117,
+      "sha256": "0bca107d29963083575f0aa47749c8492a580702bfbbef451957f2ee66a52185"
+    },
+    {
+      "path": "adhan/azan1.mp3",
+      "bytes": 400364,
+      "sha256": "a22cd79fc0d7878f993243badae43227e54d1f90da0b7f0b13f3fd4366242438"
+    },
+    {
+      "path": "adhan/azan2.mp3",
+      "bytes": 558800,
+      "sha256": "1ffb184f2b3bf372dc356fb87116b93a8b03aac6da1cd5aca9b27cd0b5a2d252"
+    },
+    {
+      "path": "adhan/azan3.mp3",
+      "bytes": 589364,
+      "sha256": "45097b262c07bd7ab226f282fdf6823e47b8d07c8e3754a3c38bc89ed4411843"
+    },
+    {
+      "path": "adhan/hamathani.mp3",
+      "bytes": 933213,
+      "sha256": "95c2611c8431356e7eeb977ca735a2e8f7efc4d4f23bd61924c218a42cfb7d9a"
+    },
+    {
+      "path": "adhan/imadi.mp3",
+      "bytes": 814197,
+      "sha256": "80839ecb46fbedaa1436b77fa468ecdd38df4256be7a7a531687823bae8269f2"
+    },
+    {
+      "path": "adhan/prayer/asr.jpg",
+      "bytes": 78338,
+      "sha256": "b31b15e4e92b4bd7d56d3947e273104aac94d497825a329e94ff0eb2fb1fbfa5"
+    },
+    {
+      "path": "adhan/prayer/dhuhr.jpg",
+      "bytes": 89811,
+      "sha256": "edbba01adbe55c81f7a4004e3d5e0c3e2287d29a499c7cc05cbe463c1a55bb5b"
+    },
+    {
+      "path": "adhan/prayer/fajr.jpg",
+      "bytes": 93335,
+      "sha256": "d878c8bb4586152fe928bce9f3e5cb3612ad73f9b933ca7290c3290c85434d4f"
+    },
+    {
+      "path": "adhan/prayer/isha.jpg",
+      "bytes": 83311,
+      "sha256": "20c0a2f90006ee20844d15f8c0f572ef27d840d98bb2837caaddefccf4197afb"
+    },
+    {
+      "path": "adhan/prayer/maghrib.jpg",
+      "bytes": 84585,
+      "sha256": "10013940b6cd27db84a6bf718f8ed75985b069e645be204874007651b07a3ecf"
+    },
+    {
+      "path": "adhan-hero.svg",
+      "bytes": 2837,
+      "sha256": "b4b3c75cfe65a93dd56ead63dae638fb84bdfb1ced5193c7b78431281c919513"
+    },
+    {
+      "path": "assets/MushafTasmeeSheet-CverXSpx.js",
+      "bytes": 23865,
+      "sha256": "549cc2f021e37488bee395ee906421341d1d206c4fcc4d1a2fc33cc679077e6c"
+    },
+    {
+      "path": "assets/TasmeeReader-DburkIOh.js",
+      "bytes": 29000,
+      "sha256": "fd0212da3b03d159e43fed52518b5932d11c4a71c48e99861f9362feb38f33d8"
+    },
+    {
+      "path": "assets/TuhfaTasmeeReader-KUe2YK3c.js",
+      "bytes": 25150,
+      "sha256": "557f52cf8cd113c714daad3b87428000e2562e7dca823fb47a5c965b9b37ffb9"
+    },
+    {
+      "path": "assets/dialect-4WXjo_u_.js",
+      "bytes": 2484,
+      "sha256": "e8aff53f78f5ad63707ef5bbd910d298b27199d229f7fb7c97f1a26ed3b52503"
+    },
+    {
+      "path": "assets/esm-C2707wNU.js",
+      "bytes": 599,
+      "sha256": "a513966afc65cc879e4b8bcc21499aa0302b69bc20d47eea67bc1697f2a462bb"
+    },
+    {
+      "path": "assets/index-CH9UtSQl.css",
+      "bytes": 276032,
+      "sha256": "9af13f996444c0c538b09035d525ae9ae1a156c885fdf2e5fb3b6efee2724c42"
+    },
+    {
+      "path": "assets/index-Dq-sxVuB.js",
+      "bytes": 1290462,
+      "sha256": "1526316c479f4fca4542a76d6fd1254d053c5f4afd29af1cd4f3143934a166fe"
+    },
+    {
+      "path": "assets/quranAsrSmall-BNf9-lxL.js",
+      "bytes": 8912,
+      "sha256": "67fd364d9e053622768912cdbc13f39dc40c6f2a08f2883ac235ba8585f76c4b"
+    },
+    {
+      "path": "assets/tasmeeEngines-EeK0j0FU.js",
+      "bytes": 13674,
+      "sha256": "4d16b979eb4701e663f91161f8555c963399786f0ff774c3434d668ed7d85ea0"
+    },
+    {
+      "path": "assets/tilawaRecitation-C882TdZZ.js",
+      "bytes": 1052777,
+      "sha256": "71d5dc6321853955d8ae7bcba1d2a9ac9c731eeff17468ae0f6e7a1e9497ee25"
+    },
+    {
+      "path": "assets/web-BT2No8b4.js",
+      "bytes": 4591,
+      "sha256": "faf9a70da6d5ce9e148058abb0a73f5a33f10b686debde22db9e4f32f7713d16"
+    },
+    {
+      "path": "fonts/UthmanicHafs-v3.woff2",
+      "bytes": 107592,
+      "sha256": "d96ef3d81ba6209ff06bc9afda0c175a36f479163f5858f492a04277fb3c4c12"
+    },
+    {
+      "path": "fonts/quran-basmalah.woff2",
+      "bytes": 87760,
+      "sha256": "8c00e7a7d5f773bcfb1642fdcfba505dbd81975fef39f14718827a32d075020c"
+    },
+    {
+      "path": "fonts/quran-uthmani.woff2",
+      "bytes": 87760,
+      "sha256": "8c00e7a7d5f773bcfb1642fdcfba505dbd81975fef39f14718827a32d075020c"
+    },
+    {
+      "path": "icons/apple-touch-icon.png",
+      "bytes": 29697,
+      "sha256": "c9e8100465c9d6b966348ef8569b1bc0f2dd693376ed6d6b98070f74748d67d7"
+    },
+    {
+      "path": "icons/icon-192.png",
+      "bytes": 34453,
+      "sha256": "0593725c57c715df5f57e7774bab4292975fb810f53a13c5825fed03c22d2855"
+    },
+    {
+      "path": "icons/icon-512.png",
+      "bytes": 77754,
+      "sha256": "16f5efcf94b466c0885c9e4d10ad4ba0e2869e788fcb7cfe18addbe77e483f68"
+    },
+    {
+      "path": "icons/maskable-512.png",
+      "bytes": 113276,
+      "sha256": "a1fcad690b3812fbbca1e72420dbc350b0c8c6a18b9793f20c6a08d7d01c69b2"
+    },
+    {
+      "path": "icons/play-store-512.png",
+      "bytes": 77754,
+      "sha256": "16f5efcf94b466c0885c9e4d10ad4ba0e2869e788fcb7cfe18addbe77e483f68"
+    },
+    {
+      "path": "images/ayah-mark.svg",
+      "bytes": 3983,
+      "sha256": "269cfa9b2ddb8a0a5a762ef479c9a8090d1f1546a5f432b85e5cf7aae3ccb5da"
+    },
+    {
+      "path": "images/page-number.svg",
+      "bytes": 6507,
+      "sha256": "dac9898c828af14054d355ae6036e0c8b96964e246ce8e2675b865da3b578582"
+    },
+    {
+      "path": "images/prayer-card.jpg",
+      "bytes": 93248,
+      "sha256": "7d6527c3a3da841cbcef3e11cf5598c426e6f623410a98f1aff2848f4c7a617c"
+    },
+    {
+      "path": "index.html",
+      "bytes": 6328,
+      "sha256": "32d7917c3c240a344b0c2a94c19db7642438ad5a758f62dc4af4cd559888534c"
+    },
+    {
+      "path": "licenses/THIRD_PARTY_NOTICES.md",
+      "bytes": 2512,
+      "sha256": "97b047261428d77b79a51878ba479f91f732728554181661f83c6fa77cdf510b"
+    },
+    {
+      "path": "licenses/quran-asr-small-LICENSE.txt",
+      "bytes": 1062,
+      "sha256": "3a9d79091d3c680c22dfa9af3dc8dfa12e62f6f9eb94bad36361393453a5583c"
+    },
+    {
+      "path": "licenses/tilawa-LICENSE.txt",
+      "bytes": 1065,
+      "sha256": "aaba1020f09b4d3798b1d6965d7ead0c0ddbaf5252a949fa5cc8120c2b8f27e5"
+    },
+    {
+      "path": "licenses/tilawa-NOTICE.md",
+      "bytes": 5414,
+      "sha256": "b02fe7588004bab1628418ee588c0eb984e68b18ad9e8697675f4eeb87757a91"
+    },
+    {
+      "path": "manifest.webmanifest",
+      "bytes": 919,
+      "sha256": "294a9751c06fc4f55a982a11d3cd68aed4ae26fcef9fc30a46d35467c077fb01"
+    },
+    {
+      "path": "quran/hafs/text.json.gz",
+      "bytes": 287416,
+      "sha256": "d38e32aedc5f82cbc612485a7f76c6de827f3cfc2dbcaf3417565c67c511dc21"
+    },
+    {
+      "path": "quran/lines/1-10.json",
+      "bytes": 11238,
+      "sha256": "75281f4ef1e894b8f7b393f4a1e0ce8faea6938ef1f5d52ae8975c59e9610a31"
+    },
+    {
+      "path": "quran/lines/101-110.json",
+      "bytes": 13337,
+      "sha256": "2e988f233e6aeaed7796209894b4970860aa79f470c8f76540b2bf5e0601ec0f"
+    },
+    {
+      "path": "quran/lines/11-20.json",
+      "bytes": 14098,
+      "sha256": "7074bec8de9bb9a740dfaffd990b22fc46c119e01d095bb37a64b4e213abf7a4"
+    },
+    {
+      "path": "quran/lines/111-120.json",
+      "bytes": 13674,
+      "sha256": "a8bafd5ed636931edfaea398e8e972c0da983f2bf6a9ae57cf2709e1fa88deb6"
+    },
+    {
+      "path": "quran/lines/121-130.json",
+      "bytes": 14435,
+      "sha256": "01524d700c244a32ae9b5208621f0ae3e3f6306e993f0ac79203556223dc00f9"
+    },
+    {
+      "path": "quran/lines/131-140.json",
+      "bytes": 14077,
+      "sha256": "3c86ad0e6bf5f84b4c66c6728a5e3466c46e965e8f53d4ad526da86f74ff8300"
+    },
+    {
+      "path": "quran/lines/141-150.json",
+      "bytes": 14554,
+      "sha256": "ac3953fb7e10206fef09d825ee4a607ee777ae443089939b1ce70d9690a7f24c"
+    },
+    {
+      "path": "quran/lines/151-160.json",
+      "bytes": 13448,
+      "sha256": "779872bd1144fa8a6b91e89c12b2e5a16e65ef1eb3536beee0680abe72988867"
+    },
+    {
+      "path": "quran/lines/161-170.json",
+      "bytes": 13743,
+      "sha256": "e38ea2863884fb473a609f5a72e95c5e77eacdd6e59ce3062dd914a7733863dc"
+    },
+    {
+      "path": "quran/lines/171-180.json",
+      "bytes": 13470,
+      "sha256": "a3200938fd30a531c258e97b711112cea59cd948c701d7c6e22975b5191e83c2"
+    },
+    {
+      "path": "quran/lines/181-190.json",
+      "bytes": 12607,
+      "sha256": "af9704a1e330614bae4377d13a5cee911824c93ae6645038314c6f51134550f8"
+    },
+    {
+      "path": "quran/lines/191-200.json",
+      "bytes": 12234,
+      "sha256": "0000631427b39b59137119fc497265b47ea3d919d94ea13d1ca7ca82c9330238"
+    },
+    {
+      "path": "quran/lines/201-210.json",
+      "bytes": 13721,
+      "sha256": "e0a203580090b935948de8fc5827d968f09bc80b3a3bc172cc080da90d6ab3ac"
+    },
+    {
+      "path": "quran/lines/21-30.json",
+      "bytes": 14948,
+      "sha256": "f14507b50b8466c314b35314985d48f98ba832bd91ca728d524e655399f3deaa"
+    },
+    {
+      "path": "quran/lines/211-220.json",
+      "bytes": 15776,
+      "sha256": "af1cb95304f1bb5dc86de9e481b484ba63fabec3b0df13e5564c87414e6a81f7"
+    },
+    {
+      "path": "quran/lines/221-230.json",
+      "bytes": 15438,
+      "sha256": "b0a7249f58d4b61697f16c254cd8bbdc5b0a572a255abd743355824d46d97dff"
+    },
+    {
+      "path": "quran/lines/231-240.json",
+      "bytes": 14777,
+      "sha256": "1049c20cfb00f2d9eb202f8e5d73bcd617e7ccc22dfd4363d2ce264cb8e6f634"
+    },
+    {
+      "path": "quran/lines/241-250.json",
+      "bytes": 14969,
+      "sha256": "2b3bf5c0fea8fab612fd46a5b7c1cf273ba3d9dfd0bfcb87a414be390b67d5dd"
+    },
+    {
+      "path": "quran/lines/251-260.json",
+      "bytes": 14766,
+      "sha256": "24a2e9edf7370bd61be07b30f741f3bf42e55c4c84697d5f1488db3e95c26107"
+    },
+    {
+      "path": "quran/lines/261-270.json",
+      "bytes": 13047,
+      "sha256": "9dd555ebee185a2b3d616d7f83c0128540b14dacceb9a2dacfabf10643b27dcc"
+    },
+    {
+      "path": "quran/lines/271-280.json",
+      "bytes": 14851,
+      "sha256": "e2b3c8cc4ae0cf12007b00be0a30fb6472682b0d7b5d59213afdf0d04e380d55"
+    },
+    {
+      "path": "quran/lines/281-290.json",
+      "bytes": 14732,
+      "sha256": "614726480cb0bdcab07254b141cce40be061a2828b68ca8b3b907e6784037e0a"
+    },
+    {
+      "path": "quran/lines/291-300.json",
+      "bytes": 15198,
+      "sha256": "a503f18652476749c9373d60122903ff7345a3aa3c3a7a499969adf163c44cab"
+    },
+    {
+      "path": "quran/lines/301-310.json",
+      "bytes": 15504,
+      "sha256": "f9986a24cb5467997540579ff980a153451314cce4e497558b71930a4dceaba0"
+    },
+    {
+      "path": "quran/lines/31-40.json",
+      "bytes": 14816,
+      "sha256": "7b6cc115c49be4b454464a9780c4837a20d27ab85d9fc5d7199c0f68175066f6"
+    },
+    {
+      "path": "quran/lines/311-320.json",
+      "bytes": 15146,
+      "sha256": "3f29f573aa5f7b454d3567dd87cd2f93699ecf4707b40d8374183da6bdbf9316"
+    },
+    {
+      "path": "quran/lines/321-330.json",
+      "bytes": 13410,
+      "sha256": "453727e6d915a06b99fddee27663bbdfcd54e9434c627f71da434fe7973d4716"
+    },
+    {
+      "path": "quran/lines/331-340.json",
+      "bytes": 14264,
+      "sha256": "2af577df7c0e7c7fc0bf9bc278d84c6ab85d7006ac8b7701d4b940c34ba4f3b9"
+    },
+    {
+      "path": "quran/lines/341-350.json",
+      "bytes": 14395,
+      "sha256": "4c9978bd11de82ee594dd74c34e4c59a148bc41c5db730ae519fada1b596e387"
+    },
+    {
+      "path": "quran/lines/351-360.json",
+      "bytes": 15030,
+      "sha256": "95bee811a327072ae52d5279d4facea3a8a402a56c14feaa41d934267491e56d"
+    },
+    {
+      "path": "quran/lines/361-370.json",
+      "bytes": 13888,
+      "sha256": "6f55a53faa3579e2f7f128bafc30208b852594e675c39e966a4a2944608022d6"
+    },
+    {
+      "path": "quran/lines/371-380.json",
+      "bytes": 15489,
+      "sha256": "86f7cfdba8a93b8a87ec4b1317e3471765837699ee049112b4be9884a1fc7343"
+    },
+    {
+      "path": "quran/lines/381-390.json",
+      "bytes": 14303,
+      "sha256": "0b69c7c98f0cb0b96e4529afbd2b50a551d23fdffe666006c7ecc78e32ad45ab"
+    },
+    {
+      "path": "quran/lines/391-400.json",
+      "bytes": 14248,
+      "sha256": "2e5759f23c81c933b07a6fb67bc128cdd62a2fa41ebc553bf9c1f2e3b7152959"
+    },
+    {
+      "path": "quran/lines/401-410.json",
+      "bytes": 14011,
+      "sha256": "2c1989cdcbb75b2d6b6fb50a280faa43d778357c1b7d396210ff519cf812b3e1"
+    },
+    {
+      "path": "quran/lines/41-50.json",
+      "bytes": 14630,
+      "sha256": "08378c8bbfd6af17261d1135872c04c3e659ef5ab64330fa943e223e4a95f37a"
+    },
+    {
+      "path": "quran/lines/411-420.json",
+      "bytes": 14443,
+      "sha256": "048e4eb8f853f123706216075affc67c7ae3cc38ed9dda657d7526f74344afae"
+    },
+    {
+      "path": "quran/lines/421-430.json",
+      "bytes": 14483,
+      "sha256": "361954ea3af553b29c9ae64c5243d201bd19848430fc22d6817373a7a36aa972"
+    },
+    {
+      "path": "quran/lines/431-440.json",
+      "bytes": 14899,
+      "sha256": "ec9b510e7c776b9f93857fc55c17805146d466d3b32e4f45261898ee48ef0c92"
+    },
+    {
+      "path": "quran/lines/441-450.json",
+      "bytes": 13976,
+      "sha256": "760a4991200a0a25c1aae5f0255754eb77ef71e106187594b53f15baabd70a19"
+    },
+    {
+      "path": "quran/lines/451-460.json",
+      "bytes": 14891,
+      "sha256": "1d5217b4c1240519e007b5a6cabb3649f871a5eb85cdd1cd9f22c704ca4ad3f3"
+    },
+    {
+      "path": "quran/lines/461-470.json",
+      "bytes": 14179,
+      "sha256": "c67b7d9cd8798d166a5a02966c2202fd9443ed2a456744d781ab127e0e8bf7d8"
+    },
+    {
+      "path": "quran/lines/471-480.json",
+      "bytes": 13880,
+      "sha256": "ec4c87cb33e142c3c99dac657644616c43300f31c8b2b1a4617aca37f91b3749"
+    },
+    {
+      "path": "quran/lines/481-490.json",
+      "bytes": 14951,
+      "sha256": "53b190eef1a3c066ccc72140565420714630faa3fd325615cfc6893fa9e27a05"
+    },
+    {
+      "path": "quran/lines/491-500.json",
+      "bytes": 13665,
+      "sha256": "b3a484f971fd55e1e299ba20660b22bf2dd8edb70a054bb112a1f511c27bcb14"
+    },
+    {
+      "path": "quran/lines/501-510.json",
+      "bytes": 15464,
+      "sha256": "d858b323d75f5dd42f3cc89da5fed007dfef7ec12cc92ce3ccfd196228c6229e"
+    },
+    {
+      "path": "quran/lines/51-60.json",
+      "bytes": 13435,
+      "sha256": "74cd16095fe12936478e2850521978ab321b071b5c29eb0ee22904992ac0315e"
+    },
+    {
+      "path": "quran/lines/511-520.json",
+      "bytes": 14211,
+      "sha256": "dec9df2eb1c95fdc01aa9722873a8204932fa69aaecacc0dd8b7fea1f934bf6e"
+    },
+    {
+      "path": "quran/lines/521-530.json",
+      "bytes": 14360,
+      "sha256": "4a1982e27afbd1bd10a2dcbaa675154835b32d1e58525bcfffe627ed1cf9347f"
+    },
+    {
+      "path": "quran/lines/531-540.json",
+      "bytes": 13284,
+      "sha256": "b6350df74d704d03c93e5001d8c07a45a8503d0135ff9e062a9c9cf5a3a2a52d"
+    },
+    {
+      "path": "quran/lines/541-550.json",
+      "bytes": 14528,
+      "sha256": "21bd7009add20d332ba3a37cb2e1978dac68f07cc4086b4a53263b84ad97b18a"
+    },
+    {
+      "path": "quran/lines/551-560.json",
+      "bytes": 13649,
+      "sha256": "b050892b28f6a5662d4ba39eacfbaecd0ec2175ac97dfd848546a12891788154"
+    },
+    {
+      "path": "quran/lines/561-570.json",
+      "bytes": 14102,
+      "sha256": "5eee9e575a9079d348ffb12d7e18958e69eed21a8a08d321b855cdd6c0d62401"
+    },
+    {
+      "path": "quran/lines/571-580.json",
+      "bytes": 14390,
+      "sha256": "85541b8cd907ac84b3521ce0ac03b29a9e093464eef10c6fb3de80edbe15aa24"
+    },
+    {
+      "path": "quran/lines/581-590.json",
+      "bytes": 12700,
+      "sha256": "02d92c60f2b106f7df37802f28f08aa56ca2d9499cbf2e6aeae8e455d7c758ba"
+    },
+    {
+      "path": "quran/lines/591-600.json",
+      "bytes": 10702,
+      "sha256": "6bd9be30a4e04ce14c7da7b125de1806e5dd62dc5473e71d4ad08ca2d328daab"
+    },
+    {
+      "path": "quran/lines/601-604.json",
+      "bytes": 2925,
+      "sha256": "f907877d6f3f6f9b9fab60beacd849d19b2031561a20ee4ca6aba0e63d63ac42"
+    },
+    {
+      "path": "quran/lines/61-70.json",
+      "bytes": 14079,
+      "sha256": "f883334adddbf206a0f27cf1b681a6101fcec1a7e5c073075140f0e8815b883a"
+    },
+    {
+      "path": "quran/lines/71-80.json",
+      "bytes": 13956,
+      "sha256": "a75f8ceb402a0b2a885c1208d5e0a300b32be27ae16e26ee90c7983b8ef071b5"
+    },
+    {
+      "path": "quran/lines/81-90.json",
+      "bytes": 13088,
+      "sha256": "a419121b251b83638e65c2c107d4c0d62d65bd262a605ae8430a8fd934fd8357"
+    },
+    {
+      "path": "quran/lines/91-100.json",
+      "bytes": 14317,
+      "sha256": "63822fad8a7a3116762daadc6adafc227cf53768f00728bf3770e9065983b5e9"
+    },
+    {
+      "path": "quran/pages.json",
+      "bytes": 97589,
+      "sha256": "6f66995b142feca29a9a1ada2d6957a6194aec39b0bd0f0cf2cd4cb1f2eae5f9"
+    },
+    {
+      "path": "sw.js",
+      "bytes": 13207,
+      "sha256": "bfdbfb6af2c48103de25a95a5065f9976447851e43e2c9aae0347627b0942fc6"
+    }
+  ]
+}

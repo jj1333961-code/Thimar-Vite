@@ -1,10 +1,10 @@
 {
   "platform": "android",
   "packageName": "app.thimar.quran",
-  "versionName": "1.11.7",
-  "versionCode": 29,
-  "resourceVersionName": "1.11.7",
-  "resourceVersionCode": 29,
+  "versionName": "1.11.8",
+  "versionCode": 30,
+  "resourceVersionName": "1.11.8",
+  "resourceVersionCode": 30,
   "minSupportedVersionCode": 1,
   "available": true,
   "apkRequired": true,
@@ -46,6 +46,10 @@
     {
       "versionName": "1.11.6",
       "versionCode": 28
+    },
+    {
+      "versionName": "1.11.7",
+      "versionCode": 29
     }
   ],
   "releaseDate": "2026-11-27",
@@ -53,48 +57,44 @@
   "releaseNotes": {
     "ar": {
       "features": [
-        "استقبال المكالمات الواردة يعمل الآن في أي صفحة من التطبيق، مع تكرار الدعوة حتى القبول أو الانتهاء.",
-        "نافذة الأذان ببطاقة واحدة أنيقة: المعلومات كلها داخل الصورة، وزر × واحد يوقف الصوت ويغلق النافذة.",
-        "مشغل التلاوة المصغّر بزرين فقط (إيقاف، إيقاف مؤقت/استئناف) ويظهر ويختفي بلمس صفحة المصحف."
+        "هوية المتصل أصبحت من رمز جلسة موقّع من الخادم بدل معرّف يُرسله العميل."
       ],
       "improvements": [
-        "خط المصحف أكبر بنحو 11% مع استغلال أفضل للمساحات بين الكلمات دون ضغط أو تداخل.",
-        "تستمر التلاوة عند تقليب الصفحة أو تغيير التحديد أو إغلاق قائمة الآية."
+        "استقرار المكالمات الواردة مع إعادة المحاولة عند انتهاء الجلسة."
       ],
       "bugFixes": [
-        "إصلاح ثلاث دوال Java مفقودة كانت تمنع بناء نسخة الأندرويد.",
-        "لم يعد سحب الصفحة يُخفي شريط التشغيل."
+        "إصلاح استدعاءات Java الناقصة التي كانت تمنع بناء الحزمة."
       ],
       "securityUpdates": [
-        "إعادة بناء نسخة الأندرويد بالمفتاح الأصلي مع فحص التوقيع والصلاحيات."
+        "منع انتحال هوية مستخدم آخر في إنشاء المكالمة أو قبولها أو إنهائها.",
+        "رفض المكالمات إلى حسابات غير موجودة أو غير نشطة.",
+        "التحقق من رمز الجلسة على الخادم لكل إجراء."
       ]
     },
     "en": {
       "features": [
-        "Incoming calls now reach the callee from any screen, with repeated invites until answer or expiry.",
-        "The adhan window is a single card with all details inside the artwork and one close button that stops the sound.",
-        "The mini reciter player has only two buttons and toggles by tapping the Mushaf page."
+        "Caller identity now comes from a server-signed session token instead of a client-supplied id."
       ],
       "improvements": [
-        "Mushaf text is about 11% larger with better use of horizontal space and no squeezing or overlap.",
-        "Recitation keeps playing when turning the page, changing the selection, or closing the ayah menu."
+        "More reliable incoming calls with clear re-login guidance when a session expires."
       ],
       "bugFixes": [
-        "Restored three missing Java methods that blocked the Android build.",
-        "Swiping the page no longer hides the playback bar."
+        "Restored missing Java calls that blocked the Android build."
       ],
       "securityUpdates": [
-        "Android release rebuilt with the original signing key, with signature and permission checks."
+        "Impersonating another account when creating, accepting, or ending a call is blocked.",
+        "Calls to missing or inactive accounts are rejected.",
+        "Every action verifies the session token on the server."
       ]
     }
   },
   "shortDescription": {
-    "ar": "تحديث 1.11.7 — مكالمات واردة، بطاقة أذان جديدة، وخط مصحف أكبر مع استمرار التلاوة.",
-    "en": "Update 1.11.7 — incoming calls, new adhan card, larger Mushaf text with persistent recitation."
+    "ar": "تحديث 1.11.8 — مكالمات بهوية موثّقة من الخادم.",
+    "en": "Update 1.11.8 — calls authenticated by the server."
   },
   "resourceSize": 4480018,
   "fileName": "app-release.apk",
-  "fileSize": 67117565,
-  "sha256": "5f09971da07ff55c56b324a9d1c419f20d99cd2c288ec8f4b0041a10f93119b7",
-  "downloadUrl": "https://github.com/jj1333961-code/Thimar-Vite/releases/download/v1.11.7/app-release.apk"
+  "fileSize": 67117275,
+  "sha256": "85ad9fad72899993971a79b7360a77c3e928d1312e4ee44561071cb6b28a0d4a",
+  "downloadUrl": "https://github.com/jj1333961-code/Thimar-Vite/releases/download/v1.11.8/app-release.apk"
 }

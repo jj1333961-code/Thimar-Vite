@@ -1,13 +1,13 @@
 {
   "platform": "web",
-  "versionName": "1.11.7",
-  "versionCode": 29,
-  "resourceVersion": "1.11.7",
-  "resourceVersionCode": 29,
-  "nativeVersionCode": 29,
-  "nativeVersionName": "1.11.7",
+  "versionName": "1.11.8",
+  "versionCode": 30,
+  "resourceVersion": "1.11.8",
+  "resourceVersionCode": 30,
+  "nativeVersionCode": 30,
+  "nativeVersionName": "1.11.8",
   "baseUrl": "/",
-  "generatedAt": "2026-11-27T11:35:02.383Z",
+  "generatedAt": "2026-11-27T12:15:03.646Z",
   "files": [
     {
       "path": "adhan/afasy-fajr.mp3",
@@ -70,19 +70,19 @@
       "sha256": "b4b3c75cfe65a93dd56ead63dae638fb84bdfb1ced5193c7b78431281c919513"
     },
     {
-      "path": "assets/MushafTasmeeSheet-BgZ7oW6A.js",
+      "path": "assets/MushafTasmeeSheet-CverXSpx.js",
       "bytes": 23865,
-      "sha256": "e624f984347bafde14ea1cba5e435e08ea5298a759c8c604bf0782990b8b3e63"
+      "sha256": "549cc2f021e37488bee395ee906421341d1d206c4fcc4d1a2fc33cc679077e6c"
     },
     {
-      "path": "assets/TasmeeReader-BXHyY3gW.js",
+      "path": "assets/TasmeeReader-DburkIOh.js",
       "bytes": 29000,
-      "sha256": "68b72b2714fdadd42dfd28018649c19a0f5ba0ffabc34971ba853e994e4f1c08"
+      "sha256": "fd0212da3b03d159e43fed52518b5932d11c4a71c48e99861f9362feb38f33d8"
     },
     {
-      "path": "assets/TuhfaTasmeeReader-DA0mx7RQ.js",
+      "path": "assets/TuhfaTasmeeReader-KUe2YK3c.js",
       "bytes": 25150,
-      "sha256": "9331e6ea10072a012a9090a0bc27f3dd415d04cdf62dd6da0aded4d637e3107f"
+      "sha256": "557f52cf8cd113c714daad3b87428000e2562e7dca823fb47a5c965b9b37ffb9"
     },
     {
       "path": "assets/dialect-4WXjo_u_.js",
@@ -90,9 +90,9 @@
       "sha256": "e8aff53f78f5ad63707ef5bbd910d298b27199d229f7fb7c97f1a26ed3b52503"
     },
     {
-      "path": "assets/esm-Dbxz2S_4.js",
+      "path": "assets/esm-C2707wNU.js",
       "bytes": 599,
-      "sha256": "59dac4111affa8e145de125e86e9514b4eb42fd18e6fffe31129420fc75ce1d7"
+      "sha256": "a513966afc65cc879e4b8bcc21499aa0302b69bc20d47eea67bc1697f2a462bb"
     },
     {
       "path": "assets/index-CH9UtSQl.css",
@@ -100,19 +100,19 @@
       "sha256": "9af13f996444c0c538b09035d525ae9ae1a156c885fdf2e5fb3b6efee2724c42"
     },
     {
-      "path": "assets/index-Cx9cZPb9.js",
-      "bytes": 1289922,
-      "sha256": "882e566c3e6b6e711733bf9d8d8fa1c1bd27ac4885e40d9dde4cf4c2c34c9f57"
+      "path": "assets/index-Dq-sxVuB.js",
+      "bytes": 1290462,
+      "sha256": "1526316c479f4fca4542a76d6fd1254d053c5f4afd29af1cd4f3143934a166fe"
     },
     {
-      "path": "assets/quranAsrSmall-DLlDvLSv.js",
+      "path": "assets/quranAsrSmall-BNf9-lxL.js",
       "bytes": 8912,
-      "sha256": "bb84914b0fb2a0ec07780e918380af7290bf3fb83ece42dd51541e680d672cec"
+      "sha256": "67fd364d9e053622768912cdbc13f39dc40c6f2a08f2883ac235ba8585f76c4b"
     },
     {
-      "path": "assets/tasmeeEngines-CoF6bV5J.js",
+      "path": "assets/tasmeeEngines-EeK0j0FU.js",
       "bytes": 13674,
-      "sha256": "07843274fbbe80e77b7bd56ec64d54ed6c377cb4ed9754a0a6cb36025e153b7e"
+      "sha256": "4d16b979eb4701e663f91161f8555c963399786f0ff774c3434d668ed7d85ea0"
     },
     {
       "path": "assets/tilawaRecitation-C882TdZZ.js",
@@ -120,9 +120,9 @@
       "sha256": "71d5dc6321853955d8ae7bcba1d2a9ac9c731eeff17468ae0f6e7a1e9497ee25"
     },
     {
-      "path": "assets/web-CLXGSHcs.js",
+      "path": "assets/web-BT2No8b4.js",
       "bytes": 4591,
-      "sha256": "79244dc6e050bddd7bb006b1ea03c847318d75457a35fb6e2c702d3ed54c7c1c"
+      "sha256": "faf9a70da6d5ce9e148058abb0a73f5a33f10b686debde22db9e4f32f7713d16"
     },
     {
       "path": "fonts/UthmanicHafs-v3.woff2",
@@ -182,7 +182,7 @@
     {
       "path": "index.html",
       "bytes": 6328,
-      "sha256": "cb9b411749fa21bb86125db373253f825a43cadf47bf429dde3736f4376f3017"
+      "sha256": "32d7917c3c240a344b0c2a94c19db7642438ad5a758f62dc4af4cd559888534c"
     },
     {
       "path": "licenses/THIRD_PARTY_NOTICES.md",
