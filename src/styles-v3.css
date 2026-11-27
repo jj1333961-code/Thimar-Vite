@@ -7311,16 +7311,6 @@ html, body { max-width: 100%; overflow-x: hidden; }
   font-weight: 600;
   text-align: right;
 }
-.ayah-audio-mini-time {
-  min-width: 46px;
-  text-align: center;
-  font-family: "Tajawal", system-ui, sans-serif;
-  font-size: 12px;
-  font-weight: 700;
-  color: #4b5f59;
-  letter-spacing: 0.06em;
-  font-variant-numeric: tabular-nums;
-}
 .ayah-audio-mini-player button {
   width: 40px;
   height: 40px;
