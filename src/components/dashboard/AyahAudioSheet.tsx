@@ -37,7 +37,6 @@ export default function AyahAudioSheet({
   const [scopeAyahs, setScopeAyahs] = useState<HafsAyah[]>(ayahs);
   const [scopeLoading, setScopeLoading] = useState(false);
   const [paused, setPaused] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
   const [compact, setCompact] = useState(false);
   const [miniVisible, setMiniVisible] = useState(true);
   const [error, setError] = useState("");
@@ -71,18 +70,8 @@ export default function AyahAudioSheet({
   const setCompactMode = (value: boolean) => {
     setCompact(value);
     setMiniVisible(true);
-    setElapsed(0);
     onCompactChange?.(value);
   };
-
-  /* مؤقت الشريط المصغّر: وقت التلاوة المنقضي فقط، بلا عناصر تحكم إضافية. */
-  useEffect(() => {
-    if (!compact) return;
-    const timer = window.setInterval(() => {
-      setElapsed(audioRef.current?.currentTime ?? 0);
-    }, 500);
-    return () => window.clearInterval(timer);
-  }, [compact]);
 
   useEffect(() => {
     if (!compact) return;

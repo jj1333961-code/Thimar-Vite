@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CloudflareSfuClient, SfuError, parseSfuTrackName, sfuTrackName, type SfuSessionHandle } from "../../lib/sfu";
 import { CALL_MAX_PARTICIPANTS, CALL_SIGNALING_BASE } from "../../lib/callConfig";
-import { closeCall, getIceConfig, getLocalStream, openCallSignaling, type CallMode, type CallSignal } from "../../lib/call";
-import type { CallSignalingHandle } from "../../lib/callSignaling";
-import { createChannel, sendSignal, subscribeChannel, userChannelName } from "../../lib/call";
+import { closeCall, getIceServers, getLocalStream, createChannel, sendSignal, subscribeChannel, userChannelName } from "../../lib/call";
+import { RoomSignaling, readSessionToken, type CallSignalingHandle } from "../../lib/callSignaling";
+import type { CallMode, CallSignal } from "../../lib/callTypes";
 import { loadAccounts } from "../../lib/auth";
 import { Icon } from "./ui";
 import "./CallConnect.css";
@@ -163,9 +163,9 @@ export default function GroupCallOverlay({
     const localStream = localStreamRef.current;
     if (!localStream) throw new Error("لا يوجد مسار وسائط محلي.");
 
-    const ice = await getIceConfig();
+    const iceServers = await getIceServers();
     const pc = new RTCPeerConnection({
-      iceServers: ice.iceServers,
+      iceServers,
       bundlePolicy: "max-bundle",
       iceCandidatePoolSize: 2,
     });
@@ -330,7 +330,13 @@ export default function GroupCallOverlay({
       }
       sfuRef.current = new CloudflareSfuClient({ roomId });
 
-      const signaling = openCallSignaling(roomId, selfId, handleSignal, {
+      const sessionToken = readSessionToken();
+      if (!sessionToken) throw new Error("انتهت صلاحية جلستك. سجّل الدخول من جديد.");
+      const signaling = new RoomSignaling({
+        roomId,
+        selfId,
+        token: sessionToken,
+        onSignal: handleSignal,
         onPresence: (uids) => {
           if (disposed || endedRef.current) return;
           participantsRef.current = uids.includes(selfId) ? uids : [...uids, selfId];
@@ -362,6 +368,7 @@ export default function GroupCallOverlay({
         },
       });
       signalingRef.current = signaling;
+      await signaling.connect();
 
       const stream = await getLocalStream(mode);
       if (disposed) {
