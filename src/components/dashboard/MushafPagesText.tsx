@@ -7,6 +7,7 @@ import { selectionAfterTap } from "../../lib/ayahSelectionCore";
 import { loadPageLines } from "../../lib/quranPageLayout";
 import type { TasmeeWord, WordStatus } from "../../lib/mushafTasmee";
 import MushafAyahMenu from "./MushafAyahMenu";
+import AyahAudioSheet from "./AyahAudioSheet";
 const MushafTasmeeSheet = lazy(() => import("./MushafTasmeeSheet"));
 
 /*
@@ -82,6 +83,7 @@ export default function MushafPagesText({
   const [selected, setSelected] = useState<HafsAyah[]>([]);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [audioCompact, setAudioCompact] = useState(false);
+  const [audioAyahs, setAudioAyahs] = useState<HafsAyah[] | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(() => readHidden());
   const [fontPx, setFontPx] = useState(0);
   const [linesData, setLinesData] = useState<{ lines: number[][][]; lineNums: number[]; surahStarts: number[][] } | null>(null);
@@ -609,7 +611,12 @@ export default function MushafPagesText({
             setTasmeeOpen(true);
           }}
           onCompactChange={setAudioCompact}
+          onStartAudio={(items) => setAudioAyahs(items)}
         />
+      ) : null}
+
+      {audioAyahs ? (
+        <AyahAudioSheet ayahs={audioAyahs} page={page} onCompactChange={setAudioCompact} onClose={() => { setAudioAyahs(null); setAudioCompact(false); }} />
       ) : null}
 
       {tasmeeOpen ? (
