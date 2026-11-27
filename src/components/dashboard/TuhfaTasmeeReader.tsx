@@ -10,6 +10,8 @@ import { matchDistance, wordMatches } from "../../lib/recitationMatch";
 import { startVoiceInput, type VoiceInput } from "../../lib/audioInput";
 import { celebrate } from "../../lib/celebrate";
 import { detectDialect, dialectTip, type DialectResult } from "../../lib/dialect";
+import { loadSettings } from "../../lib/appStore";
+import { useKeepScreenAwake } from "../../lib/useKeepScreenAwake";
 
 type Phase = "config" | "reciting" | "result";
 
@@ -25,6 +27,8 @@ type ErrorEntry = {
 };
 
 export default function TuhfaTasmeeReader({ initialPhase, onOpenSettings }: { initialPhase?: "config" | "result"; onOpenSettings?: () => void } = {}) {
+  const [keepScreenAwake] = useState(() => loadSettings().keepScreenAwake);
+  useKeepScreenAwake(keepScreenAwake);
   const [phase, setPhase] = useState<Phase>(initialPhase === "result" ? "result" : "config");
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [fromVerse, setFromVerse] = useState(1);

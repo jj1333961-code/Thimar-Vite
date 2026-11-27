@@ -4,6 +4,8 @@ import { surahs } from "../../data/surahs";
 import { useHistoryBack } from "../../lib/useHistoryBack";
 import { ayahKey, loadHafsAyahs, loadHafsOrder, type HafsAyah } from "../../lib/mushafText";
 import { selectionAfterTap } from "../../lib/ayahSelectionCore";
+import { loadSettings } from "../../lib/appStore";
+import { useKeepScreenAwake } from "../../lib/useKeepScreenAwake";
 import { cachedPageLines, loadPageLines, prefetchPageLines, type PageLines } from "../../lib/quranPageLayout";
 import type { TasmeeWord, WordStatus } from "../../lib/mushafTasmee";
 import MushafAyahMenu from "./MushafAyahMenu";
@@ -68,6 +70,8 @@ export default function MushafPagesText({
   initialPage?: number;
   initialHighlight?: number | null;
 }) {
+  const [keepScreenAwake] = useState(() => loadSettings().keepScreenAwake);
+  useKeepScreenAwake(keepScreenAwake);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const pageRef = useRef<HTMLDivElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);

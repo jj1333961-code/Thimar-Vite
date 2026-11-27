@@ -29,6 +29,7 @@ type NativeBridge = {
   clearAccount: () => void;
   deleteToken: () => void;
   openNotificationSettings?: () => void;
+  setKeepScreenOn?: (enabled: boolean) => void;
   log?: (message: string) => void;
 };
 

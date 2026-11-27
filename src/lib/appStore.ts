@@ -38,6 +38,8 @@ export type Settings = {
   robotVisible: boolean;
   reduceMotion: boolean;
   prayerMethod: number;
+  /** إبقاء الشاشة مفتوحة داخل المصحف وتحفة الأطفال. */
+  keepScreenAwake: boolean;
 };
 
 const SETTINGS_KEY = "thimar.settings.v1";
@@ -62,6 +64,7 @@ export const defaultSettings: Settings = {
   robotVisible: true,
   reduceMotion: false,
   prayerMethod: 4,
+  keepScreenAwake: false,
 };
 
 export function loadSettings(): Settings {

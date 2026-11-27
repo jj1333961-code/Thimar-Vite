@@ -5,6 +5,7 @@ import android.content.Context;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 
@@ -252,6 +253,25 @@ public class PushBridge {
 
   public static boolean messagePreviewEnabled() {
     return messagePreviewEnabled;
+  }
+
+  /** يمنع/يسمح بإطفاء الشاشة أثناء قراءة المصحف أو تحفة الأطفال. */
+  @JavascriptInterface
+  public void setKeepScreenOn(final boolean enabled) {
+    if (!allowed()) return;
+    MAIN.post(() -> {
+      Activity activity = activityRef.get();
+      if (activity == null) return;
+      try {
+        if (enabled) {
+          activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        } else {
+          activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
+      } catch (Exception error) {
+        LaunchLog.add(activity, "تعذّر تغيير إبقاء الشاشة مفتوحة: " + error.getMessage());
+      }
+    });
   }
 
   @JavascriptInterface

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, type TouchEvent as ReactTouchEven
 import { tuhfaSections } from "../../data/tuhfa";
 import { tuhfaVerseReciters, tuhfaVerseWindow } from "../../data/tuhfaVerseAudio";
 import { normalizeArabic } from "../../lib/quran";
+import { loadSettings } from "../../lib/appStore";
+import { useKeepScreenAwake } from "../../lib/useKeepScreenAwake";
 
 // كل وجه يبقى داخل باب واحد، ويُعرض كاملًا في الشاشة دون تمرير.
 const PAGE_SIZE = 6;
@@ -98,6 +100,8 @@ export default function TuhfaMushaf({
   initialScreen?: "setup" | "archive";
   onClose: () => void;
 }) {
+  const [keepScreenAwake] = useState(() => loadSettings().keepScreenAwake);
+  useKeepScreenAwake(keepScreenAwake);
   const [screen, setScreen] = useState<Screen>(initialScreen);
   const [query, setQuery] = useState("");
   const [pageIndex, setPageIndex] = useState(0);

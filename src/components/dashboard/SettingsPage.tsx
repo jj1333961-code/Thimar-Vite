@@ -916,6 +916,14 @@ export default function SettingsPage({
             </select>
           </label>
           <label>
+            <span>بقاء الشاشة مفتوحة</span>
+            <select value={settings.keepScreenAwake ? "yes" : "no"} onChange={(event) => update("keepScreenAwake", event.target.value === "yes")}>
+              <option value="no">لا — تتبع إغلاق النظام</option>
+              <option value="yes">نعم — داخل المصحف وتحفة الأطفال</option>
+            </select>
+            <small className="muted">يمنع إطفاء الشاشة تلقائيًا أثناء القراءة، ويُعطَّل فور الخروج من الصفحة.</small>
+          </label>
+          <label>
             <span>حجم خط التطبيق</span>
             <input
               type="range"
