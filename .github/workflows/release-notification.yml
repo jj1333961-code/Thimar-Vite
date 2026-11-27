@@ -1,0 +1,55 @@
+name: Notify users about a new release
+
+# كل إصدار يُنشر على GitHub يُطلق إشعار التحديث تلقائيًا.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'اسم الإصدار المنشور (مثال: 1.11.9)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: thimar-release-notification
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for the published update metadata
+        env:
+          VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.event.release.tag_name }}
+          METADATA_URL: https://thimar.freebuff.page/updates/android.json
+        run: |
+          set -euo pipefail
+          expected="${VERSION#v}"
+          echo "Waiting for Android update metadata to report ${expected}..."
+          for attempt in $(seq 1 80); do
+            if curl -fsS "$METADATA_URL" -o /tmp/thimar-android.json; then
+              live="$(python3 -c "import json; print(str(json.load(open('/tmp/thimar-android.json')).get('versionName','')))")"
+              if [[ "$live" == "$expected" ]]; then
+                echo "Metadata is live for ${live}."
+                exit 0
+              fi
+              echo "Live metadata is ${live:-unknown}; waiting (${attempt}/80)..."
+            else
+              echo "Metadata is not reachable yet (${attempt}/80)..."
+            fi
+            sleep 15
+          done
+          echo "::error::The live update metadata never matched ${expected}; no notification was sent."
+          exit 1
+      - name: Send the update notification
+        env:
+          THIMAR_PUSH_SECRET: ${{ secrets.THIMAR_PUSH_SECRET }}
+          SUPABASE_FUNCTION_URL: https://jbsvmpiwdwowizzfzlqr.supabase.co/functions/v1/send-update-notification
+          METADATA_URL: https://thimar.freebuff.page/updates/android.json
+        run: bash scripts/publish-android-update.sh
