@@ -32,6 +32,15 @@ async function hmacSign(secret: string, message: string): Promise<string> {
   return b64url(new Uint8Array(sig));
 }
 
+async function sessionSigningKey(): Promise<string> {
+  const explicit = Deno.env.get("SESSION_SIGNING_SECRET") ?? "";
+  if (explicit) return explicit;
+  const base = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!base) return "";
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`thimar-session-v1:${base}`));
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 function sha256Hex(input: string): Promise<string> {
   return crypto.subtle.digest("SHA-256", new TextEncoder().encode(input)).then((buf) =>
     [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join(""),
@@ -46,7 +55,8 @@ Deno.serve(async (request) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const signingSecret = Deno.env.get("SESSION_SIGNING_SECRET") ?? "";
+    // نفس اشتقاق thimar-calls: سرّ مخصص إن وُجد، وإلا مفتاح مشتق من مفتاح الخدمة.
+    const signingSecret = await sessionSigningKey();
     if (!supabaseUrl || !serviceKey || !signingSecret) {
       return new Response(JSON.stringify({ error: "SERVER_MISCONFIGURED" }), { status: 500, headers });
     }

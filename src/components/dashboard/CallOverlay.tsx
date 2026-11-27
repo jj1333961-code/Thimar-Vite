@@ -694,6 +694,8 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
     if (serverResult?.error) {
       if (serverResult.error === "EXPIRED") setError("انتهت صلاحية المكالمة.");
       else if (serverResult.error === "DUPLICATE_OR_INVALID_ACCEPT") setError("تم قبول المكالمة من جهاز آخر.");
+      else if (["SESSION_REQUIRED", "INVALID_SESSION", "AUTH_REQUIRED"].includes(String(serverResult.error)))
+        setError("انتهت صلاحية جلستك الأمنية. سجّل الخروج ثم الدخول من جديد لاستقبال المكالمات.");
       else setError(`تعذّر قبول المكالمة: ${serverResult.error}`);
       finish("فشل القبول");
       return;

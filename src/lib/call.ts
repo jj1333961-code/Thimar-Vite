@@ -240,12 +240,13 @@ export async function callServer(action: string, payload: Record<string, unknown
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${token || SUPABASE_ANON_KEY}`,
     };
+    /* الهوية تُرسل كرمز جلسة موقّع فقط؛ لا نجعل مفتاح anon بديلًا عنها. */
+    if (token) headers.Authorization = `Bearer ${token}`;
     const response = await fetch(`${SUPABASE_URL}/functions/v1/thimar-calls`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ action, token: token ?? undefined, ...payload }),
+      body: JSON.stringify({ action, ...payload }),
     });
     return await response.json().catch(() => ({}));
   } catch (err) {

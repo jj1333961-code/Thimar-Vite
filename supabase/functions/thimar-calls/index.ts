@@ -1,5 +1,87 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+/*
+ * هوية المتصل لا تُقرأ من جسم الطلب: تُستخرج من رمز جلسة موقّع (HMAC-SHA256)
+ * يُصدره الخادم في thimar-session بعد التحقق من كلمة المرور.
+ *
+ * CALLS_REQUIRE_SESSION=false مسار انتقالي للعملاء القدامى الذين لا يملكون
+ * رمزًا بعد؛ ومع غيابه تُرفض الطلبات (فشل مُغلق) لأن السرّ غير مُعد.
+ */
+
+const textEncoder = new TextEncoder();
+
+function b64urlToBytes(value: string): Uint8Array {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+async function hmacSign(secret: string, message: string): Promise<Uint8Array> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    textEncoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  return new Uint8Array(await crypto.subtle.sign("HMAC", key, textEncoder.encode(message)));
+}
+
+function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+
+/**
+ * مفتاح توقيع الجلسة: SESSION_SIGNING_SECRET إن وُجد، وإلا مفتاح مشتق من
+ * مفتاح الخدمة حتى لا نضع سرًّا جديدًا في الكود أو في السجلات. الدالتان
+ * thimar-session وthimar-calls تشتقّان المفتاح نفسه بنفس الطريقة.
+ */
+async function sessionSigningKey(): Promise<string> {
+  const explicit = Deno.env.get("SESSION_SIGNING_SECRET") ?? "";
+  if (explicit) return explicit;
+  const base = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!base) return "";
+  const digest = await crypto.subtle.digest("SHA-256", textEncoder.encode(`thimar-session-v1:${base}`));
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** يتحقق من رمز الجلسة ويعيد معرّف الحساب، أو null إن كان الرمز غير صالح/منتهٍ. */
+async function verifySessionToken(token: string, secret: string): Promise<string | null> {
+  if (!secret || !token) return null;
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  const [header, payload, signature] = parts;
+  if (!header || !payload || !signature) return null;
+  let parsedHeader: { alg?: string };
+  let parsedPayload: { sub?: unknown; exp?: unknown; scope?: unknown };
+  try {
+    parsedHeader = JSON.parse(new TextDecoder().decode(b64urlToBytes(header)));
+    parsedPayload = JSON.parse(new TextDecoder().decode(b64urlToBytes(payload)));
+  } catch {
+    return null;
+  }
+  if (parsedHeader.alg !== "HS256") return null;
+  if (parsedPayload.scope !== "session") return null;
+  const expected = await hmacSign(secret, `${header}.${payload}`);
+  let provided: Uint8Array;
+  try {
+    provided = b64urlToBytes(signature);
+  } catch {
+    return null;
+  }
+  if (!bytesEqual(expected, provided)) return null;
+  const exp = Number(parsedPayload.exp);
+  if (!Number.isFinite(exp) || exp * 1000 <= Date.now()) return null;
+  const sub = typeof parsedPayload.sub === "string" ? parsedPayload.sub.trim() : "";
+  return sub || null;
+}
+
 Deno.serve(async (request) => {
   // CORS preflight must explicitly allow the headers used by the web app and Android WebView.
   const headers = {
@@ -18,13 +100,53 @@ Deno.serve(async (request) => {
     const supabase = createClient(supabaseUrl, serviceKey);
     const body = await request.json().catch(() => ({}));
     const action = String(body.action ?? "");
-    const callerId = String(body.callerId ?? "").trim();
+
+    /* ---------- الهوية: من الرمز الموقّع فقط ---------- */
+    const signingSecret = await sessionSigningKey();
+    const requireSession = (Deno.env.get("CALLS_REQUIRE_SESSION") ?? "true").toLowerCase() !== "false";
+    const authHeader = request.headers.get("Authorization") ?? "";
+    const bearerMatch = /^Bearer\s+(.+)$/i.exec(authHeader.trim());
+    const bearer = bearerMatch ? bearerMatch[1].trim() : "";
+    let callerId = "";
+    if (bearer) {
+      const verified = await verifySessionToken(bearer, signingSecret);
+      if (verified) {
+        callerId = verified;
+      } else if (!requireSession && !signingSecret) {
+        callerId = String(body.callerId ?? "").trim();
+      } else {
+        return new Response(JSON.stringify({ error: "INVALID_SESSION" }), { status: 401, headers });
+      }
+    } else if (requireSession) {
+      if (!signingSecret) {
+        return new Response(JSON.stringify({ error: "SERVER_MISCONFIGURED" }), { status: 503, headers });
+      }
+      return new Response(JSON.stringify({ error: "SESSION_REQUIRED" }), { status: 401, headers });
+    } else {
+      callerId = String(body.callerId ?? "").trim();
+    }
+    if (!callerId) return new Response(JSON.stringify({ error: "AUTH_REQUIRED" }), { status: 401, headers });
 
     if (action === "create") {
       const calleeId = String(body.calleeId ?? "").trim();
       const mode = body.mode === "video" ? "video" : "audio";
-      if (!callerId || !calleeId || calleeId === callerId) {
+      if (!calleeId || calleeId === callerId) {
         return new Response(JSON.stringify({ error: "INVALID_PARTICIPANTS" }), { status: 400, headers });
+      }
+      /* الطرفان يجب أن يكونا حسابين قائمين ونشطَين — لا اتصال بحساب محظور أو وهمي. */
+      const { data: participants } = await supabase
+        .from("thimar_accounts")
+        .select("id,status,banned")
+        .in("id", [callerId, calleeId]);
+      const accountOk = (id: string) => {
+        const row = (participants ?? []).find((item) => item.id === id);
+        return !!row && !row.banned && row.status !== "pending" && row.status !== "rejected";
+      };
+      if (!accountOk(callerId)) {
+        return new Response(JSON.stringify({ error: "CALLER_NOT_ACTIVE" }), { status: 403, headers });
+      }
+      if (!accountOk(calleeId)) {
+        return new Response(JSON.stringify({ error: "CALLEE_UNAVAILABLE" }), { status: 404, headers });
       }
       const ACTIVE = ["initiated", "ringing", "accepted", "connecting", "connected"];
       const now = new Date().toISOString();

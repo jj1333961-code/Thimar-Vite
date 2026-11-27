@@ -147,6 +147,9 @@ export default function MessagesPage({
 
   /** بدء مكالمة حقيقية: نطلب من الخادم إنشاء سجل المكالمة (تفويض/مشغول)،
    *  ثم نرسل دعوة إلى قناة المستخدم الآخر ونفتح واجهة المكالمة. */
+  /* أخطاء الهوية تعني أن رمز الجلسة الموقّع مفقود أو منتهٍ — الحل إعادة الدخول. */
+  const SESSION_ERRORS = new Set(["SESSION_REQUIRED", "INVALID_SESSION", "AUTH_REQUIRED"]);
+
   const startCall = async (mode: CallMode) => {
     if (!selected) return;
     if (callMode || outgoingCallId) return;
@@ -162,6 +165,9 @@ export default function MessagesPage({
       console.warn("[call-diag] create failed", { error, peer, mode });
       if (error === "CALLEE_BUSY") alert("المستخدم مشغول في مكالمة أخرى.");
       else if (error === "CALLER_BUSY") alert("لديك مكالمة نشطة بالفعل.");
+      else if (SESSION_ERRORS.has(String(error)))
+        alert("انتهت صلاحية جلستك الأمنية. سجّل الخروج ثم الدخول من جديد لتتمكن من إجراء المكالمات.");
+      else if (error === "CALLEE_UNAVAILABLE") alert("لا يمكن الاتصال بهذا الحساب الآن.");
       else alert(`تعذّر بدء المكالمة: ${error}`);
       return;
     }
