@@ -275,7 +275,7 @@ export class RoomSignaling {
 }
 
 export type CallSignalingHandle = {
-  kind: "worker" | "supabase";
+  kind?: "worker" | "supabase";
   send: (signal: CallSignal) => void;
   close: () => void;
 };
