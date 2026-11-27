@@ -55,8 +55,16 @@ public class PushBridge {
     trustedOrigin = trusted;
   }
 
-  private static boolean allowed() {
+  /**
+   * هل الصفحة الحالية على نطاق ثمار؟ تُستخدم من الجسور الأخرى (النافذة العائمة
+   * والتشخيص) قبل تنفيذ أي عملية حساسة، ولا تُتاح عبر واجهة JavaScript.
+   */
+  static boolean isTrustedOrigin() {
     return trustedOrigin;
+  }
+
+  private static boolean allowed() {
+    return isTrustedOrigin();
   }
 
   /** يرسل حدثًا إلى الصفحة إن كانت مفتوحة (من أي خيط). */

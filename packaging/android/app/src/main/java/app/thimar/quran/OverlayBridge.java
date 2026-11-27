@@ -44,7 +44,18 @@ public class OverlayBridge {
   /** أدلة الجهاز نفسها عن إذن النافذة — للعرض والتشخيص فقط. */
   @JavascriptInterface
   public String getOverlayDiagnostics() {
-    return AdhanPermissions.evidence(context).toString();
+    JSONObject json = AdhanPermissions.status(context);
+    try {
+      json.put("overlay", FloatingOverlayService.canDrawOverlays(context));
+      json.put("overlayShowing", FloatingOverlayService.isShowing());
+    } catch (Exception error) {
+      try {
+        json.put("error", safeMessage(error));
+      } catch (Exception ignored) {
+        // لا شيء.
+      }
+    }
+    return json.toString();
   }
 
   /** يفتح أدوات تشخيص الأذان: معاينة كل صلاة، النافذة العائمة، والنسخة الإنجليزية. */

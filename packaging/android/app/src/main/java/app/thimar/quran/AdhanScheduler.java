@@ -5,6 +5,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.os.Build;
 import org.json.JSONObject;
 import java.text.SimpleDateFormat;
@@ -42,6 +43,15 @@ public class AdhanScheduler {
 
   public static SharedPreferences prefs(Context c) {
     return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+  }
+
+  /**
+   * سمة بطاقة الأذان العائمة: تتبع سمة النظام (فاتح/داكن) حتى تبقى مقروءة
+   * على شاشة القفل وفي الوضع الليلي، بصيغة يفهمها AdhanWindowView.
+   */
+  public static String theme(Context c) {
+    int mode = c.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+    return mode == Configuration.UI_MODE_NIGHT_YES ? "dark" : "light";
   }
 
   public static void saveTimes(Context c, JSONObject times) {

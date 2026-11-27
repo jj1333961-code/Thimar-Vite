@@ -244,12 +244,9 @@ export default function MushafPagesText({
       let textBottom = 0;
       for (const rect of rects) textBottom = Math.max(textBottom, rect.bottom);
       // رقم الآية يجب أن يكون على نفس سطر النص (لا ينفرد في سطر وحده).
-      if (last.getBoundingClientRect().top >= textBottom - 1) return false;
-      // آخر سطر يجب أن يحتوي على كلمات كافية (لا ١–٣ كلمات منفردة).
-      const lastRect = rects[rects.length - 1];
-      const containerWidth = bodyEl.clientWidth || 1;
-      if (lastRect.width < containerWidth * 0.3) return false;
-      return true;
+      // لا نفرض طولًا أدنى لهذا السطر: نهاية الآية قد تكون قصيرة بطبيعتها،
+      // وفرض ٣٠% كان يدفع الخوارزمية إلى تصغير الخط بلا داعٍ.
+      return last.getBoundingClientRect().top < textBottom - 1;
     };
     /* كل سطر منطقي يجب أن يبقى سطرًا واحدًا فعليًا: لا التفاف ولا كلمات
        منفردة في سطر تالٍ، وبذلك تتساوى جميع الأسطر في الارتفاع والعرض. */
@@ -286,9 +283,9 @@ export default function MushafPagesText({
       if (heightOk()) best = next;
       else break;
     }
-    /* ننزل قليلًا فقط إذا انفرد رقم آخر آية في سطر وحده. */
+    /* ننزل قليلًا فقط إذا انفرد رقم آخر آية في سطر وحده (أقصى تصغير 0.5px). */
     let clean = best;
-    for (let step = 0; step < 8 && clean > 9.5; step += 1) {
+    for (let step = 0; step < 2 && clean > 9.5; step += 1) {
       apply(clean);
       if (endsCleanly()) break;
       clean -= 0.25;

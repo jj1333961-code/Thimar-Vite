@@ -73,15 +73,44 @@ export default function AyahAudioSheet({
     onCompactChange?.(value);
   };
 
+  /*
+   * لمس صفحة المصحف يبدّل ظهور الشريط المصغّر. نعتمد على نقرة كاملة (ضغط + إفلات
+   * دون سحب) حتى لا يُخفي سحبُ الصفحة الشريطَ أثناء تقليب الصفحات.
+   */
   useEffect(() => {
     if (!compact) return;
-    const toggleMini = (event: PointerEvent) => {
+    let startX = 0;
+    let startY = 0;
+    let moved = false;
+    let active = false;
+    const onDown = (event: PointerEvent) => {
       const target = event.target;
-      if (target instanceof Element && target.closest(".ayah-audio-mini-player")) return;
-      setMiniVisible((visible) => !visible);
+      if (target instanceof Element && target.closest(".ayah-audio-mini-player")) {
+        active = false;
+        return;
+      }
+      active = true;
+      moved = false;
+      startX = event.clientX;
+      startY = event.clientY;
     };
-    window.addEventListener("pointerdown", toggleMini, { passive: true });
-    return () => window.removeEventListener("pointerdown", toggleMini);
+    const onMove = (event: PointerEvent) => {
+      if (!active) return;
+      if (Math.abs(event.clientX - startX) > 10 || Math.abs(event.clientY - startY) > 10) moved = true;
+    };
+    const onUp = () => {
+      if (!active) return;
+      active = false;
+      if (!moved) setMiniVisible((visible) => !visible);
+    };
+    window.addEventListener("pointerdown", onDown, { passive: true });
+    window.addEventListener("pointermove", onMove, { passive: true });
+    window.addEventListener("pointerup", onUp, { passive: true });
+    return () => {
+      window.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
   }, [compact]);
 
   useEffect(() => {
