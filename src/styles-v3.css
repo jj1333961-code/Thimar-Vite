@@ -7240,7 +7240,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
 
 /* ============ المصحف: خط أكبر مع فراغات معتدلة ورقم آية بارز بين الآيتين ============ */
 .qp-page {
-  --qp-word-spacing: -0.06em;
+  --qp-word-spacing: 0.10em;
   line-height: 1.74;
   letter-spacing: 0;
   word-spacing: var(--qp-word-spacing);
@@ -7251,6 +7251,10 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .qp-page .qp-line {
   line-height: 1.74;
   word-spacing: var(--qp-word-spacing);
+}
+.qp-page .qp-ayah-text {
+  word-spacing: var(--qp-word-spacing);
+  font-size: inherit;
 }
 .qp-page .ayah-mark {
   height: 1.02em;
