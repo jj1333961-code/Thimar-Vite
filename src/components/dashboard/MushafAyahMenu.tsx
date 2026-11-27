@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { fetchTafsir } from "../../lib/quran";
 import { isMarked, setReviewMark, toggleMark } from "../../lib/mushafMarks";
 import { readAyahNotes, saveAyahNote } from "../../lib/ayahNotes";
