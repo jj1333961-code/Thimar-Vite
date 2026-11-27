@@ -4,8 +4,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
  * هوية المتصل لا تُقرأ من جسم الطلب: تُستخرج من رمز جلسة موقّع (HMAC-SHA256)
  * يُصدره الخادم في thimar-session بعد التحقق من كلمة المرور.
  *
- * CALLS_REQUIRE_SESSION=false مسار انتقالي للعملاء القدامى الذين لا يملكون
- * رمزًا بعد؛ ومع غيابه تُرفض الطلبات (فشل مُغلق) لأن السرّ غير مُعد.
+ * السر SESSION_SIGNING_SECRET إلزامي: بغيابه تُرفض الطلبات (فشل مُغلق) ولا
+ * يُشتق مفتاح من مفتاح الخدمة ولا يُقرأ callerId من العميل في أي حال.
+ *
+ * كل جلسة مسجّلة في public.thimar_sessions، فيُبطلها تسجيل الخروج أو تغيير
+ * كلمة المرور أو حظر الحساب فورًا حتى لو بقي الرمز صالح التوقيع.
  */
 
 const textEncoder = new TextEncoder();
@@ -38,21 +41,17 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
 }
 
 /**
- * مفتاح توقيع الجلسة: SESSION_SIGNING_SECRET إن وُجد، وإلا مفتاح مشتق من
- * مفتاح الخدمة حتى لا نضع سرًّا جديدًا في الكود أو في السجلات. الدالتان
- * thimar-session وthimar-calls تشتقّان المفتاح نفسه بنفس الطريقة.
+ * مفتاح توقيع الجلسة: SESSION_SIGNING_SECRET فقط. لا اشتقاق من مفتاح الخدمة
+ * ولا رجوع إليه عند غياب السر — تُرفض الطلبات بفشل مُغلق بدل قبول رمز بمفتاح آخر.
  */
-async function sessionSigningKey(): Promise<string> {
-  const explicit = Deno.env.get("SESSION_SIGNING_SECRET") ?? "";
-  if (explicit) return explicit;
-  const base = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!base) return "";
-  const digest = await crypto.subtle.digest("SHA-256", textEncoder.encode(`thimar-session-v1:${base}`));
-  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+function sessionSigningKey(): string {
+  return (Deno.env.get("SESSION_SIGNING_SECRET") ?? "").trim();
 }
 
-/** يتحقق من رمز الجلسة ويعيد معرّف الحساب، أو null إن كان الرمز غير صالح/منتهٍ. */
-async function verifySessionToken(token: string, secret: string): Promise<string | null> {
+type SessionClaims = { sub: string; jti: string; exp: number };
+
+/** يتحقق من رمز الجلسة ويعيد حمله، أو null إن كان التوقيع غير صالح. */
+async function verifySessionToken(token: string, secret: string): Promise<SessionClaims | null> {
   if (!secret || !token) return null;
   const parts = token.split(".");
   if (parts.length !== 3) return null;
@@ -77,9 +76,26 @@ async function verifySessionToken(token: string, secret: string): Promise<string
   }
   if (!bytesEqual(expected, provided)) return null;
   const exp = Number(parsedPayload.exp);
-  if (!Number.isFinite(exp) || exp * 1000 <= Date.now()) return null;
   const sub = typeof parsedPayload.sub === "string" ? parsedPayload.sub.trim() : "";
-  return sub || null;
+  const jti = typeof parsedPayload.jti === "string" ? parsedPayload.jti.trim() : "";
+  if (!Number.isFinite(exp) || !sub || !jti) return null;
+  return { sub, jti, exp };
+}
+
+/** الجلسة صالحة فقط إن كانت مسجّلة وغير مُبطلة وغير منتهية. */
+async function sessionIsLive(
+  supabase: ReturnType<typeof createClient>,
+  claims: SessionClaims,
+): Promise<boolean> {
+  if (claims.exp * 1000 <= Date.now()) return false;
+  const { data: row, error } = await supabase
+    .from("thimar_sessions")
+    .select("account_id,expires_at,revoked_at")
+    .eq("id", claims.jti)
+    .maybeSingle();
+  if (error || !row) return false;
+  if (row.account_id !== claims.sub || row.revoked_at) return false;
+  return new Date(row.expires_at).getTime() > Date.now();
 }
 
 Deno.serve(async (request) => {
@@ -102,30 +118,25 @@ Deno.serve(async (request) => {
     const action = String(body.action ?? "");
 
     /* ---------- الهوية: من الرمز الموقّع فقط ---------- */
-    const signingSecret = await sessionSigningKey();
-    const requireSession = (Deno.env.get("CALLS_REQUIRE_SESSION") ?? "true").toLowerCase() !== "false";
+    const signingSecret = sessionSigningKey();
+    if (!signingSecret) {
+      /* بلا سر مستقل لا يمكن التحقق من أي هوية: فشل مُغلق، لا رجوع لمفتاح الخدمة. */
+      return new Response(JSON.stringify({ error: "SERVER_MISCONFIGURED" }), { status: 503, headers });
+    }
     const authHeader = request.headers.get("Authorization") ?? "";
     const bearerMatch = /^Bearer\s+(.+)$/i.exec(authHeader.trim());
     const bearer = bearerMatch ? bearerMatch[1].trim() : "";
-    let callerId = "";
-    if (bearer) {
-      const verified = await verifySessionToken(bearer, signingSecret);
-      if (verified) {
-        callerId = verified;
-      } else if (!requireSession && !signingSecret) {
-        callerId = String(body.callerId ?? "").trim();
-      } else {
-        return new Response(JSON.stringify({ error: "INVALID_SESSION" }), { status: 401, headers });
-      }
-    } else if (requireSession) {
-      if (!signingSecret) {
-        return new Response(JSON.stringify({ error: "SERVER_MISCONFIGURED" }), { status: 503, headers });
-      }
-      return new Response(JSON.stringify({ error: "SESSION_REQUIRED" }), { status: 401, headers });
-    } else {
-      callerId = String(body.callerId ?? "").trim();
+    if (!bearer) return new Response(JSON.stringify({ error: "SESSION_REQUIRED" }), { status: 401, headers });
+
+    const claims = await verifySessionToken(bearer, signingSecret);
+    if (!claims) return new Response(JSON.stringify({ error: "INVALID_SESSION" }), { status: 401, headers });
+    if (claims.exp * 1000 <= Date.now()) {
+      return new Response(JSON.stringify({ error: "SESSION_EXPIRED" }), { status: 401, headers });
     }
-    if (!callerId) return new Response(JSON.stringify({ error: "AUTH_REQUIRED" }), { status: 401, headers });
+    if (!(await sessionIsLive(supabase, claims))) {
+      return new Response(JSON.stringify({ error: "SESSION_REVOKED" }), { status: 401, headers });
+    }
+    const callerId = claims.sub;
 
     if (action === "create") {
       const calleeId = String(body.calleeId ?? "").trim();
@@ -183,6 +194,35 @@ Deno.serve(async (request) => {
       if (calleeActive.length) {
         return new Response(JSON.stringify({ error: "CALLEE_BUSY" }), { status: 409, headers });
       }
+
+      /* ---------- تحديد معدّل الإنشاء: يمنع الإزعاج وتكرار الرنات ---------- */
+      const since = (ms: number) => new Date(Date.now() - ms).toISOString();
+      const tooMany = (error: string, retryAfterSec: number) =>
+        new Response(JSON.stringify({ error, retryAfterSec }), {
+          status: 429,
+          headers: { ...headers, "Retry-After": String(retryAfterSec) },
+        });
+      const countAll = async (build: (query: any) => any) => {
+        const query = build(supabase.from("thimar_calls").select("id", { count: "exact", head: true }));
+        const { count, error } = await query;
+        if (error) return 0;
+        return Number(count ?? 0);
+      };
+      // 1) فاصل أدنى بين مكالمتين من نفس المستخدم (٨ ثوانٍ).
+      const lastGap = await countAll((q) => q.eq("caller_id", callerId).gte("created_at", since(8 * 1000)));
+      if (lastGap > 0) return tooMany("RATE_LIMITED", 8);
+      // 2) سقف إنشاء لكل مستخدم: ٨ مكالمات في ٥ دقائق.
+      const callerBurst = await countAll((q) => q.eq("caller_id", callerId).gte("created_at", since(5 * 60 * 1000)));
+      if (callerBurst >= 8) return tooMany("RATE_LIMITED", 120);
+      // 3) سقف لكل مستقبل من نفس المتصل: ٤ محاولات في ٣٠ دقيقة (منع الإزعاج).
+      const toSameCallee = await countAll((q) =>
+        q.eq("caller_id", callerId).eq("callee_id", calleeId).gte("created_at", since(30 * 60 * 1000)),
+      );
+      if (toSameCallee >= 4) return tooMany("TOO_MANY_REQUESTS_TO_USER", 300);
+      // 4) سقف مكالمات واردة لكل مستقبل: ١٠ في ١٠ دقائق من أي متصل.
+      const calleeBurst = await countAll((q) => q.eq("callee_id", calleeId).gte("created_at", since(10 * 60 * 1000)));
+      if (calleeBurst >= 10) return tooMany("CALLEE_RATE_LIMITED", 120);
+
       const timeoutSec = Math.min(Math.max(Number(body.timeoutSec ?? 60), 15), 120);
       const expiresAt = new Date(Date.now() + timeoutSec * 1000).toISOString();
       const { data: inserted, error } = await supabase

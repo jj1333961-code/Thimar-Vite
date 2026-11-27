@@ -1,12 +1,23 @@
 // Supabase Edge Function: thimar-session
 // Issues a short-lived signed session token after verifying credentials server-side.
-// The token is used to authenticate protected Edge Function calls (thimar-calls, etc.).
 // Secrets: SESSION_SIGNING_SECRET (HMAC key), SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
+//
+// كل رمز يحمل معرّف جلسة (jti) مسجّلًا في public.thimar_sessions، فيمكن إبطاله
+// فورًا عند تسجيل الخروج أو تغيير كلمة المرور أو حظر الحساب.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const TTL_SECONDS = (() => {
+  const raw = Number(Deno.env.get("SESSION_TTL_SECONDS") ?? 3 * 60 * 60);
+  if (!Number.isFinite(raw)) return 3 * 60 * 60;
+  return Math.min(Math.max(Math.floor(raw), 900), 12 * 60 * 60);
+})();
+
+/** يُقبل التجديد بعد انتهاء الرمز ما دام التوقيع صحيحًا ولم تُبطَل الجلسة. */
+const REFRESH_GRACE_SECONDS = 30 * 24 * 60 * 60;
 
 const corsHeaders = (origin: string) => ({
   "Access-Control-Allow-Origin": origin || "*",
-  "Access-Control-Allow-Headers": "authorization, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
   "Access-Control-Allow-Methods": "POST,OPTIONS",
 });
 
@@ -20,7 +31,16 @@ function b64urlStr(str: string): string {
   return b64url(new TextEncoder().encode(str));
 }
 
-async function hmacSign(secret: string, message: string): Promise<string> {
+function b64urlToBytes(value: string): Uint8Array {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+async function hmacSign(secret: string, message: string): Promise<Uint8Array> {
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
@@ -28,17 +48,15 @@ async function hmacSign(secret: string, message: string): Promise<string> {
     false,
     ["sign"],
   );
-  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
-  return b64url(new Uint8Array(sig));
+  return new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message)));
 }
 
-async function sessionSigningKey(): Promise<string> {
-  const explicit = Deno.env.get("SESSION_SIGNING_SECRET") ?? "";
-  if (explicit) return explicit;
-  const base = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!base) return "";
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`thimar-session-v1:${base}`));
-  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+/**
+ * السر المستقل فقط. لا رجوع إلى مفتاح الخدمة عند غيابه: بلا سر مُعدّ
+ * ترفض الدالة إصدار أي جلسة (فشل مُغلق) بدل الاعتماد على مفتاح آخر.
+ */
+function sessionSigningKey(): string {
+  return (Deno.env.get("SESSION_SIGNING_SECRET") ?? "").trim();
 }
 
 function sha256Hex(input: string): Promise<string> {
@@ -47,22 +65,129 @@ function sha256Hex(input: string): Promise<string> {
   );
 }
 
+type SessionClaims = { sub: string; jti: string; exp: number; iat: number };
+
+/** يتحقق من التوقيع فقط (بلا فحص الانتهاء) ويعيد الحِمل أو null. */
+async function readToken(token: string, secret: string): Promise<SessionClaims | null> {
+  if (!secret || !token) return null;
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  const [header, payload, signature] = parts;
+  if (!header || !payload || !signature) return null;
+  let parsedHeader: { alg?: string };
+  let parsedPayload: { sub?: unknown; exp?: unknown; iat?: unknown; scope?: unknown; jti?: unknown };
+  try {
+    parsedHeader = JSON.parse(new TextDecoder().decode(b64urlToBytes(header)));
+    parsedPayload = JSON.parse(new TextDecoder().decode(b64urlToBytes(payload)));
+  } catch {
+    return null;
+  }
+  if (parsedHeader.alg !== "HS256" || parsedPayload.scope !== "session") return null;
+  const sub = typeof parsedPayload.sub === "string" ? parsedPayload.sub.trim() : "";
+  const jti = typeof parsedPayload.jti === "string" ? parsedPayload.jti.trim() : "";
+  const exp = Number(parsedPayload.exp);
+  const iat = Number(parsedPayload.iat);
+  if (!sub || !jti || !Number.isFinite(exp) || !Number.isFinite(iat)) return null;
+  const expected = await hmacSign(secret, `${header}.${payload}`);
+  let provided: Uint8Array;
+  try {
+    provided = b64urlToBytes(signature);
+  } catch {
+    return null;
+  }
+  if (expected.length !== provided.length) return null;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) diff |= expected[i] ^ provided[i];
+  if (diff !== 0) return null;
+  return { sub, jti, exp, iat };
+}
+
+async function issueToken(secret: string, sub: string, jti: string, ttl: number) {
+  const now = Math.floor(Date.now() / 1000);
+  const exp = now + ttl;
+  const header = b64urlStr(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+  const payload = b64urlStr(JSON.stringify({ sub, jti, iat: now, exp, scope: "session", v: 2 }));
+  const signature = b64url(await hmacSign(secret, `${header}.${payload}`));
+  return { token: `${header}.${payload}.${signature}`, exp };
+}
+
 Deno.serve(async (request) => {
   const origin = request.headers.get("Origin") ?? "";
-  const headers = { ...corsHeaders(origin), "Content-Type": "application/json" };
+  const headers = { ...corsHeaders(origin), "Content-Type": "application/json", "Cache-Control": "no-store" };
   if (request.method === "OPTIONS") return new Response("ok", { headers });
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    // نفس اشتقاق thimar-calls: سرّ مخصص إن وُجد، وإلا مفتاح مشتق من مفتاح الخدمة.
-    const signingSecret = await sessionSigningKey();
+    const signingSecret = sessionSigningKey();
     if (!supabaseUrl || !serviceKey || !signingSecret) {
-      return new Response(JSON.stringify({ error: "SERVER_MISCONFIGURED" }), { status: 500, headers });
+      // لا نُصدر جلسات بلا سر مستقل، ولا نرجع إلى مفتاح الخدمة أبدًا.
+      return new Response(JSON.stringify({ error: "SERVER_MISCONFIGURED" }), { status: 503, headers });
     }
     const supabase = createClient(supabaseUrl, serviceKey);
 
     const body = await request.json().catch(() => ({}));
+    const action = String(body.action ?? "login").toLowerCase();
+    const authHeader = request.headers.get("Authorization") ?? "";
+    const bearerMatch = /^Bearer\s+(.+)$/i.exec(authHeader.trim());
+    const bearer = bearerMatch ? bearerMatch[1].trim() : "";
+
+    if (action === "logout") {
+      const claims = await readToken(bearer, signingSecret);
+      if (!claims) return new Response(JSON.stringify({ error: "INVALID_SESSION" }), { status: 401, headers });
+      const { error } = await supabase
+        .from("thimar_sessions")
+        .update({ revoked_at: new Date().toISOString(), revoked_reason: "logout" })
+        .eq("id", claims.jti)
+        .eq("account_id", claims.sub)
+        .is("revoked_at", null);
+      if (error) return new Response(JSON.stringify({ error: "LOGOUT_FAILED" }), { status: 500, headers });
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers });
+    }
+
+    if (action === "refresh") {
+      const claims = await readToken(bearer, signingSecret);
+      if (!claims) return new Response(JSON.stringify({ error: "INVALID_SESSION" }), { status: 401, headers });
+      const { data: row } = await supabase
+        .from("thimar_sessions")
+        .select("id,account_id,expires_at,revoked_at")
+        .eq("id", claims.jti)
+        .maybeSingle();
+      if (!row || row.revoked_at || row.account_id !== claims.sub) {
+        return new Response(JSON.stringify({ error: "SESSION_REVOKED" }), { status: 401, headers });
+      }
+      const graceEnds = new Date(row.expires_at).getTime() / 1000 + REFRESH_GRACE_SECONDS;
+      if (graceEnds < Date.now() / 1000) {
+        return new Response(JSON.stringify({ error: "SESSION_EXPIRED" }), { status: 401, headers });
+      }
+      const { data: account } = await supabase
+        .from("thimar_accounts")
+        .select("id,status,banned")
+        .eq("id", claims.sub)
+        .maybeSingle();
+      if (!account || account.banned || account.status !== "active") {
+        return new Response(JSON.stringify({ error: "ACCOUNT_NOT_ACTIVE" }), { status: 403, headers });
+      }
+      const jti = crypto.randomUUID();
+      const issued = await issueToken(signingSecret, claims.sub, jti, TTL_SECONDS);
+      const { error: insErr } = await supabase.from("thimar_sessions").insert({
+        id: jti,
+        account_id: claims.sub,
+        expires_at: new Date(issued.exp * 1000).toISOString(),
+        rotated_from: claims.jti,
+      });
+      if (insErr) return new Response(JSON.stringify({ error: "SESSION_STORE_FAILED" }), { status: 500, headers });
+      await supabase
+        .from("thimar_sessions")
+        .update({ revoked_at: new Date().toISOString(), revoked_reason: "rotated" })
+        .eq("id", claims.jti)
+        .is("revoked_at", null);
+      return new Response(
+        JSON.stringify({ token: issued.token, accountId: claims.sub, expiresAt: issued.exp }),
+        { status: 200, headers },
+      );
+    }
+
     const username = String(body.username ?? "").trim();
     const password = String(body.password ?? "");
     if (!username || !password) {
@@ -81,27 +206,32 @@ Deno.serve(async (request) => {
       return new Response(JSON.stringify({ error: "ACCOUNT_NOT_ACTIVE" }), { status: 403, headers });
     }
 
-    // Verify SHA-256(salt:password)
     const salt = String(row.password_salt ?? "");
     const hash = String(row.password_hash ?? "");
     const candidate = await sha256Hex(`${salt}:${password}`);
     if (!salt || !hash || candidate !== hash) {
-      // Legacy plaintext fallback (only if stored)
-      // We do not store plaintext; if no hash, reject.
       return new Response(JSON.stringify({ error: "INVALID_CREDENTIALS" }), { status: 401, headers });
     }
 
-    // Issue JWT (HS256), 24h expiry
-    const now = Math.floor(Date.now() / 1000);
-    const exp = now + 24 * 60 * 60;
-    const header = b64urlStr(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-    const payload = b64urlStr(JSON.stringify({ sub: row.id, iat: now, exp, scope: "session" }));
-    const signingInput = `${header}.${payload}`;
-    const signature = await hmacSign(signingSecret, signingInput);
-    const token = `${signingInput}.${signature}`;
+    const jti = crypto.randomUUID();
+    const issued = await issueToken(signingSecret, row.id, jti, TTL_SECONDS);
+    const { error: insErr } = await supabase.from("thimar_sessions").insert({
+      id: jti,
+      account_id: row.id,
+      expires_at: new Date(issued.exp * 1000).toISOString(),
+    });
+    if (insErr) {
+      return new Response(JSON.stringify({ error: "SESSION_STORE_FAILED" }), { status: 500, headers });
+    }
 
-    return new Response(JSON.stringify({ token, accountId: row.id, expiresAt: exp }), { status: 200, headers });
+    return new Response(
+      JSON.stringify({ token: issued.token, accountId: row.id, expiresAt: issued.exp, ttl: TTL_SECONDS }),
+      { status: 200, headers },
+    );
   } catch (e) {
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "SERVER_ERROR" }), { status: 500, headers });
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "SERVER_ERROR" }), {
+      status: 500,
+      headers,
+    });
   }
 });
