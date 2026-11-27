@@ -55,6 +55,8 @@ jobs:
         run: npm run test:release-targeting
       - name: Test administrator diagnostics
         run: npm run test:admin-diagnostics
+      - name: Test Worker R2 asset routes and production error endpoint
+        run: npm run test:worker
       - name: TypeScript validation
         run: npm run typecheck
       - name: Generate Quran search index
