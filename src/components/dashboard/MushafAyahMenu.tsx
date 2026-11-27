@@ -56,7 +56,7 @@ export default function MushafAyahMenu({
   onToast,
   onOpenPage,
   onStartTasmee,
-  onCompactChange,
+  audioCompact,
   onStartAudio,
 }: {
   ayahs: HafsAyah[];
@@ -70,13 +70,11 @@ export default function MushafAyahMenu({
   onOpenPage: (page: number) => void;
   /** فتح جلسة تسميع المصحف (الصفحة/المحدد/السورة) بدل ورقة التسميع القديمة. */
   onStartTasmee?: (revealVerses: boolean) => void;
-  /** يبلّغ الأب بأن التشغيل المصغّر نشط حتى لا يوقفه لمس الصفحة. */
-  onCompactChange?: (compact: boolean) => void;
+  audioCompact: boolean;
   onStartAudio?: (ayahs: HafsAyah[]) => void;
 }) {
   const [panel, setPanel] = useState<Panel>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
-  const [audioCompact, setAudioCompact] = useState(false);
   const [tafsirRows, setTafsirRows] = useState<TafsirRow[] | null>(null);
   const [tafsirLoading, setTafsirLoading] = useState(false);
   const [tafsirError, setTafsirError] = useState("");
