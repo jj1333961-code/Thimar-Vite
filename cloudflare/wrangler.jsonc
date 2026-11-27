@@ -1,0 +1,22 @@
+// إعداد staging فقط — لا مسارات (routes)، ولا نشر تلقائي.
+// لا يُنشر هذا العامل إلا بموافقة صريحة وبعد نجاح اختبارات workerd المحلية.
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "thimar-api-staging",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-23",
+  "compatibility_flags": ["nodejs_compat"],
+  // لا نطاق ولا workers.dev: الغياب مقصود حتى لا يمكن نشره بالخطأ.
+  "workers_dev": false,
+  "observability": { "enabled": true },
+  "vars": {
+    "ENVIRONMENT": "staging",
+    "TURN_TTL_SECONDS": "900",
+    "ROOM_MAX_PARTICIPANTS": "10",
+    "ROOM_TOKEN_TTL_SECONDS": "300"
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "CALL_ROOMS", "class_name": "CallRoom" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["CallRoom"] }]
+}
