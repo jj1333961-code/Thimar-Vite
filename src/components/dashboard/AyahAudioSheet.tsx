@@ -276,9 +276,6 @@ export default function AyahAudioSheet({
         <button type="button" onClick={stopAndReturnToSettings} aria-label="إيقاف التلاوة وفتح الإعدادات" title="إيقاف">
           ⏺️
         </button>
-        <span className="ayah-audio-mini-time" dir="ltr">
-          {`${Math.floor(elapsed / 60)}:${String(Math.floor(elapsed % 60)).padStart(2, "0")}`}
-        </span>
         <button type="button" onClick={togglePause} aria-label={paused ? "استئناف التلاوة" : "إيقاف مؤقت"} title={paused ? "استئناف" : "إيقاف مؤقت"}>
           {paused ? "▶️" : "⏸️"}
         </button>
