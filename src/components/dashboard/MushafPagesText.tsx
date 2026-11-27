@@ -610,7 +610,7 @@ export default function MushafPagesText({
             setMenu(null);
             setTasmeeOpen(true);
           }}
-          onCompactChange={setAudioCompact}
+          audioCompact={audioCompact}
           onStartAudio={(items) => setAudioAyahs(items)}
         />
       ) : null}
