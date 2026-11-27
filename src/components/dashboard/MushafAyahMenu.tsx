@@ -4,7 +4,6 @@ import { isMarked, setReviewMark, toggleMark } from "../../lib/mushafMarks";
 import { readAyahNotes, saveAyahNote } from "../../lib/ayahNotes";
 import { arabicNumber, selectionTitle, surahNameOfNumber } from "../../lib/ayahImage";
 import { ayahKey, type HafsAyah } from "../../lib/mushafText";
-import AyahAudioSheet from "./AyahAudioSheet";
 import AyahReciteSheet from "./AyahReciteSheet";
 import AyahShareSheet from "./AyahShareSheet";
 
@@ -15,7 +14,7 @@ import AyahShareSheet from "./AyahShareSheet";
  */
 
 type Panel = "tafsir" | "notes" | "tasmee" | null;
-type Sheet = "audio" | "share" | "recite" | null;
+type Sheet = "share" | "recite" | null;
 
 const ICONS: Record<string, string> = {
   close: "M6 6l12 12M18 6 6 18",
@@ -58,6 +57,7 @@ export default function MushafAyahMenu({
   onOpenPage,
   onStartTasmee,
   onCompactChange,
+  onStartAudio,
 }: {
   ayahs: HafsAyah[];
   page: number;
@@ -72,6 +72,7 @@ export default function MushafAyahMenu({
   onStartTasmee?: (revealVerses: boolean) => void;
   /** يبلّغ الأب بأن التشغيل المصغّر نشط حتى لا يوقفه لمس الصفحة. */
   onCompactChange?: (compact: boolean) => void;
+  onStartAudio?: (ayahs: HafsAyah[]) => void;
 }) {
   const [panel, setPanel] = useState<Panel>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -84,7 +85,6 @@ export default function MushafAyahMenu({
     width: typeof window === "undefined" ? 360 : window.innerWidth,
     height: typeof window === "undefined" ? 640 : window.innerHeight,
   }));
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const keys = useMemo(() => ayahs.map((ayah) => ayahKey(ayah.surah, ayah.ayah)), [ayahs]);
   const [marked, setMarked] = useState(() => ayahs.every((ayah) => isMarked(ayah.surah, ayah.ayah)));
@@ -118,17 +118,6 @@ export default function MushafAyahMenu({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose, panel, sheet]);
-
-  useEffect(
-    () => () => {
-      const audio = audioRef.current;
-      if (audio) {
-        audio.pause();
-        audio.src = "";
-      }
-    },
-    [],
-  );
 
   /* الجولة: ثمانية أزرار حول المركز بحجم مصغّر يناسب الشاشة مع إبقاء القائمة داخلها. */
   const layout = useMemo(() => {
@@ -217,7 +206,7 @@ export default function MushafAyahMenu({
   const actions = [
     { key: "hide", label: allHidden ? "إظهار نص الآية" : "إخفاء نص الآية", run: () => onToggleHidden(keys), active: allHidden },
     { key: "tafsir", label: "التفسير", run: openTafsir },
-    { key: "play", label: "الاستماع والتكرار", run: () => setSheet("audio") },
+    { key: "play", label: "الاستماع والتكرار", run: () => onStartAudio?.(ayahs) },
     { key: "share", label: "مشاركة صورة الآيات", run: () => setSheet("share") },
     { key: "pin", label: "علامة مرجعية", run: handleBookmark, active: marked },
     { key: "note", label: "ملاحظة شخصية", run: openNotes },
@@ -334,22 +323,6 @@ export default function MushafAyahMenu({
         </div>
       ) : null}
 
-      {sheet === "audio" ? (
-        <AyahAudioSheet
-          ayahs={ayahs}
-          page={page}
-          onCompactChange={(value) => {
-            setAudioCompact(value);
-            onCompactChange?.(value);
-          }}
-          onClose={() => {
-            setAudioCompact(false);
-            onCompactChange?.(false);
-            setSheet(null);
-            onClose();
-          }}
-        />
-      ) : null}
       {sheet === "share" ? <AyahShareSheet ayahs={ayahs} onClose={() => setSheet(null)} /> : null}
       {sheet === "recite" ? <AyahReciteSheet ayahs={ayahs} onClose={() => setSheet(null)} /> : null}
     </>
