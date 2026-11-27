@@ -1,24 +1,12 @@
 import { cloud, SUPABASE_URL, SUPABASE_ANON_KEY } from "./cloud";
+import type { CallMode, CallSignal } from "./callTypes";
+export type { CallMode, CallSignal } from "./callTypes";
 
 /**
  * إشارات مكالمات ثمار (صوت وفيديو) عبر Supabase Realtime.
  * تُستخدم قناة خاصة لكل مستخدم لاستقبال المكالمات الواردة،
  * وقناة لكل مكالمة لتتبادل فيها العروض والردود ومرشّحي ICE.
  */
-
-export type CallMode = "audio" | "video";
-
-export type CallSignal =
-  | { kind: "invite"; from: string; fromName: string; mode: CallMode; callId: string }
-  | { kind: "accept"; from: string; callId: string }
-  | { kind: "decline"; from: string; callId: string }
-  | { kind: "offer"; from: string; callId: string; sdp: RTCSessionDescriptionInit }
-  | { kind: "answer"; from: string; callId: string; sdp: RTCSessionDescriptionInit }
-  | { kind: "ice"; from: string; callId: string; candidate: RTCIceCandidateInit }
-  | { kind: "hangup"; from: string; callId: string }
-  | { kind: "request-offer"; from: string; callId: string }
-  | { kind: "screen-share"; from: string; callId: string; active: boolean }
-  | { kind: "chat"; from: string; callId: string; id: string; text: string; at: number };
 
 export const ICE_SERVERS: RTCIceServer[] = [
   { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
