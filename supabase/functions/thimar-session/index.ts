@@ -5,6 +5,7 @@
 // كل رمز يحمل معرّف جلسة (jti) مسجّلًا في public.thimar_sessions، فيمكن إبطاله
 // فورًا عند تسجيل الخروج أو تغيير كلمة المرور أو حظر الحساب.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import bcrypt from "https://esm.sh/bcryptjs@2.4.3";
 
 const TTL_SECONDS = (() => {
   const raw = Number(Deno.env.get("SESSION_TTL_SECONDS") ?? 3 * 60 * 60);
@@ -110,6 +111,29 @@ async function readToken(token: string, secret: string): Promise<SessionClaims |
   return { sub, jti, exp, iat };
 }
 
+/**
+ * يتحقق من كلمة المرور بالخوارزمية المسجّلة للحساب.
+ * الحسابات الحديثة تستخدم bcrypt، والقديمة sha256(salt:password) قبل ترقيتها.
+ * هذا الخطأ كان يمنع إصدار رمز المكالمات بعد نجاح تسجيل الدخول.
+ */
+async function verifyPassword(
+  password: string,
+  hash: string,
+  salt: string,
+  algo: string,
+): Promise<boolean> {
+  const stored = String(hash ?? "");
+  if (!stored) return false;
+  if (algo === "bcrypt" || stored.startsWith("$2")) {
+    try {
+      return await bcrypt.compare(password, stored);
+    } catch {
+      return false;
+    }
+  }
+  return (await sha256Hex(`${salt}:${password}`)) === stored;
+}
+
 async function issueToken(secret: string, sub: string, jti: string, ttl: number) {
   const now = Math.floor(Date.now() / 1000);
   const exp = now + ttl;
@@ -153,6 +177,50 @@ Deno.serve(async (request) => {
         .is("revoked_at", null);
       if (error) return new Response(JSON.stringify({ error: "LOGOUT_FAILED" }), { status: 500, headers });
       return new Response(JSON.stringify({ ok: true }), { status: 200, headers });
+    }
+
+    if (action === "exchange") {
+      /* تبديل جلسة الـAPI الموقّعة (ts_…) برمز مكالمات HMAC.
+         يجعل المكالمات تعمل بعد إعادة فتح التطبيق دون كلمة المرور،
+         ويعالج الحسابات التي رُقّيت كلمة مرورها إلى bcrypt. */
+      const apiToken = String(body.apiToken ?? "").trim();
+      if (!/^ts_[a-f0-9]{64}$/i.test(apiToken)) {
+        return new Response(JSON.stringify({ error: "INVALID_SESSION" }), { status: 401, headers });
+      }
+      const { data: apiSession } = await supabase
+        .from("thimar_api_sessions")
+        .select("account_id,expires_at,revoked_at")
+        .eq("token_hash", await sha256Hex(apiToken))
+        .maybeSingle();
+      if (
+        !apiSession ||
+        apiSession.revoked_at ||
+        new Date(apiSession.expires_at).getTime() <= Date.now()
+      ) {
+        return new Response(JSON.stringify({ error: "SESSION_REQUIRED" }), { status: 401, headers });
+      }
+      const { data: account } = await supabase
+        .from("thimar_accounts")
+        .select("id,status,banned")
+        .eq("id", apiSession.account_id)
+        .maybeSingle();
+      if (!account || account.banned || account.status !== "active") {
+        return new Response(JSON.stringify({ error: "ACCOUNT_NOT_ACTIVE" }), { status: 403, headers });
+      }
+      const jti = crypto.randomUUID();
+      const issued = await issueToken(signingSecret, account.id, jti, TTL_SECONDS);
+      const { error: insErr } = await supabase.from("thimar_sessions").insert({
+        id: jti,
+        account_id: account.id,
+        expires_at: new Date(issued.exp * 1000).toISOString(),
+      });
+      if (insErr) {
+        return new Response(JSON.stringify({ error: "SESSION_STORE_FAILED" }), { status: 500, headers });
+      }
+      return new Response(
+        JSON.stringify({ token: issued.token, accountId: account.id, expiresAt: issued.exp, ttl: TTL_SECONDS }),
+        { status: 200, headers },
+      );
     }
 
     if (action === "refresh") {
@@ -215,7 +283,7 @@ Deno.serve(async (request) => {
 
     const { data: row, error } = await supabase
       .from("thimar_accounts")
-      .select("id,username,password_hash,password_salt,status,banned")
+      .select("id,username,password_hash,password_salt,password_algo,status,banned")
       .eq("username", username)
       .maybeSingle();
     if (error || !row) {
@@ -227,8 +295,8 @@ Deno.serve(async (request) => {
 
     const salt = String(row.password_salt ?? "");
     const hash = String(row.password_hash ?? "");
-    const candidate = await sha256Hex(`${salt}:${password}`);
-    if (!salt || !hash || candidate !== hash) {
+    const algo = String(row.password_algo ?? "sha256");
+    if (!hash || !(await verifyPassword(password, hash, salt, algo))) {
       return new Response(JSON.stringify({ error: "INVALID_CREDENTIALS" }), { status: 401, headers });
     }
 

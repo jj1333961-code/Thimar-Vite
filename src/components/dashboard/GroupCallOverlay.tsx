@@ -153,7 +153,7 @@ export default function GroupCallOverlay({
            تعذّر التجديد (شبكة) لا انتهاء الجلسة. */
         setError(cachedSessionToken()
           ? "تعذّر تجديد جلستك الأمنية الآن (غالبًا بسبب الشبكة). أعد المحاولة بعد لحظات."
-          : "لا توجد جلسة دخول على هذا الجهاز. سجّل الدخول من جديد.");
+          : "تعذّر تجهيز جلسة المكالمة على هذا الجهاز. تحقّق من الاتصال ثم أعد المحاولة؛ حسابك ما زال مسجّلًا.");
       }
       else setError(err.message);
     } else {
@@ -340,7 +340,7 @@ export default function GroupCallOverlay({
       if (!sessionToken) {
         throw new Error(cachedSessionToken()
           ? "تعذّر تجديد جلستك الأمنية الآن (غالبًا بسبب الشبكة). أعد المحاولة بعد لحظات."
-          : "لا توجد جلسة دخول على هذا الجهاز. سجّل الدخول من جديد.");
+          : "تعذّر تجهيز جلسة المكالمة على هذا الجهاز. تحقّق من الاتصال ثم أعد المحاولة؛ حسابك ما زال مسجّلًا.");
       }
 
       sfuRef.current = new CloudflareSfuClient({ roomId, sessionToken });

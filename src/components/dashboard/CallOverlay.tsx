@@ -706,7 +706,7 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
           const token = await ensureSessionToken();
           setError(token
             ? "تعذّر التحقق من جلستك الآن (غالبًا بسبب الشبكة). أعد المحاولة بعد لحظات."
-            : "لا توجد جلسة دخول على هذا الجهاز. سجّل الدخول لاستقبال المكالمات.");
+            : "تعذّر تجهيز جلسة المكالمة على هذا الجهاز. تحقّق من الاتصال ثم أعد المحاولة؛ حسابك ما زال مسجّلًا.");
         }
       }
       else setError(`تعذّر قبول المكالمة: ${serverResult.error}`);

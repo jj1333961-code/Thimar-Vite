@@ -89,6 +89,7 @@ export default function TasbihPage() {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryQuery, setLibraryQuery] = useState("");
   const [chainStep, setChainStep] = useState(0);
+  const [chainTransfer, setChainTransfer] = useState(0);
   const floatId = useRef(0);
 
   const all = useMemo(() => [...BASE_DHIKR, ...state.custom], [state.custom]);
@@ -121,19 +122,25 @@ export default function TasbihPage() {
     setState((prev) => ({ ...prev, targets: { ...prev.targets, [current.id]: clean } }));
   };
 
-  const chainBeads = Array.from({ length: 11 }, (_, index) => {
-    const offset = index - 5;
-    const id = chainStep + offset;
-    return {
-      id,
-      offset,
-      color: CHAIN_COLORS[((id % CHAIN_COLORS.length) + CHAIN_COLORS.length) % CHAIN_COLORS.length],
-    };
-  });
+  /*
+   * السلسلة الآن مسار منحنٍ من طرفين: خمس حلقات يمينًا وخمس يسارًا،
+   * ولا حلقة في منتصف المسار. ترتيب العدّ من أقصى اليمين إلى أقصى اليسار.
+   */
+  const chainBeads = (["right", "left"] as const).flatMap((side) =>
+    Array.from({ length: 5 }, (_, slot) => {
+      const index = side === "right" ? slot : 5 + slot;
+      const color = CHAIN_COLORS[index % CHAIN_COLORS.length];
+      // انحناء إضافي داخل الذراع: الحلقات الداخلية أخفض قليلًا.
+      const bend = (side === "right" ? slot : 4 - slot) * 1.6;
+      return { id: `${side}-${slot}`, side, slot, index, color, bend };
+    }),
+  );
+  const activeBead = ((chainStep % chainBeads.length) + chainBeads.length) % chainBeads.length;
 
   const tap = () => {
     navigator.vibrate?.(10);
     setChainStep((step) => step + 1);
+    setChainTransfer((value) => value + 1);
     const id = (floatId.current += 1);
     setFloats((prev) => [...prev.slice(-6), { id, left: 50 + (Math.random() * 22 - 11), top: 42 + (Math.random() * 12 - 6) }]);
     window.setTimeout(() => setFloats((prev) => prev.filter((item) => item.id !== id)), 900);
@@ -379,15 +386,20 @@ export default function TasbihPage() {
           ) : (
             <>
               <span className="tasbih-chain" aria-hidden="true">
-                <span className="tasbih-chain-track">
-                  {chainBeads.map((bead) => (
-                    <span
-                      key={bead.id}
-                      className={`tasbih-chain-bead${bead.offset === 0 ? " is-active" : ""}${bead.offset < 0 ? " is-past" : ""}`}
-                      style={{ "--offset": bead.offset, "--bead-color": bead.color } as CSSProperties}
-                    />
-                  ))}
-                </span>
+                {(["right", "left"] as const).map((side) => (
+                  <span key={side} className={`tasbih-chain-arm tasbih-chain-arm--${side}`}>
+                    {chainBeads
+                      .filter((bead) => bead.side === side)
+                      .map((bead) => (
+                        <span
+                          key={bead.id}
+                          className={`tasbih-chain-bead${bead.index === activeBead ? " is-active" : ""}${bead.index < activeBead ? " is-past" : ""}`}
+                          style={{ "--slot": bead.slot, "--bend": `${bead.bend}px`, "--bead-color": bead.color } as CSSProperties}
+                        />
+                      ))}
+                  </span>
+                ))}
+                <span key={chainTransfer} className="tasbih-chain-runner" />
               </span>
               <span className="tasbih-chain-count">
                 <strong>{count}</strong>

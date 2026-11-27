@@ -47,6 +47,195 @@
       }
     },
     {
+      "versionName": "1.11.8",
+      "versionCode": 30,
+      "releaseDate": "2026-11-26",
+      "shortDescription": {
+        "ar": "تحديث 1.11.8 — هوية مكالمات موثّقة من الخادم.",
+        "en": "Update 1.11.8 — server-verified call identity."
+      },
+      "releaseNotes": {
+        "ar": {
+          "features": [
+            "التحقق من هوية المتصل برمز جلسة موقّع من الخادم بدل معرّف يرسله التطبيق."
+          ],
+          "improvements": [
+            "حماية إنشاء المكالمات وقبولها من انتحال هوية مستخدم آخر.",
+            "إعادة بناء حزمة أندرويد لتضمين عميل الجلسة الجديد فعليًا."
+          ],
+          "bugFixes": [
+            "إصلاح وصول حزمة أندرويد السابقة بلا عميل الجلسة الموثّق."
+          ],
+          "securityUpdates": [
+            "توقيع جلسات المكالمات على الخادم والتحقق منها قبل تنفيذ أي إجراء."
+          ]
+        },
+        "en": {
+          "features": [
+            "Caller identity is verified with a server-signed session token instead of a client-supplied ID."
+          ],
+          "improvements": [
+            "Call creation and acceptance can no longer impersonate another user.",
+            "Rebuilt the Android package so it actually contains the new session client."
+          ],
+          "bugFixes": [
+            "Fixed the previous Android package shipping without the verified-session client."
+          ],
+          "securityUpdates": [
+            "Server-signed call sessions are verified before any call action."
+          ]
+        }
+      }
+    },
+    {
+      "versionName": "1.11.7",
+      "versionCode": 29,
+      "releaseDate": "2026-11-25",
+      "shortDescription": {
+        "ar": "تحديث 1.11.7 — مكالمات أوضح ومصحف أكبر.",
+        "en": "Update 1.11.7 — clearer calls and a larger Mushaf."
+      },
+      "releaseNotes": {
+        "ar": {
+          "features": [
+            "مكالمات جماعية مع مشاركة الشاشة ودردشة داخل المكالمة."
+          ],
+          "improvements": [
+            "المصحف: تكبير الخط إلى حده الحقيقي مع ضبط تباعد الكلمات والسطور.",
+            "المشغّل المصغّر للتلاوة يبقى ظاهرًا أثناء التنقل بين الصفحات."
+          ],
+          "bugFixes": [
+            "إصلاح وصول المكالمات الواردة، وبطاقة الأذان، وبناء أندرويد، وعرض مشاركة الشاشة."
+          ],
+          "securityUpdates": []
+        },
+        "en": {
+          "features": [
+            "Group calls with screen sharing and in-call chat."
+          ],
+          "improvements": [
+            "Mushaf: text enlarged to its real limit with corrected word and line spacing.",
+            "The compact recitation player stays available while moving between pages."
+          ],
+          "bugFixes": [
+            "Fixed incoming call delivery, the adhan card, the Android build, and screen-share rendering."
+          ],
+          "securityUpdates": []
+        }
+      }
+    },
+    {
+      "versionName": "1.11.6",
+      "versionCode": 28,
+      "releaseDate": "2026-11-24",
+      "shortDescription": {
+        "ar": "تحديث 1.11.6 — هاتف حسب الدولة وبحث قرآني شامل.",
+        "en": "Update 1.11.6 — country-aware phone input and full Quran search."
+      },
+      "releaseNotes": {
+        "ar": {
+          "features": [
+            "إدخال رقم هاتف يراعي طول الرقم في كل دولة.",
+            "تنبيه المشرفين عند وصول طلب انضمام معلّم.",
+            "بحث شامل في المصحف."
+          ],
+          "improvements": [
+            "تحديثات الويب تُسلَّم كأصول تفاضلية بدل حزمة كاملة.",
+            "تنسيق صفحات المصحف بلا حدود مع تمديد الأسطر."
+          ],
+          "bugFixes": [
+            "إصلاحات في التلاوة والمصحف والمكالمات."
+          ],
+          "securityUpdates": []
+        },
+        "en": {
+          "features": [
+            "Phone input that respects each country's number length.",
+            "Admins are notified when a teacher application arrives.",
+            "Full Quran search."
+          ],
+          "improvements": [
+            "Web updates ship as differential assets instead of a full package.",
+            "Borderless, justified Mushaf pages that fill the reader."
+          ],
+          "bugFixes": [
+            "Recitation, Mushaf, and call fixes."
+          ],
+          "securityUpdates": []
+        }
+      }
+    },
+    {
+      "versionName": "1.11.5",
+      "versionCode": 27,
+      "releaseDate": "2026-11-24",
+      "shortDescription": {
+        "ar": "تحديث 1.11.5 — ترقية سلسة من الإصدارات القديمة.",
+        "en": "Update 1.11.5 — a smooth upgrade from older releases."
+      },
+      "releaseNotes": {
+        "ar": {
+          "features": [
+            "مسار ترقية لمرة واحدة من الإصدارات القديمة إلى البنية الحالية."
+          ],
+          "improvements": [
+            "قبول روابط تنزيل APK بمرونة أكبر مع الحفاظ على التحقق من الملف.",
+            "تجميع تحديثات الويب والقرآن والأذان المتراكمة في هذا الإصدار."
+          ],
+          "bugFixes": [
+            "إصلاح رفض روابط التنزيل الصحيحة في بعض إصدارات أندرويد."
+          ],
+          "securityUpdates": []
+        },
+        "en": {
+          "features": [
+            "A one-time upgrade path from older releases to the current structure."
+          ],
+          "improvements": [
+            "More tolerant APK download URL validation while still verifying the file.",
+            "Bundled accumulated web, Quran, and adhan updates."
+          ],
+          "bugFixes": [
+            "Fixed valid download URLs being rejected on some Android versions."
+          ],
+          "securityUpdates": []
+        }
+      }
+    },
+    {
+      "versionName": "1.11.4",
+      "versionCode": 26,
+      "releaseDate": "2026-11-23",
+      "shortDescription": {
+        "ar": "تحديث 1.11.4 — تحديث أصول بلا اختلاف في الحجم.",
+        "en": "Update 1.11.4 — asset updates without size mismatches."
+      },
+      "releaseNotes": {
+        "ar": {
+          "features": [],
+          "improvements": [
+            "توحيد حجم حزمة الأصول بين الويب وأندرويد.",
+            "تحديث الأصول دون تنزيل حزمة APK كاملة عند عدم الحاجة."
+          ],
+          "bugFixes": [
+            "إصلاح اختلاف حجم الأصول، ومنع تقديم خطوط قديمة من الكاش، وإظهار سبب فشل التحديث الحقيقي."
+          ],
+          "securityUpdates": []
+        },
+        "en": {
+          "features": [],
+          "improvements": [
+            "Unified asset package size between web and Android.",
+            "Asset updates no longer require a full APK download when unnecessary."
+          ],
+          "bugFixes": [
+            "Fixed asset size mismatches, stale cached fonts, and hidden update failure reasons."
+          ],
+          "securityUpdates": []
+        }
+      }
+    },
+    {
       "versionName": "1.11.3",
       "versionCode": 25,
       "releaseDate": "2026-11-22",

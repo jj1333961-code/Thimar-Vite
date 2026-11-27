@@ -1,11 +1,39 @@
 import { useEffect, useState } from "react";
 import { getInstalledVersionCode } from "../lib/nativePush";
 
+function NotesList({ label, items }: { label: string; items?: string[] }) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  return (
+    <section className="release-notes-section">
+      <h4>{label}</h4>
+      <ul>
+        {items.map((item, index) => (
+          <li key={`${index}-${item}`}>{item}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function ReleaseNotesBody({ notes }: { notes?: NotesSection }) {
+  if (!notes) return null;
+  return (
+    <>
+      <NotesList label="الميزات الجديدة" items={notes.features} />
+      <NotesList label="التحسينات" items={notes.improvements} />
+      <NotesList label="الإصلاحات" items={notes.bugFixes} />
+      <NotesList label="تحديثات الأمان" items={notes.securityUpdates} />
+    </>
+  );
+}
+
 export const ANDROID_UPDATE_METADATA_URL =
   (import.meta as any).env?.VITE_UPDATE_METADATA_URL || "/updates/android.json";
 export const IOS_UPDATE_METADATA_URL =
   (import.meta as any).env?.VITE_IOS_UPDATE_METADATA_URL || "/updates/ios.json";
 const METADATA_URL = ANDROID_UPDATE_METADATA_URL;
+const RELEASE_NOTES_URL =
+  (import.meta as any).env?.VITE_RELEASE_NOTES_URL || "/updates/release-notes.json";
 
 type Platform = "ios" | "android" | "electron" | "web";
 
@@ -29,6 +57,22 @@ type AndroidMetadata = {
 type IOSMetadata = {
   available?: boolean;
   url?: string;
+};
+
+type NotesSection = {
+  features?: string[];
+  improvements?: string[];
+  bugFixes?: string[];
+  securityUpdates?: string[];
+  [key: string]: unknown;
+};
+
+type ReleaseNoteEntry = {
+  versionName?: string;
+  versionCode?: number;
+  releaseDate?: string;
+  shortDescription?: { ar?: string; en?: string } | string;
+  releaseNotes?: { ar?: NotesSection; en?: NotesSection };
 };
 
 /** إصدار موارد الويب المثبت حالياً (0 إن لم يُثبّت تحديث موارد بعد). */
@@ -118,7 +162,9 @@ export default function UpdatePrompt() {
   const [availableSize, setAvailableSize] = useState<number>(0);
   const [availableNotes, setAvailableNotes] = useState<string>("");
   const [availableMeta, setAvailableMeta] = useState<any>(null);
-  const [showDetails, setShowDetails] = useState<boolean>(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [releaseHistory, setReleaseHistory] = useState<ReleaseNoteEntry[]>([]);
+  const [notesLoading, setNotesLoading] = useState(false);
 
 
   useEffect(() => {
@@ -178,9 +224,45 @@ export default function UpdatePrompt() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!detailsOpen) return;
+    let cancelled = false;
+    setNotesLoading(true);
+    fetch(RELEASE_NOTES_URL, { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: unknown) => {
+        if (cancelled || !payload || typeof payload !== "object") return;
+        const releases = (payload as { releases?: unknown }).releases;
+        if (Array.isArray(releases)) setReleaseHistory(releases as ReleaseNoteEntry[]);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setNotesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [detailsOpen]);
+
+  /* إغلاق صفحة التفاصيل بمفتاح Escape ومنع تمرير الخلفية أثناءها. */
+  useEffect(() => {
+    if (!detailsOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDetailsOpen(false);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [detailsOpen]);
+
   const platform = detectPlatform();
 
   const handleLater = () => {
+    setDetailsOpen(false);
     setOpen(false);
   };
 
@@ -357,34 +439,10 @@ export default function UpdatePrompt() {
           </div>
         ) : null}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-          <button type="button" className="ghost-button" onClick={() => setShowDetails((v) => !v)} disabled={busy}>
-            {showDetails ? "إخفاء التفاصيل" : "عرض تفاصيل الإصدار"}
+          <button type="button" className="ghost-button" onClick={() => setDetailsOpen(true)} disabled={busy}>
+            عرض تفاصيل الإصدار
           </button>
         </div>
-        {showDetails && availableMeta ? (
-          <div className="muted" style={{ fontSize: 13, marginTop: 8, textAlign: "right" }}>
-            {(() => {
-              const rn = availableMeta.releaseNotes?.ar || availableMeta.releaseNotes?.en;
-              if (!rn) return null;
-              return (
-                <>
-                  {Array.isArray(rn.features) && rn.features.length ? (
-                    <div><strong>الميزات:</strong><ul>{rn.features.map((x: string, i: number) => <li key={i}>{x}</li>)}</ul></div>
-                  ) : null}
-                  {Array.isArray(rn.improvements) && rn.improvements.length ? (
-                    <div><strong>تحسينات:</strong><ul>{rn.improvements.map((x: string, i: number) => <li key={i}>{x}</li>)}</ul></div>
-                  ) : null}
-                  {Array.isArray(rn.bugFixes) && rn.bugFixes.length ? (
-                    <div><strong>إصلاحات:</strong><ul>{rn.bugFixes.map((x: string, i: number) => <li key={i}>{x}</li>)}</ul></div>
-                  ) : null}
-                  {Array.isArray(rn.securityUpdates) && rn.securityUpdates.length ? (
-                    <div><strong>أمان:</strong><ul>{rn.securityUpdates.map((x: string, i: number) => <li key={i}>{x}</li>)}</ul></div>
-                  ) : null}
-                </>
-              );
-            })()}
-          </div>
-        ) : null}
         <div className="form-actions">
           <button type="button" className="ghost-button" onClick={handleLater} disabled={busy}>
             لاحقاً
@@ -394,6 +452,86 @@ export default function UpdatePrompt() {
           </button>
         </div>
       </div>
+      {detailsOpen ? (() => {
+        const installedCode = getInstalledVersionCode();
+        const latestCode = availableVersion || Number(availableMeta?.versionCode) || 0;
+        const latestName = availableMeta?.versionName || String(latestCode || "");
+        const visible = releaseHistory
+          .filter((entry) => Number.isFinite(Number(entry.versionCode)))
+          .filter((entry) => !latestCode || Number(entry.versionCode) <= latestCode)
+          .filter((entry) => installedCode === null || Number(entry.versionCode) > installedCode)
+          .sort((a, b) => Number(b.versionCode) - Number(a.versionCode));
+        const fallback: ReleaseNoteEntry[] = !visible.length && availableMeta?.releaseNotes
+          ? [{
+              versionName: latestName,
+              versionCode: latestCode,
+              releaseDate: availableMeta.releaseDate,
+              releaseNotes: availableMeta.releaseNotes,
+            }]
+          : [];
+        const entries = visible.length ? visible : fallback;
+        return (
+          <div className="release-details-overlay" role="presentation" onClick={() => setDetailsOpen(false)}>
+            <section
+              className="release-details-sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="release-details-title"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <header className="release-details-head">
+                <div>
+                  <span className="release-details-kicker">تفاصيل الإصدار</span>
+                  <h3 id="release-details-title">
+                    {latestName ? `ما الجديد في ${latestName}` : "ما الجديد في تحديث ثمار"}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  className="release-details-close"
+                  aria-label="إغلاق تفاصيل الإصدار"
+                  title="إغلاق"
+                  onClick={() => setDetailsOpen(false)}
+                >
+                  ×
+                </button>
+              </header>
+              <div className="release-details-body">
+                {notesLoading ? <p className="release-details-state">جارٍ تحميل تفاصيل الإصدار…</p> : null}
+                {!notesLoading && entries.length > 1 ? (
+                  <p className="release-details-summary">
+                    يشمل هذا التحديث كل الميزات والتحسينات والإصلاحات في {entries.length} إصدارات
+                    {installedCode !== null ? " لم تثبّتها بعد" : ""}، مرتّبة من الأحدث إلى الأقدم.
+                  </p>
+                ) : null}
+                {!notesLoading && entries.length === 0 ? (
+                  <p className="release-details-state">لا توجد تفاصيل منشورة لهذا الإصدار بعد.</p>
+                ) : null}
+                {entries.map((entry) => {
+                  const notes = entry.releaseNotes?.ar || entry.releaseNotes?.en;
+                  const description =
+                    (typeof entry.shortDescription === "string"
+                      ? entry.shortDescription
+                      : entry.shortDescription?.ar || entry.shortDescription?.en) || "";
+                  return (
+                    <article className="release-version" key={`${entry.versionCode}-${entry.versionName}`}>
+                      <div className="release-version-head">
+                        <strong>{entry.versionName || entry.versionCode}</strong>
+                        {entry.releaseDate ? <span>{entry.releaseDate}</span> : null}
+                        {installedCode !== null && Number(entry.versionCode) === latestCode ? (
+                          <em>الأحدث</em>
+                        ) : null}
+                      </div>
+                      {description ? <p className="release-version-desc">{description}</p> : null}
+                      {notes ? <ReleaseNotesBody notes={notes} /> : null}
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          </div>
+        );
+      })() : null}
     </div>
   );
 }

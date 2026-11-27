@@ -6,6 +6,7 @@
  * يبقى `localStorage` لأنه الخيار الوحيد المتاح. أي رمز قديم في localStorage
  * يُنقل إلى المخزن المشفّر ثم يُحذف من التخزين العادي.
  */
+import { currentToken } from "./api";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./cloud";
 
 export const SESSION_TOKEN_KEY = "thimar_session_token";
@@ -121,6 +122,7 @@ type SessionResponse = { token?: string; error?: string; expiresAt?: number };
 
 const listeners = new Set<(token: string | null) => void>();
 let refreshPromise: Promise<string | null> | null = null;
+let exchangePromise: Promise<string | null> | null = null;
 let refreshLockHeld = false;
 let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
 let keepAliveRefs = 0;
@@ -231,6 +233,41 @@ function releaseRefreshLock(): void {
   } catch { /* ignore */ }
 }
 
+/**
+ * يبدّل جلسة الـAPI الحالية (ts_…) برمز مكالمات جديد.
+ * هذا هو مسار الاستعادة بعد إعادة فتح التطبيق أو إذا فُقد رمز المكالمات
+ * من المخزن الآمن: لا نطلب من المستخدم تسجيل الدخول من جديد.
+ */
+export async function exchangeSessionToken(): Promise<string | null> {
+  if (exchangePromise) return exchangePromise;
+  const apiToken = currentToken();
+  if (!apiToken) return null;
+  exchangePromise = (async (): Promise<string | null> => {
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/thimar-session`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ action: "exchange", apiToken }),
+      });
+      const data = (await response.json().catch(() => ({}))) as SessionResponse;
+      if (response.ok && data.token) {
+        saveSessionToken(data.token);
+        return data.token;
+      }
+    } catch {
+      /* الشبكة غير متاحة: تبقى المكالمات معطّلة حتى تعود */
+    }
+    return null;
+  })().finally(() => {
+    exchangePromise = null;
+  });
+  return exchangePromise;
+}
+
 async function requestRefresh(token: string): Promise<string | null> {
   /* التجديد يدوّر الرمز على الخادم. إن انقطع الاتصال بعد أن نفّذ الخادم
      التدوير وضاع الردّ، يبقى الرمز القديم قابلًا للتجديد ضمن مهلة الخادم؛
@@ -250,7 +287,6 @@ async function requestRefresh(token: string): Promise<string | null> {
       const data = (await response.json().catch(() => ({}))) as SessionResponse;
       if (response.ok && data.token) {
         saveSessionToken(data.token);
-        emit(data.token);
         return data.token;
       }
       /* رفض نهائي (جلسة مُبطلة/منتهية): لا فائدة من إعادة المحاولة. */
@@ -265,7 +301,7 @@ async function requestRefresh(token: string): Promise<string | null> {
 export function refreshSessionToken(): Promise<string | null> {
   if (refreshPromise) return refreshPromise;
   const start = cachedSessionToken();
-  if (!start) return Promise.resolve(null);
+  if (!start) return exchangeSessionToken();
   refreshPromise = (async (): Promise<string | null> => {
     const shared = adoptSharedToken(start);
     if (shared) return shared;
@@ -299,7 +335,7 @@ export async function ensureSessionToken(
 ): Promise<string | null> {
   const minValidityMs = Math.max(0, options.minValidityMs ?? 10 * 60_000);
   let token = cachedSessionToken();
-  if (!token) return null;
+  if (!token) return exchangeSessionToken();
   const adopted = adoptSharedToken(token);
   if (adopted) token = adopted;
   const exp = sessionExpiresAt(token);
@@ -315,7 +351,7 @@ export async function ensureSessionToken(
 export function startSessionKeepAlive(): () => void {
   keepAliveRefs += 1;
   const tick = () => {
-    if (!cachedSessionToken()) return;
+    /* حتى بلا رمز محفوظ: نستعيده من جلسة الـAPI بدل مطالبة المستخدم بالدخول. */
     void ensureSessionToken({ minValidityMs: 45 * 60_000 });
   };
   tick();

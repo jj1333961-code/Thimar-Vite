@@ -37,6 +37,8 @@ export default function AyahAudioSheet({
   const selectedTimingReciter = timingReciters.find((item) => `timing-${item.id}` === reciterId);
   /* ‎0 = تكرار مستمر حتى يوقفه المستخدم. */
   const [repeat, setRepeat] = useState(2);
+  /* تكرار كل آية على حِدة داخل الفقرة (1 = بلا تكرار). */
+  const [ayahRepeat, setAyahRepeat] = useState(1);
   const [rate, setRate] = useState(1);
   const [scopeAyahs, setScopeAyahs] = useState<HafsAyah[]>(ayahs);
   const [scopeLoading, setScopeLoading] = useState(false);
@@ -273,19 +275,23 @@ export default function AyahAudioSheet({
     setCompactMode(true);
     // ‎repeat === 0 يعني تكرارًا مستمرًا حتى الإيقاف.
     const passes = repeat > 0 ? repeat : Number.POSITIVE_INFINITY;
+    // تكرار الفقرة يقرأ المجموعة كاملة، وتكرار الآية يعيد كل آية وحدها.
+    const perAyah = Math.max(1, Math.round(ayahRepeat) || 1);
     for (let index = 0; index < passes; index += 1) {
       if (stopRef.current) return;
       for (const ayah of scopeAyahs) {
-        while (pausedRef.current && !stopRef.current) await sleep(150);
-        if (stopRef.current) return;
-        const ok = await playAyah(ayah);
-        if (stopRef.current) return;
-        if (!ok) {
-          /* نعود إلى نافذة الإعدادات (لا نغلقها) حتى تظهر الرسالة ويبقى التحديد والإعدادات. */
-          stopRef.current = true;
-          setError("تعذّر تشغيل التلاوة. تحقّق من الاتصال بالإنترنت أو اختر قارئًا آخر.");
-          setCompactMode(false);
-          return;
+        for (let ayahPass = 0; ayahPass < perAyah; ayahPass += 1) {
+          while (pausedRef.current && !stopRef.current) await sleep(150);
+          if (stopRef.current) return;
+          const ok = await playAyah(ayah);
+          if (stopRef.current) return;
+          if (!ok) {
+            /* نعود إلى نافذة الإعدادات (لا نغلقها) حتى تظهر الرسالة ويبقى التحديد والإعدادات. */
+            stopRef.current = true;
+            setError("تعذّر تشغيل التلاوة. تحقّق من الاتصال بالإنترنت أو اختر قارئًا آخر.");
+            setCompactMode(false);
+            return;
+          }
         }
       }
     }
@@ -404,10 +410,46 @@ export default function AyahAudioSheet({
             </button>
           ))}
         </div>
+        <div className="ayah-audio-field ayah-audio-repeat-field ayah-audio-ayah-repeat">
+          <span>تكرار الآية</span>
+          <div className="ayah-audio-repeat-controls">
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={20}
+              step={1}
+              className="ayah-audio-repeat-input"
+              aria-label="عدد مرات تكرار كل آية"
+              value={ayahRepeat}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                setAyahRepeat(Number.isFinite(value) && value > 0 ? Math.min(20, Math.round(value)) : 1);
+              }}
+            />
+            <span className="ayah-audio-repeat-unit">مرة لكل آية</span>
+          </div>
+        </div>
+        <div className="ayah-audio-repeat-presets ayah-audio-ayah-presets" role="group" aria-label="اختيارات سريعة لتكرار كل آية">
+          {[1, 2, 3, 5, 7].map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={ayahRepeat === option ? "is-active" : undefined}
+              onClick={() => setAyahRepeat(option)}
+            >
+              {arabicNumber(option)}
+            </button>
+          ))}
+        </div>
         <p className="mushaf-ayah-sheet-note ayah-audio-hint">
-          {repeat > 0
-            ? `تُكرَّر ${scope === "selected" ? "الآيات المحددة" : scope === "page" ? "الصفحة" : "السورة"} ${arabicNumber(repeat)} ${repeat === 1 ? "مرة" : repeat === 2 ? "مرتين" : "مرات"} ثم يتوقف المشغّل.`
-            : "يتكرر المقطع بلا توقف حتى تضغط زر الإيقاف في الشريط المصغّر."}
+          {ayahRepeat > 1 && repeat > 0
+            ? `تُقرأ كل آية ${arabicNumber(ayahRepeat)} مرات على حِدة، ثم تُكرَّر ${scope === "selected" ? "الآيات المحددة" : scope === "page" ? "الصفحة" : "السورة"} كاملة ${arabicNumber(repeat)} ${repeat === 1 ? "مرة" : repeat === 2 ? "مرتين" : "مرات"}.`
+            : ayahRepeat > 1
+              ? `تُقرأ كل آية ${arabicNumber(ayahRepeat)} مرات على حِدة قبل الانتقال إلى الآية التالية، ثم يتكرر المقطع بلا توقف.`
+              : repeat > 0
+                ? `تُكرَّر ${scope === "selected" ? "الآيات المحددة" : scope === "page" ? "الصفحة" : "السورة"} ${arabicNumber(repeat)} ${repeat === 1 ? "مرة" : repeat === 2 ? "مرتين" : "مرات"} ثم يتوقف المشغّل.`
+                : "يتكرر المقطع بلا توقف حتى تضغط زر الإيقاف في الشريط المصغّر."}
         </p>
         <label className="ayah-audio-field">
           <span>سرعة القارئ</span>

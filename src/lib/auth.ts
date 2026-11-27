@@ -83,9 +83,9 @@ import {
   SUPABASE_URL,
   SUPABASE_ANON_KEY,
 } from "./cloud";
-import { ApiError } from "./api";
+import { ApiError, getApiSession } from "./api";
 import { authorizeDevice } from "./nativePush";
-import { revokeSession, saveSessionToken } from "./sessionStore";
+import { cachedSessionToken, clearSessionToken, exchangeSessionToken, revokeSession, saveSessionToken } from "./sessionStore";
 import { clearRememberedDevice, getRememberedAccountId, rememberThisDevice } from "./rememberedDevice.mjs";
 export { rememberThisDevice };
 import { hashPassword, newPasswordSalt, verifyPassword } from "./password";
@@ -300,8 +300,25 @@ function mergeRpcAccount(row: RpcAccountRow): Account {
   return merged;
 }
 
-/** يطلب رمز جلسة موقّع من الخادم ويحفظه محليًا (للمكالمات/العمليات المحمية). */
-async function issueSessionToken(username: string, password: string): Promise<void> {
+/**
+ * يضمن رمز مكالمات صالحًا بعد الدخول/التسجيل.
+ *
+ * الأولوية لتبديل جلسة الـAPI الصالحة (تعمل مع bcrypt وبعد إعادة فتح التطبيق)،
+ * ثم التحقق من كلمة المرور كمسار توافق للخادمات الأقدم. لا نُفشل الدخول
+ * المحلي إن تعذّر إصدار رمز المكالمات؛ الشبكة قد تكون منقطعة.
+ */
+async function issueSessionToken(username: string, password: string, accountId?: string): Promise<boolean> {
+  // لا نتبدّل جلسة API تخصّ حسابًا آخر (بقايا جلسة سابقة)؛ نتحقق بكلمة المرور.
+  const apiSession = getApiSession();
+  const sameAccount = Boolean(apiSession && (!accountId || apiSession.accountId === accountId));
+  if (!sameAccount && cachedSessionToken()) {
+    /* رمز مكالمات قديم قد يخصّ حسابًا سابقًا: لا نتركه يُستخدم لهذا الحساب. */
+    clearSessionToken();
+  }
+  if (sameAccount) {
+    const exchanged = await exchangeSessionToken();
+    if (exchanged) return true;
+  }
   try {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/thimar-session`, {
       method: "POST",
@@ -312,11 +329,14 @@ async function issueSessionToken(username: string, password: string): Promise<vo
       },
       body: JSON.stringify({ username, password }),
     });
-    if (!response.ok) return;
+    if (!response.ok) return false;
     const data = await response.json().catch(() => ({}));
-    if (data?.token) saveSessionToken(String(data.token));
+    if (!data?.token) return false;
+    saveSessionToken(String(data.token));
+    return true;
   } catch {
     /* الشبكة غير متاحة — تبقى الجلسة بدون رمز (توافق). */
+    return false;
   }
 }
 
@@ -338,8 +358,8 @@ export async function login(username: string, password: string, remember = false
   if (typeof nativeDeviceId === "string" && nativeDeviceId) {
     void authorizeDevice(account.id, password);
   }
-  // إصدار رمز جلسة موقّع من الخادم (للمكالمات والعمليات المحمية).
-  void issueSessionToken(username, password);
+  // إصدار رمز جلسة المكالمات وانتظاره: بدونه تظهر رسالة "لا توجد جلسة".
+  await issueSessionToken(username, password, account.id);
   // بصمة محلية للسماح بالدخول دون إنترنت على هذا الجهاز.
   const localSalt = newPasswordSalt();
   const localHash = await hashPassword(password, localSalt);
@@ -380,8 +400,8 @@ export async function login(username: string, password: string, remember = false
   if (typeof nativeDeviceId === "string" && nativeDeviceId) {
     void authorizeDevice(account.id, password);
   }
-  // إصدار رمز جلسة موقّع من الخادم.
-  void issueSessionToken(username, password);
+  // إصدار رمز جلسة المكالمات وانتظاره قبل فتح التطبيق.
+  await issueSessionToken(username, password, account.id);
   announceSignedIn(account);
   return { status: "ok", account };
 }
@@ -412,6 +432,8 @@ export async function registerAccount(data: any): Promise<{ ok: true; account: A
     return { ok: false, message: registerErrorMessage(error) };
   }
   const account = accountFromRow(result.account);
+  // الحساب الجديد يملك جلسة API من الخادم؛ نُصدر بها رمز المكالمات مباشرة.
+  await issueSessionToken(username, String(data.password ?? ""), account.id);
   const localSalt = newPasswordSalt();
   account.passwordSalt = localSalt;
   account.passwordHash = await hashPassword(String(data.password ?? ""), localSalt);
