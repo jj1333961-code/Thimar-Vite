@@ -86,18 +86,13 @@ export default function AyahAudioSheet({
 
   useEffect(() => {
     if (!compact) return;
-    let timer = 0;
-    const showTemporarily = () => {
-      setMiniVisible(true);
-      window.clearTimeout(timer);
-      timer = window.setTimeout(() => setMiniVisible(false), 3600);
+    const toggleMini = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest(".ayah-audio-mini-player")) return;
+      setMiniVisible((visible) => !visible);
     };
-    showTemporarily();
-    window.addEventListener("pointerdown", showTemporarily, { passive: true });
-    return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener("pointerdown", showTemporarily);
-    };
+    window.addEventListener("pointerdown", toggleMini, { passive: true });
+    return () => window.removeEventListener("pointerdown", toggleMini);
   }, [compact]);
 
   useEffect(() => {
