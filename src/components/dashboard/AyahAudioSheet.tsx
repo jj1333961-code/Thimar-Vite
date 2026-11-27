@@ -37,6 +37,7 @@ export default function AyahAudioSheet({
   const [scopeAyahs, setScopeAyahs] = useState<HafsAyah[]>(ayahs);
   const [scopeLoading, setScopeLoading] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const [compact, setCompact] = useState(false);
   const [miniVisible, setMiniVisible] = useState(true);
   const [error, setError] = useState("");
@@ -70,8 +71,18 @@ export default function AyahAudioSheet({
   const setCompactMode = (value: boolean) => {
     setCompact(value);
     setMiniVisible(true);
+    setElapsed(0);
     onCompactChange?.(value);
   };
+
+  /* مؤقت الشريط المصغّر: وقت التلاوة المنقضي فقط، بلا عناصر تحكم إضافية. */
+  useEffect(() => {
+    if (!compact) return;
+    const timer = window.setInterval(() => {
+      setElapsed(audioRef.current?.currentTime ?? 0);
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [compact]);
 
   useEffect(() => {
     if (!compact) return;
@@ -225,9 +236,10 @@ export default function AyahAudioSheet({
         const ok = await playAyah(ayah);
         if (stopRef.current) return;
         if (!ok) {
+          /* نعود إلى نافذة الإعدادات (لا نغلقها) حتى تظهر الرسالة ويبقى التحديد والإعدادات. */
+          stopRef.current = true;
           setError("تعذّر تشغيل التلاوة. تحقّق من الاتصال بالإنترنت أو اختر قارئًا آخر.");
           setCompactMode(false);
-          onClose();
           return;
         }
       }
@@ -264,6 +276,9 @@ export default function AyahAudioSheet({
         <button type="button" onClick={stopAndReturnToSettings} aria-label="إيقاف التلاوة وفتح الإعدادات" title="إيقاف">
           ⏺️
         </button>
+        <span className="ayah-audio-mini-time" dir="ltr">
+          {`${Math.floor(elapsed / 60)}:${String(Math.floor(elapsed % 60)).padStart(2, "0")}`}
+        </span>
         <button type="button" onClick={togglePause} aria-label={paused ? "استئناف التلاوة" : "إيقاف مؤقت"} title={paused ? "استئناف" : "إيقاف مؤقت"}>
           {paused ? "▶️" : "⏸️"}
         </button>

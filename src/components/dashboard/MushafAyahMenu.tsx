@@ -57,6 +57,7 @@ export default function MushafAyahMenu({
   onToast,
   onOpenPage,
   onStartTasmee,
+  onCompactChange,
 }: {
   ayahs: HafsAyah[];
   page: number;
@@ -69,6 +70,8 @@ export default function MushafAyahMenu({
   onOpenPage: (page: number) => void;
   /** فتح جلسة تسميع المصحف (الصفحة/المحدد/السورة) بدل ورقة التسميع القديمة. */
   onStartTasmee?: (revealVerses: boolean) => void;
+  /** يبلّغ الأب بأن التشغيل المصغّر نشط حتى لا يوقفه لمس الصفحة. */
+  onCompactChange?: (compact: boolean) => void;
 }) {
   const [panel, setPanel] = useState<Panel>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -331,7 +334,22 @@ export default function MushafAyahMenu({
         </div>
       ) : null}
 
-      {sheet === "audio" ? <AyahAudioSheet ayahs={ayahs} page={page} onCompactChange={setAudioCompact} onClose={() => { setAudioCompact(false); setSheet(null); onClose(); }} /> : null}
+      {sheet === "audio" ? (
+        <AyahAudioSheet
+          ayahs={ayahs}
+          page={page}
+          onCompactChange={(value) => {
+            setAudioCompact(value);
+            onCompactChange?.(value);
+          }}
+          onClose={() => {
+            setAudioCompact(false);
+            onCompactChange?.(false);
+            setSheet(null);
+            onClose();
+          }}
+        />
+      ) : null}
       {sheet === "share" ? <AyahShareSheet ayahs={ayahs} onClose={() => setSheet(null)} /> : null}
       {sheet === "recite" ? <AyahReciteSheet ayahs={ayahs} onClose={() => setSheet(null)} /> : null}
     </>

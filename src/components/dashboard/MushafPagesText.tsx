@@ -81,6 +81,7 @@ export default function MushafPagesText({
   const selectionRef = useRef<string[]>([]);
   const [selected, setSelected] = useState<HafsAyah[]>([]);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [audioCompact, setAudioCompact] = useState(false);
   const [hidden, setHidden] = useState<Set<string>>(() => readHidden());
   const [fontPx, setFontPx] = useState(0);
   const [linesData, setLinesData] = useState<{ lines: number[][][]; lineNums: number[]; surahStarts: number[][] } | null>(null);
@@ -449,7 +450,8 @@ export default function MushafPagesText({
       tapAyah(press.key);
       return;
     }
-    if (menu) setMenu(null);
+    /* لمس الصفحة أثناء التشغيل المصغّر لا يغلق القائمة حتى لا ينقطع الصوت. */
+    if (menu && !audioCompact) setMenu(null);
   };
 
   const onPointerCancel = () => {
@@ -606,6 +608,7 @@ export default function MushafPagesText({
             setMenu(null);
             setTasmeeOpen(true);
           }}
+          onCompactChange={setAudioCompact}
         />
       ) : null}
 
