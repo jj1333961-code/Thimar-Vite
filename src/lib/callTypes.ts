@@ -12,7 +12,7 @@ export type SfuTrackAnnouncement = {
 };
 
 export type CallSignal =
-  | { kind: "invite"; from: string; fromName: string; mode: CallMode; callId: string; group?: boolean }
+  | { kind: "invite"; from: string; fromName: string; mode: CallMode; callId: string; group?: boolean; expiresAt?: number }
   | { kind: "accept"; from: string; callId: string }
   | { kind: "decline"; from: string; callId: string }
   | { kind: "offer"; from: string; callId: string; sdp: RTCSessionDescriptionInit }

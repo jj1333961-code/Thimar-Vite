@@ -5,6 +5,7 @@ import { loadSettings } from "../../lib/appStore";
 import { recordAdhan } from "../../lib/adhanLog";
 import { showSystemNotification } from "../../lib/notify";
 import { PRAYER_ART, prayerImageUrl, type PrayerKey } from "../../data/prayerImages";
+import { gregorianLabel, hijriLabel } from "../../lib/adhanWindow";
 import { scheduleIosAdhan, registerAdhanTapHandler } from "../../lib/adhanNative";
 import { hasNativeAdhan, scheduleNativeAdhan, syncAdhanAssets } from "../../lib/adhanBridge";
 import { Icon } from "./ui";
@@ -23,8 +24,6 @@ let askedPrayerNotificationPermission = false;
 
 export default function AdhanNotifier() {
   const [screen, setScreen] = useState<AdhanScreen | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [volume, setVolume] = useState(0.9);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const triggeredRef = useRef<Set<string>>(new Set());
   const lastNativeKeyRef = useRef("");
@@ -91,7 +90,7 @@ export default function AdhanNotifier() {
                 const audio = audioRef.current;
                 audio.src = adhan.url;
                 audio.volume = Math.min(1, Math.max(0, settings.adhanVolume ?? 0.9));
-                audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+                void audio.play().catch(() => undefined);
               }
               if (settings.adhanScreen !== false) setScreen({ key, time: t, city: data.city || "موقعك" });
               if (settings.notifications) {
@@ -170,37 +169,28 @@ export default function AdhanNotifier() {
     };
   }, []);
 
-  const stopAudio = () => {
-    audioRef.current?.pause();
-    if (audioRef.current) audioRef.current.currentTime = 0;
-    setPlaying(false);
-  };
-
-  const toggleAudio = () => {
-    const audio = audioRef.current;
-    if (!audio || !screen) return;
-    if (audio.paused) {
-      audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
-    } else {
-      audio.pause();
-      setPlaying(false);
-    }
-  };
-
-  const changeVolume = (value: number) => {
-    setVolume(value);
-    if (audioRef.current) audioRef.current.volume = value;
-  };
-
+  /* زر × هو وسيلة التحكم الوحيدة: يوقف الصوت ويُغلقه ويحرّر الموارد معًا. */
   const dismiss = () => {
-    stopAudio();
+    const audio = audioRef.current;
+    if (audio) {
+      try {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.removeAttribute("src");
+        audio.load();
+      } catch { /* ignore */ }
+    }
+    audioRef.current = null;
     setScreen(null);
   };
 
   if (!screen) return null;
   const art = PRAYER_ART[screen.key];
-  const today = new Date().toLocaleDateString("ar", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const today = new Date();
+  const gregorian = gregorianLabel(today, "ar");
+  const hijri = hijriLabel(today, "ar");
 
+  /* بطاقة واحدة: كل المعلومات داخل مساحة الصورة، ولا شريط تحكم أسفلها. */
   return (
     <div className="adhan-screen" role="dialog" aria-modal="true" aria-label={art.label}>
       <div
@@ -209,44 +199,25 @@ export default function AdhanNotifier() {
         aria-hidden="true"
       />
       <div className="adhan-screen-panel">
-        <div className="adhan-screen-top">
-          <span className="adhan-screen-app">ثمار — وقت الصلاة</span>
+        <div className="adhan-screen-card">
+          <img
+            className="adhan-screen-card-img"
+            src={art.image}
+            alt={`${art.label} — ${art.phrase}`}
+            draggable={false}
+          />
+          <div className="adhan-screen-card-shade" aria-hidden="true" />
           <button type="button" className="adhan-screen-close" onClick={dismiss} aria-label="إغلاق شاشة الصلاة">
             <Icon name="x" size={16} />
           </button>
-        </div>
-
-        <div className="adhan-screen-art">
-          <img src={art.image} alt={`${art.label} — ${art.phrase}`} draggable={false} />
-        </div>
-
-        <div className="adhan-screen-card">
-          <span className="adhan-screen-kicker">حان وقت الصلاة</span>
-          <h2 className="adhan-screen-title">{art.label}</h2>
-          <p className="adhan-screen-time">{screen.time}</p>
-          <p className="adhan-screen-date">
-            {today} • {screen.city}
-          </p>
-          <p className="adhan-screen-motivation">{art.phrase}</p>
-        </div>
-
-        <div className="adhan-screen-controls">
-          <button type="button" className="adhan-ctrl-primary" onClick={toggleAudio} aria-label={playing ? "إيقاف مؤقت" : "تشغيل"}>
-            {playing ? "إيقاف مؤقت" : "تشغيل"}
-          </button>
-          <label className="adhan-screen-volume">
-            <span>الصوت</span>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={Math.round(volume * 100)}
-              onChange={(event) => changeVolume(Number(event.target.value) / 100)}
-            />
-          </label>
-          <button type="button" className="adhan-ctrl-stop" onClick={dismiss}>
-            إيقاف وإغلاق
-          </button>
+          <div className="adhan-screen-card-body">
+            <span className="adhan-screen-kicker">ثمار — حان وقت الصلاة</span>
+            <h2 className="adhan-screen-title">{art.label}</h2>
+            <p className="adhan-screen-time">{screen.time}</p>
+            <p className="adhan-screen-date">{gregorian} • {screen.city}</p>
+            {hijri ? <p className="adhan-screen-hijri">{hijri}</p> : null}
+            <p className="adhan-screen-motivation">{art.phrase}</p>
+          </div>
         </div>
       </div>
     </div>

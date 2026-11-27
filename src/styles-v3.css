@@ -4497,45 +4497,51 @@ html, body { max-width: 100%; overflow-x: hidden; }
   position: relative;
   width: min(560px, 100%);
   max-height: 100%;
-  display: flex; flex-direction: column; gap: 10px;
-  padding: 14px 16px 18px;
-  overflow-y: auto;
+  display: flex; flex-direction: column;
+  padding: 10px 10px 12px;
+  overflow: hidden;
   background: linear-gradient(180deg, rgba(8, 18, 15, 0.55), rgba(8, 18, 15, 0.9));
 }
-.adhan-screen-top {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 10px; flex: 0 0 auto;
-}
-.adhan-screen-app {
-  font-family: "Tajawal", system-ui, sans-serif;
-  font-size: 12.5px; font-weight: 700; letter-spacing: 0.06em;
-  color: #e7c784;
-}
 .adhan-screen-close {
+  position: absolute; top: 10px; inset-inline-end: 10px; z-index: 3;
   display: inline-flex; align-items: center; justify-content: center;
-  width: 38px; height: 38px; flex: 0 0 auto;
+  width: 40px; height: 40px; flex: 0 0 auto;
   border-radius: 999px; cursor: pointer;
   border: 1px solid rgba(231, 199, 132, 0.55);
-  background: rgba(231, 199, 132, 0.14);
+  background: rgba(8, 18, 15, 0.55);
+  backdrop-filter: blur(6px);
   color: #f7f1e3;
 }
-.adhan-screen-art {
-  flex: 1 1 auto; min-height: 150px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 20px; overflow: hidden;
-  border: 1px solid rgba(231, 199, 132, 0.4);
-  background: rgba(0, 0, 0, 0.25);
+/* بطاقة الأذان: الصورة والزخارف والنصوص كلها داخل إطار واحد. */
+.adhan-screen-card {
+  position: relative;
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  border-radius: 22px; overflow: hidden;
+  border: 1px solid rgba(231, 199, 132, 0.45);
+  background: #08120f;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
 }
-.adhan-screen-art img {
+.adhan-screen-card-img {
+  position: absolute; inset: 0;
   width: 100%; height: 100%;
-  object-fit: contain;
+  object-fit: cover; object-position: center;
   display: block;
   user-select: none; -webkit-user-drag: none;
 }
-.adhan-screen-card {
-  flex: 0 0 auto;
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  text-align: center; padding: 2px 6px 0;
+.adhan-screen-card-shade {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg,
+    rgba(6, 14, 12, 0.30) 0%,
+    rgba(6, 14, 12, 0) 30%,
+    rgba(6, 14, 12, 0.55) 64%,
+    rgba(6, 14, 12, 0.90) 100%);
+}
+.adhan-screen-card-body {
+  position: relative; z-index: 1; width: 100%;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: clamp(14px, 4vw, 22px) clamp(14px, 5vw, 26px) calc(18px + env(safe-area-inset-bottom));
+  text-align: center;
 }
 .adhan-screen-kicker {
   font-family: "Tajawal", system-ui, sans-serif;
@@ -4551,9 +4557,17 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .adhan-screen-time {
   margin: 0;
   font-family: "Tajawal", system-ui, sans-serif;
-  font-size: clamp(34px, 10vw, 48px); font-weight: 300;
-  letter-spacing: 0.06em; color: #f7f1e3;
+  font-size: clamp(38px, 12vw, 56px); font-weight: 500;
+  letter-spacing: 0.04em; color: #f7f1e3;
   font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.6);
+}
+.adhan-screen-hijri {
+  margin: 0;
+  font-family: "Tajawal", system-ui, sans-serif;
+  font-size: 12.5px; font-weight: 600;
+  color: rgba(231, 199, 132, 0.88);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 .adhan-screen-date {
   margin: 0;
@@ -4562,45 +4576,16 @@ html, body { max-width: 100%; overflow-x: hidden; }
 }
 .adhan-screen-motivation {
   margin: 4px 0 0;
+  max-width: 36ch;
   font-family: "Tajawal", system-ui, sans-serif;
-  font-size: 14px; line-height: 1.6;
-  color: rgba(247, 241, 227, 0.88);
+  font-size: 14px; line-height: 1.65;
+  color: rgba(247, 241, 227, 0.92);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
 }
-.adhan-screen-controls {
-  flex: 0 0 auto;
-  display: flex; align-items: center; gap: 10px;
-  padding-top: 4px;
-}
-.adhan-ctrl-primary, .adhan-ctrl-stop {
-  font-family: "Tajawal", system-ui, sans-serif;
-  font-size: 13px; font-weight: 700;
-  border-radius: 999px; padding: 11px 18px; cursor: pointer;
-  min-height: 44px;
-}
-.adhan-ctrl-primary {
-  border: 1px solid rgba(255, 243, 214, 0.7);
-  background: #e7c784; color: #08120f;
-}
-.adhan-ctrl-stop {
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(159, 42, 42, 0.9); color: #fdf6ea;
-}
-.adhan-screen-volume {
-  flex: 1 1 auto;
-  display: flex; flex-direction: column; gap: 2px;
-  font-family: "Tajawal", system-ui, sans-serif;
-  font-size: 10.5px; color: rgba(247, 241, 227, 0.65);
-}
-.adhan-screen-volume input { width: 100%; accent-color: #e7c784; }
 @keyframes adhan-fade { from { opacity: 0; } to { opacity: 1; } }
 
-@media (max-width: 380px) {
-  .adhan-screen-controls { flex-wrap: wrap; }
-  .adhan-ctrl-stop { flex: 1 1 100%; }
-}
 @media (min-height: 760px) {
-  .adhan-screen-panel { padding: 22px 22px 26px; gap: 14px; }
-  .adhan-screen-art { min-height: 240px; }
+  .adhan-screen-panel { padding: 14px 14px 16px; }
 }
 
 /* ============ بطاقة أذونات وقت الصلاة والتنزيل دون إنترنت ============ */

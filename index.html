@@ -18,10 +18,23 @@
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!--
+      لا تجعل خطوط Google تحجب أول رسم: في الشبكات البطيئة أو التي تحجب
+      fonts.googleapis.com كان طلب CSS المزامن يترك WebView على شاشة بيضاء
+      حتى انتهاء المهلة. التحميل الآن غير حاجب، وتُطبَّق الخطوط فور وصولها.
+    -->
     <link
       href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@500;600;700&family=Tajawal:wght@400;500;700;800&family=Amiri:wght@400;700&family=Amiri+Quran&family=Scheherazade+New:wght@400;700&family=Aref+Ruqaa:wght@400;700&display=swap"
-      rel="stylesheet"
+      rel="preload"
+      as="style"
+      onload="this.onload=null;this.rel='stylesheet'"
     />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@500;600;700&family=Tajawal:wght@400;500;700;800&family=Amiri:wght@400;700&family=Amiri+Quran&family=Scheherazade+New:wght@400;700&family=Aref+Ruqaa:wght@400;700&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
     <script>
       (function () {
         try {
@@ -41,8 +54,65 @@
       })();
     </script>
   </head>
-  <body>
+  <body style="background-color: #FAF7F1">
     <div id="root"></div>
+    <!--
+      شبكة أمان محلية مستقلة عن React وFirebase وSupabase: إذا لم تُركَّب
+      الواجهة خلال ١٢ ثانية، أو وقع خطأ غير معالَج، تظهر رسالة عربية مع زر
+      إعادة المحاولة بدل الشاشة البيضاء. لا تظهر إطلاقًا عند نجاح الإقلاع.
+    -->
+    <div
+      id="boot-fallback"
+      role="alert"
+      style="display: none; position: fixed; inset: 0; z-index: 2147483647; background: #FAF7F1; color: #1F2937; font-family: Tajawal, system-ui, sans-serif; padding: 40px 28px; text-align: center; direction: rtl"
+    >
+      <div style="max-width: 420px; margin: 15vh auto 0">
+        <div style="font-size: 22px; font-weight: 700; color: #2F5C4A; margin-bottom: 12px">تعذّر بدء واجهة ثمار</div>
+        <p id="boot-fallback-message" style="font-size: 16px; line-height: 1.9; margin: 0 0 24px">
+          لم تكتمل تهيئة الواجهة. تحقّق من اتصال الإنترنت ثم أعد المحاولة. بياناتك المحفوظة لم تُمسّ.
+        </p>
+        <button
+          type="button"
+          onclick="window.location.reload()"
+          style="padding: 12px 28px; font-size: 16px; font-family: inherit; border: 0; border-radius: 12px; background: #2F5C4A; color: #fff; font-weight: 700"
+        >
+          إعادة المحاولة
+        </button>
+      </div>
+    </div>
+    <script>
+      (function () {
+        var fallback = document.getElementById("boot-fallback");
+        var message = document.getElementById("boot-fallback-message");
+        var root = document.getElementById("root");
+        var settled = false;
+        function show(text) {
+          if (settled || !fallback) return;
+          if (root && root.childElementCount > 0) return;
+          if (text && message) message.textContent = text;
+          fallback.style.display = "block";
+        }
+        function clear() {
+          settled = true;
+          if (fallback) fallback.style.display = "none";
+        }
+        window.addEventListener("error", function () {
+          show("حدث خطأ أثناء تحميل الواجهة. أعد المحاولة، وإن تكرّر فأبلغ الدعم مع سجل التشخيص.");
+        });
+        window.addEventListener("unhandledrejection", function () {
+          show("تعذّر إكمال تهيئة بعض الخدمات. أعد المحاولة — بياناتك المحفوظة لم تُمسّ.");
+        });
+        window.setTimeout(function () {
+          if (root && root.childElementCount > 0) clear();
+          else show("تأخر تحميل الواجهة. تحقّق من الاتصال ثم أعد المحاولة. بياناتك المحفوظة لم تُمسّ.");
+        }, 12000);
+        if (root) {
+          new MutationObserver(function () {
+            if (root.childElementCount > 0) clear();
+          }).observe(root, { childList: true });
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

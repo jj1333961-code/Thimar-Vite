@@ -26,7 +26,8 @@ import {
 import { uploadChatMedia, pullCloud } from "../../lib/cloud";
 import { setActiveConversation } from "../../lib/nativePush";
 import { aiChat, buildCompanionMessages, offlineCompanionReply } from "../../lib/ai";
-import { createChannel, subscribeChannel, sendSignal, userChannelName, callServer, type CallMode, type CallSignal } from "../../lib/call";
+import { callServer, type CallMode } from "../../lib/call";
+import { announceInvite } from "../../lib/callInbox";
 import CallOverlay from "./CallOverlay";
 import CallSimulator from "./CallSimulator";
 import { Icon, EmptyState } from "./ui";
@@ -61,7 +62,6 @@ export default function MessagesPage({
   const [callMode, setCallMode] = useState<"audio" | "video" | null>(null);
   const [showCallSimulator, setShowCallSimulator] = useState(false);
   const [outgoingCallId, setOutgoingCallId] = useState<string | null>(null);
-  const [incomingCall, setIncomingCall] = useState<{ callId: string; fromName: string; from: string; mode: CallMode } | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const [aiInput, setAiInput] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
@@ -79,6 +79,12 @@ export default function MessagesPage({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const recorder = useRecorder();
+  const stopAnnounceRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => () => {
+    stopAnnounceRef.current?.();
+    stopAnnounceRef.current = null;
+  }, []);
 
   const refresh = () => {
     ensureChatSeeds(account);
@@ -104,16 +110,8 @@ export default function MessagesPage({
     void pullCloud().then(() => refresh());
   }, [initialConversationId, account.id]);
 
-  /* استقبال المكالمات الواردة عبر قناة المستخدم الخاصة. */
-  useEffect(() => {
-    const channel = createChannel(userChannelName(account.id), account.id, (signal: CallSignal) => {
-      if (signal.kind === "invite") {
-        setIncomingCall({ callId: signal.callId, fromName: signal.fromName, from: signal.from, mode: signal.mode });
-      }
-    });
-    void subscribeChannel(channel);
-    return () => { try { channel.unsubscribe(); } catch { /* ignore */ } };
-  }, [account.id]);
+  /* استقبال المكالمات الواردة تم نقله إلى IncomingCallHost على مستوى التطبيق
+     حتى يعمل في كل الشاشات، لا في هذه الصفحة وحدها. */
 
   const logCall = (conversationId: string, text: string) => {
     sendChatMessage(conversationId, { senderId: account.id, kind: "call", text });
@@ -151,34 +149,34 @@ export default function MessagesPage({
    *  ثم نرسل دعوة إلى قناة المستخدم الآخر ونفتح واجهة المكالمة. */
   const startCall = async (mode: CallMode) => {
     if (!selected) return;
+    if (callMode || outgoingCallId) return;
     const peer = peerIdOf(selected);
     if (!peer) {
       alert("لا يوجد مستخدم آخر في هذه المحادثة.");
       return;
     }
     const result = await callServer("create", { callerId: account.id, calleeId: peer, mode, timeoutSec: 45 });
-    if (result?.error) {
-      if (result.error === "CALLEE_BUSY") alert("المستخدم مشغول في مكالمة أخرى.");
-      else if (result.error === "CALLER_BUSY") alert("لديك مكالمة نشطة بالفعل.");
-      else alert(`تعذّر بدء المكالمة: ${result.error}`);
+    /* لا نُظهر «جارٍ الاتصال» إن لم يُنشأ سجل المكالمة فعلًا. */
+    if (!result?.callId) {
+      const error = result?.error ?? "CREATE_FAILED";
+      console.warn("[call-diag] create failed", { error, peer, mode });
+      if (error === "CALLEE_BUSY") alert("المستخدم مشغول في مكالمة أخرى.");
+      else if (error === "CALLER_BUSY") alert("لديك مكالمة نشطة بالفعل.");
+      else alert(`تعذّر بدء المكالمة: ${error}`);
       return;
     }
     const callId = String(result.callId);
+    console.info("[call-diag] call created", { callId, peer, mode, expiresAt: result.expiresAt });
+    /* نكرر الدعوة حتى انتهاء الرنين لأن Realtime لا يحتفظ بالرسائل الفائتة. */
+    stopAnnounceRef.current?.();
+    stopAnnounceRef.current = announceInvite(peer, account.id, {
+      callId,
+      fromName: account.fullName,
+      mode,
+      expiresAt: result.expiresAt ? Date.parse(String(result.expiresAt)) : undefined,
+    });
     setOutgoingCallId(callId);
     setCallMode(mode);
-    const channel = createChannel(userChannelName(peer), account.id, () => undefined);
-    void subscribeChannel(channel).then(() => {
-      setTimeout(() => {
-        void sendSignal(channel, {
-          kind: "invite",
-          from: account.id,
-          fromName: account.fullName,
-          mode,
-          callId,
-        });
-      }, 700);
-      setTimeout(() => { try { channel.unsubscribe(); } catch { /* ignore */ } }, 20000);
-    });
   };
 
   /** فتح محادثة الإدارة (المسؤول) — لا تظهر للمسؤول نفسه. */
@@ -910,27 +908,14 @@ export default function MessagesPage({
           mode={callMode}
           conversationId={selected.id}
           callId={outgoingCallId ?? undefined}
-          onClose={() => { setCallMode(null); setOutgoingCallId(null); refresh(); }}
-          onLog={(text) => logCall(selected.id, text)}
-        />
-      ) : null}
-
-      {incomingCall ? (
-        <CallOverlay
-          selfId={account.id}
-          selfName={account.fullName}
-          peerId={incomingCall.from}
-          peerName={incomingCall.fromName}
-          mode={incomingCall.mode}
-          conversationId={loadChats().find((conversation) => conversation.memberIds.includes(account.id) && conversation.memberIds.includes(incomingCall.from))?.id}
-          incoming={{ callId: incomingCall.callId, fromName: incomingCall.fromName }}
-          onClose={() => setIncomingCall(null)}
-          onLog={(text) => {
-            const conversation = loadChats().find((item) =>
-              item.memberIds.includes(account.id) && item.memberIds.includes(incomingCall.from),
-            );
-            if (conversation) logCall(conversation.id, text);
+          onClose={() => {
+            stopAnnounceRef.current?.();
+            stopAnnounceRef.current = null;
+            setCallMode(null);
+            setOutgoingCallId(null);
+            refresh();
           }}
+          onLog={(text) => logCall(selected.id, text)}
         />
       ) : null}
 

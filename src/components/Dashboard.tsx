@@ -17,6 +17,7 @@ import Exam from "./Exam";
 import { HadithPage, QiblaPage, QuranPage, TafsirPage, TuhfaPage } from "./dashboard/StudyPages";
 import QuranReadingEntry from "./dashboard/QuranReadingEntry";
 import AdhanNotifier from "./dashboard/AdhanNotifier";
+import IncomingCallHost from "./dashboard/IncomingCallHost";
 import DailyReminder from "./dashboard/DailyReminder";
 import AdhanLogPage from "./dashboard/AdhanLogPage";
 import MemorizationPathPage from "./dashboard/MemorizationPathPage";
@@ -406,6 +407,7 @@ export default function Dashboard({ account, onLogout }: { account: ReturnType<t
       onOpenSettings={() => navigate("settings")}
     >
       {renderPage()}
+      <IncomingCallHost account={account} />
       <AdhanNotifier />
       <DailyReminder />
     </AppShell>
