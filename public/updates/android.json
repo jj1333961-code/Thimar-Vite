@@ -1,10 +1,10 @@
 {
   "platform": "android",
   "packageName": "app.thimar.quran",
-  "versionName": "1.11.9",
-  "versionCode": 31,
-  "resourceVersionName": "1.11.9",
-  "resourceVersionCode": 31,
+  "versionName": "1.11.10",
+  "versionCode": 32,
+  "resourceVersionName": "1.11.10",
+  "resourceVersionCode": 32,
   "minSupportedVersionCode": 1,
   "available": true,
   "apkRequired": true,
@@ -58,53 +58,59 @@
     {
       "versionName": "1.11.9",
       "versionCode": 31
+    },
+    {
+      "versionName": "1.11.10",
+      "versionCode": 32
     }
   ],
-  "releaseDate": "2026-11-27",
-  "publishedAt": "2026-11-27",
+  "releaseDate": "2026-11-28",
+  "publishedAt": "2026-11-28",
   "releaseNotes": {
     "ar": {
       "features": [
-        "شاشة الأذان تظهر فوق التطبيقات الأخرى بعد منح إذن العرض فوق التطبيقات.",
-        "كتم الأذان وفتحه بزرّي الصوت في الهاتف.",
-        "تحرير الميكروفون فور انتهاء المكالمة، مع زر كتم/فتح أثناءها."
+        "التحديث يُفتح في متصفح النظام من صفحة الإصدار الرسمية، ولا ينزّل التطبيق أي حزمة داخليًا."
       ],
       "improvements": [
-        "المصحف: لا تُعرض أسطر صفحة قبل جهوز أسطر الصفحة المطلوبة، فلا وميض ولا عدم تطابق عند التقليب.",
-        "المصحف مضمّن بالكامل: لا شاشة «جار تحميل المصحف» عند الدخول.",
-        "الرسائل تُرفع فور الإرسال وتُسحب أسرع أثناء فتح المحادثات.",
-        "تجديد رمز الجلسة تلقائيًا في المكالمات بدل مطالبة المستخدم بالخروج والدخول."
+        "لوحة «حماية الجهاز والحساب» في الإعدادات تعرض حالة التشفير وسياسة المحتوى وأذونات الجهاز ومسار التحديث.",
+        "الموقع يرسل سياسة محتوى صارمة وHSTS ومنع التأطير وحجب الأذونات غير المستخدمة."
       ],
       "bugFixes": [
-        "إصلاح تأخر وصول الرسائل إلى الطرف الآخر، وإصلاح وميض صفحات المصحف."
+        "إزالة إذن تثبيت الحزم ومزوّد مشاركة الملفات من بيان الحزمة، وإزالة إذن الشاشة الكاملة القسرية."
       ],
-      "securityUpdates": []
+      "securityUpdates": [
+        "حُذف REQUEST_INSTALL_PACKAGES وSYSTEM_ALERT_WINDOW وUSE_FULL_SCREEN_INTENT من بيان الحزمة المدموج.",
+        "قاعدة أمان شبكة تمنع الاتصال غير المشفّر وترفض الشهادات المضافة من المستخدم.",
+        "رفض شهادات TLS غير الموثوقة في شاشة العرض الاحتياطية وإيقاف حفظ بيانات النماذج.",
+        "مسار الذكاء الاصطناعي في الموقع صار يتطلب جلسة ثمار صالحة مع حدّ استخدام لكل حساب."
+      ]
     },
     "en": {
       "features": [
-        "Prayer screen appears over other apps after granting the display-over-apps permission.",
-        "Mute and unmute the adhan with the phone volume buttons.",
-        "Microphone is released as soon as a call ends, with mute/unmute during the call."
+        "Updates open the official release page in the system browser; the app no longer downloads or runs an APK itself."
       ],
       "improvements": [
-        "Mushaf: a page is not drawn until its own lines are ready, eliminating flicker and mismatched pages while flipping.",
-        "The Mushaf is fully bundled: no “loading Mushaf” screen on entry.",
-        "Messages upload immediately on send and incoming messages sync faster while chats are open.",
-        "Call session tokens renew automatically instead of asking the user to sign out and in."
+        "A Device and account protection panel in settings reports encryption, content policy, device permissions and the update path.",
+        "The site now sends a strict content policy with HSTS, frame denial and unused permissions blocked."
       ],
       "bugFixes": [
-        "Fixed delayed message delivery to the other party and flickering Mushaf pages."
+        "Removed the install-packages permission, the file-sharing provider and the forced full-screen intent permission from the package manifest."
       ],
-      "securityUpdates": []
+      "securityUpdates": [
+        "REQUEST_INSTALL_PACKAGES, SYSTEM_ALERT_WINDOW and USE_FULL_SCREEN_INTENT are gone from the merged manifest.",
+        "A network security config refuses cleartext traffic and user-installed certificates.",
+        "Untrusted TLS certificates are rejected in the fallback view and form data is no longer saved.",
+        "The site AI route now requires a live Thimar session with a per-account rate limit."
+      ]
     }
   },
   "shortDescription": {
-    "ar": "تحديث 1.11.9 — مصحف بلا وميض، أذان فوق التطبيقات، ورسائل فورية.",
-    "en": "Update 1.11.9 — flicker-free Mushaf, prayer screen over apps, and instant messages."
+    "ar": "تحديث 1.11.10 — تطبيق بلا أذونات تثبيت أو عرض فوق التطبيقات، مع حماية أشد للموقع.",
+    "en": "Update 1.11.10 — no install or display-over-apps permissions, with stronger site protection."
   },
   "resourceSize": 4480018,
   "fileName": "app-release.apk",
-  "fileSize": 67176455,
-  "sha256": "563638e26b8ada5f0b2e179bd392ea5093d2b67b89bfc48d94e7be9950cea4cb",
-  "downloadUrl": "https://github.com/jj1333961-code/Thimar-Vite/releases/download/v1.11.9/app-release.apk"
+  "fileSize": 67174840,
+  "sha256": "72611865d7599866a074be4ecd9a9db5672eb0ae45e2e8f754e5fc10e800e80a",
+  "downloadUrl": "https://github.com/jj1333961-code/Thimar-Vite/releases/download/v1.11.10/app-release.apk"
 }
