@@ -52,16 +52,41 @@ test("WebView requires Android location permission and rejects untrusted origins
 });
 
 
-test("native APK updater preserves partial bytes and validates HTTP range before appending", () => {
+test("app never requests package-install permission or installs APKs itself", () => {
+  const manifest = read("../packaging/android/app/src/main/AndroidManifest.xml");
+  assert.equal(manifest.includes("android.permission.REQUEST_INSTALL_PACKAGES"), false);
   const updater = read("../packaging/android/app/src/main/java/app/thimar/quran/ThimarUpdater.java");
-  assert.ok(updater.includes("getFilesDir()"));
-  assert.ok(updater.includes("Range"));
-  assert.ok(updater.includes("If-Range"));
-  assert.ok(updater.includes("Content-Range"));
-  assert.ok(updater.includes("SHA-256"));
-  assert.ok(updater.includes("NET_CAPABILITY_VALIDATED"));
-  assert.ok(updater.includes("part.renameTo(apk)"));
-  assert.ok(updater.includes("pending-updates"));
+  assert.equal(updater.includes("PackageInstaller"), false);
+  assert.equal(updater.includes("FileProvider"), false);
+  assert.equal(updater.includes("application/vnd.android.package-archive"), false);
+  assert.equal(updater.includes("canRequestPackageInstalls"), false);
+});
+
+test("update flow hands a verified official URL to the system browser only", () => {
+  const updater = read("../packaging/android/app/src/main/java/app/thimar/quran/ThimarUpdater.java");
+  assert.ok(updater.includes("openUpdatePage"));
+  assert.ok(updater.includes("RELEASE_PREFIX"));
+  assert.ok(updater.includes("isTrustedDownloadUrl"));
+  assert.ok(updater.includes('value.startsWith("https://")'));
+  assert.ok(updater.includes("Intent.ACTION_VIEW"));
+  assert.ok(updater.includes("BuildConfig.VERSION_CODE"));
+});
+
+test("network security config forbids cleartext and user-installed CAs", () => {
+  const config = read("../packaging/android/app/src/main/res/xml/network_security_config.xml");
+  assert.ok(config.includes('cleartextTrafficPermitted="false"'));
+  assert.ok(config.includes('<certificates src="system" />'));
+  assert.equal(config.includes('src="user"'), false);
+  const manifest = read("../packaging/android/app/src/main/AndroidManifest.xml");
+  assert.ok(manifest.includes('android:networkSecurityConfig="@xml/network_security_config"'));
+});
+
+test("WebView cancels untrusted TLS certificates explicitly", () => {
+  const activity = read("../packaging/android/app/src/main/java/app/thimar/quran/WebFallbackActivity.java");
+  assert.ok(activity.includes("onReceivedSslError"));
+  assert.ok(activity.includes("handler.cancel()"));
+  assert.equal(activity.includes("handler.proceed()"), false);
+  assert.ok(activity.includes("settings.setSaveFormData(false)"));
 });
 
 test("Android alarm receiver imports Build API used by version guards", () => {

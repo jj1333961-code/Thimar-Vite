@@ -12,6 +12,7 @@ import {
   type CloudSession,
   type ResetRequest,
 } from "../../lib/cloud";
+import SecurityStatusCard from "./SecurityStatusCard";
 import { SectionCard } from "./ui";
 
 function formatDate(value?: string | null): string {
@@ -117,6 +118,7 @@ export default function SecurityPanel({ account }: { account: Account }) {
 
   return (
     <>
+      <SecurityStatusCard />
       <SectionCard title="الجلسات النشطة" subtitle="الأجهزة المسجّلة دخولها الآن لهذا الحساب">
         {sessions.length === 0 ? (
           <p className="muted">لا توجد جلسات أخرى مسجّلة.</p>

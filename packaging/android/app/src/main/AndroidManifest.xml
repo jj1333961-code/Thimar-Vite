@@ -13,12 +13,14 @@
   <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-  <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
   <!--
-    لا SYSTEM_ALERT_WINDOW ولا USE_FULL_SCREEN_INTENT:
-    شاشة الأذان تُفتح من إشعار وقت الصلاة عالي الأهمية (بصورة الصلاة وزر «عرض شاشة
-    الصلاة»)، وهذا يبقي تجربة شاشة القفل كاملة بلا أذونات خاصة تُصنّف التطبيق
-    ضمن تطبيقات «العرض فوق التطبيقات» التي يحجبها Google Play Protect.
+    أذونات محذوفة عن قصد (سياسة «تطبيق غير ضار»):
+    - SYSTEM_ALERT_WINDOW: لا عرض فوق التطبيقات.
+    - USE_FULL_SCREEN_INTENT: لا شاشة كاملة قسرية؛ شاشة الأذان تُفتح من الإشعار.
+    - REQUEST_INSTALL_PACKAGES: التطبيق لا ينزّل ولا يثبّت أي حزمة؛ التحديث
+      يُفتح في المتصفح (ThimarUpdater) ويبقى التثبيت بيد النظام والمستخدم.
+    - REQUEST_IGNORE_BATTERY_OPTIMIZATIONS و USE_EXACT_ALARM: غير مستخدمة.
+    - READ_SMS/READ_CALL_LOG/READ_CONTACTS/ACCESSIBILITY: غير مطلوبة إطلاقًا.
   -->
   <uses-feature android:name="android.hardware.camera" android:required="false" />
   <application
@@ -30,6 +32,7 @@
     android:roundIcon="@mipmap/ic_launcher"
     android:supportsRtl="true"
     android:usesCleartextTraffic="false"
+    android:networkSecurityConfig="@xml/network_security_config"
     android:theme="@style/AppTheme">
     <activity
       android:name=".WebFallbackActivity"
@@ -80,15 +83,6 @@
       </intent-filter>
     </receiver>
     <receiver android:name=".AdhanAlarmReceiver" android:exported="false" />
-    <provider
-      android:name="androidx.core.content.FileProvider"
-      android:authorities="app.thimar.quran.fileprovider"
-      android:exported="false"
-      android:grantUriPermissions="true">
-      <meta-data
-        android:name="android.support.FILE_PROVIDER_PATHS"
-        android:resource="@xml/fileprovider_paths" />
-    </provider>
     <meta-data
       android:name="com.google.firebase.messaging.default_notification_channel_id"
       android:value="thimar_notifications" />

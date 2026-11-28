@@ -864,6 +864,44 @@ function looksLikeStaticFile(pathname) {
   const ext = pathname.slice(dot).toLowerCase();
   return STATIC_EXTENSIONS.has(ext);
 }
+var CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net",
+  "worker-src 'self' blob: https://cdn.jsdelivr.net",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https:",
+  "media-src 'self' data: blob: https:",
+  "connect-src 'self' https: wss:",
+  "manifest-src 'self'"
+].join("; ");
+var SECURITY_HEADERS = {
+  "Content-Security-Policy": CONTENT_SECURITY_POLICY,
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Cross-Origin-Opener-Policy": "same-origin",
+  "Permissions-Policy": "camera=(self), microphone=(self), geolocation=(self), accelerometer=(self), gyroscope=(self), magnetometer=(self), display-capture=(self), payment=(), usb=(), serial=(), bluetooth=(), midi=(), interest-cohort=()"
+};
+function harden(response) {
+  try {
+    const headers = new Headers(response.headers);
+    for (const [name, value] of Object.entries(SECURITY_HEADERS)) headers.set(name, value);
+    if (!headers.has("Cache-Control")) headers.set("Cache-Control", "no-cache");
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers
+    });
+  } catch {
+    return response;
+  }
+}
 function notFoundAsset(pathname) {
   return new Response(`Not found: ${pathname}`, {
     status: 404,
@@ -993,100 +1031,164 @@ async function handleAssetUpload(request, env, url) {
   }
   return json(200, { ok: true, key });
 }
+var SESSION_CACHE_MS = 6e4;
+var sessionCache = /* @__PURE__ */ new Map();
+function readSessionClaims(token) {
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const padded = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(atob(padded + "=".repeat((4 - padded.length % 4) % 4)));
+    const sub = typeof payload?.sub === "string" ? payload.sub : "";
+    const exp = Number(payload?.exp);
+    const scope = typeof payload?.scope === "string" ? payload.scope : "";
+    if (!sub || !Number.isFinite(exp) || exp * 1e3 <= Date.now()) return null;
+    if (scope && scope !== "session") return null;
+    return { sub, exp };
+  } catch {
+    return null;
+  }
+}
+async function verifySession(request, env) {
+  const header = request.headers.get("authorization") || "";
+  const token = header.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : "";
+  if (!token) return null;
+  const claims = readSessionClaims(token);
+  if (!claims) return null;
+  const cached = sessionCache.get(token);
+  if (cached && cached.until > Date.now()) return cached.sub;
+  const base = String(env.VITE_SUPABASE_URL || env.SUPABASE_URL || "").replace(/\/+$/, "");
+  if (!base) return null;
+  const anon = env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || "";
+  try {
+    const response = await fetch(`${base}/functions/v1/thimar-calls`, {
+      method: "POST",
+      headers: { "content-type": "application/json", apikey: anon, Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "pending" })
+    });
+    await response.arrayBuffer().catch(() => {
+    });
+    if (!response.ok) return null;
+    if (sessionCache.size > 2e3) sessionCache.clear();
+    sessionCache.set(token, { sub: claims.sub, until: Math.min(Date.now() + SESSION_CACHE_MS, claims.exp * 1e3) });
+    return claims.sub;
+  } catch {
+    return null;
+  }
+}
+var AI_WINDOW_MS = 6e4;
+var AI_MAX_PER_WINDOW = 30;
+var aiHits = /* @__PURE__ */ new Map();
+function aiRateLimited(userId) {
+  const now = Date.now();
+  if (aiHits.size > 5e3) {
+    for (const [key, entry2] of aiHits) if (entry2.resetAt <= now) aiHits.delete(key);
+  }
+  const entry = aiHits.get(userId);
+  if (!entry || entry.resetAt <= now) {
+    aiHits.set(userId, { count: 1, resetAt: now + AI_WINDOW_MS });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > AI_MAX_PER_WINDOW;
+}
+async function route(request, env) {
+  const url = new URL(request.url);
+  if (url.pathname.startsWith("/api/push/")) {
+    const handled = await handlePush(request, env, url);
+    if (handled) return handled;
+  }
+  if (url.pathname === "/api/errors") {
+    return handleClientError(request);
+  }
+  if (url.pathname.startsWith("/api/admin/assets/")) {
+    return handleAssetUpload(request, env, url);
+  }
+  if (url.pathname === "/api/ai/health") {
+    const key = env.AI_API_KEY || env.GEMINI_API_KEY;
+    return json(200, {
+      configured: Boolean(key),
+      model: DEFAULT_MODEL,
+      models: MODELS
+    });
+  }
+  if (url.pathname === "/api/ai/chat") {
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204 });
+    }
+    if (request.method !== "POST") {
+      return json(405, { error: "METHOD_NOT_ALLOWED" });
+    }
+    const key = env.AI_API_KEY || env.GEMINI_API_KEY;
+    if (!key) {
+      return json(501, { error: "AI_NOT_CONFIGURED" });
+    }
+    const userId = await verifySession(request, env);
+    if (!userId) {
+      return json(401, { error: "AUTH_REQUIRED" });
+    }
+    if (aiRateLimited(userId)) {
+      return json(429, { error: "RATE_LIMITED" });
+    }
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return json(400, { error: "INVALID_JSON" });
+    }
+    if (!Array.isArray(body?.messages) || body.messages.length === 0) {
+      return json(400, { error: "MESSAGES_REQUIRED" });
+    }
+    const upstream = await fetch(`${GEMINI_BASE}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+        "x-goog-api-key": key
+      },
+      body: JSON.stringify({
+        model: DEFAULT_MODEL,
+        messages: body.messages,
+        temperature: Math.min(1, Math.max(0, body.temperature ?? 0.4)),
+        max_tokens: Math.min(1200, Math.max(64, body.max_tokens ?? 500))
+      })
+    });
+    const text = await upstream.text();
+    if (!upstream.ok) {
+      return json(502, {
+        error: "UPSTREAM_ERROR",
+        status: upstream.status,
+        detail: text.slice(0, 500)
+      });
+    }
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return json(502, { error: "INVALID_UPSTREAM_RESPONSE" });
+    }
+    const content = data?.choices?.[0]?.message?.content?.trim();
+    if (!content) {
+      return json(502, { error: "EMPTY_AI_RESPONSE" });
+    }
+    return json(200, { content, model: data?.model || DEFAULT_MODEL });
+  }
+  if (R2_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) {
+    const asset = await serveFromR2(request, env, url);
+    if (asset) return asset;
+  }
+  if (looksLikeStaticFile(url.pathname)) {
+    const asset = await env.ASSETS.fetch(request);
+    if (asset.ok && /text\/html/i.test(asset.headers.get("content-type") || "")) {
+      return notFoundAsset(url.pathname);
+    }
+    return asset;
+  }
+  return env.ASSETS.fetch(request);
+}
 var worker_default = {
   async fetch(request, env) {
-    const url = new URL(request.url);
-    if (url.pathname.startsWith("/api/push/")) {
-      const handled = await handlePush(request, env, url);
-      if (handled) return handled;
-    }
-    if (url.pathname === "/api/errors") {
-      return handleClientError(request);
-    }
-    if (url.pathname.startsWith("/api/admin/assets/")) {
-      return handleAssetUpload(request, env, url);
-    }
-    if (url.pathname === "/api/ai/health") {
-      const key = env.AI_API_KEY || env.GEMINI_API_KEY;
-      return json(200, {
-        configured: Boolean(key),
-        model: DEFAULT_MODEL,
-        models: MODELS
-      });
-    }
-    if (url.pathname === "/api/ai/chat") {
-      if (request.method === "OPTIONS") {
-        return new Response("ok", {
-          headers: {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers": "content-type",
-            "Access-Control-Allow-Methods": "POST, OPTIONS"
-          }
-        });
-      }
-      if (request.method !== "POST") {
-        return json(405, { error: "METHOD_NOT_ALLOWED" });
-      }
-      const key = env.AI_API_KEY || env.GEMINI_API_KEY;
-      if (!key) {
-        return json(501, { error: "AI_NOT_CONFIGURED" });
-      }
-      let body;
-      try {
-        body = await request.json();
-      } catch {
-        return json(400, { error: "INVALID_JSON" });
-      }
-      if (!Array.isArray(body?.messages) || body.messages.length === 0) {
-        return json(400, { error: "MESSAGES_REQUIRED" });
-      }
-      const upstream = await fetch(`${GEMINI_BASE}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${key}`,
-          "x-goog-api-key": key
-        },
-        body: JSON.stringify({
-          model: DEFAULT_MODEL,
-          messages: body.messages,
-          temperature: Math.min(1, Math.max(0, body.temperature ?? 0.4)),
-          max_tokens: Math.min(1200, Math.max(64, body.max_tokens ?? 500))
-        })
-      });
-      const text = await upstream.text();
-      if (!upstream.ok) {
-        return json(502, {
-          error: "UPSTREAM_ERROR",
-          status: upstream.status,
-          detail: text.slice(0, 500)
-        });
-      }
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        return json(502, { error: "INVALID_UPSTREAM_RESPONSE" });
-      }
-      const content = data?.choices?.[0]?.message?.content?.trim();
-      if (!content) {
-        return json(502, { error: "EMPTY_AI_RESPONSE" });
-      }
-      return json(200, { content, model: data?.model || DEFAULT_MODEL });
-    }
-    if (R2_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) {
-      const asset = await serveFromR2(request, env, url);
-      if (asset) return asset;
-      /* fall through to site assets when the R2 object is missing */
-    }
-    if (looksLikeStaticFile(url.pathname)) {
-      const asset = await env.ASSETS.fetch(request);
-      if (asset.ok && /text\/html/i.test(asset.headers.get("content-type") || "")) {
-        return notFoundAsset(url.pathname);
-      }
-      return asset;
-    }
-    return env.ASSETS.fetch(request);
+    return harden(await route(request, env));
   }
 };
 export {

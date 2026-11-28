@@ -1,3 +1,4 @@
+import { ensureSessionToken } from "../../lib/sessionStore";
 import { useEffect, useRef, useState } from "react";
 import { fetchJuzs, fetchTafsir, type Ayah } from "../../lib/quran";
 import type { Account } from "../../lib/auth";
@@ -702,7 +703,20 @@ ${scopeText}
 
 الآيات:
 ${context}`;
-      const res = await fetch("/api/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "user", content: prompt }] }) });
+      let token: string | null = null;
+      try {
+        token = await ensureSessionToken();
+      } catch {
+        token = null;
+      }
+      const res = await fetch("/api/ai/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ messages: [{ role: "user", content: prompt }] }),
+      });
       if (!res.ok) return null;
       const data = await res.json();
       const content = (data?.choices?.[0]?.message?.content ?? data?.content ?? "") as string;

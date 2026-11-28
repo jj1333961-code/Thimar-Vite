@@ -195,6 +195,8 @@ public class WebFallbackActivity extends Activity {
     settings.setSupportMultipleWindows(false);
     settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) settings.setSafeBrowsingEnabled(true);
+    /* لا يكشف التطبيق ما يكتبه المستخدم للنماذج لاقتراحات لوحة المفاتيح. */
+    settings.setSaveFormData(false);
     settings.setCacheMode(isOnline() ? WebSettings.LOAD_DEFAULT : WebSettings.LOAD_CACHE_ELSE_NETWORK);
     /* تحديد الموقع داخل التطبيق يعمل مثل المتصفح (للمواقيت والأذان). */
     settings.setGeolocationEnabled(true);
@@ -223,6 +225,19 @@ public class WebFallbackActivity extends Activity {
       @Override
       public WebResourceResponse shouldInterceptRequest(WebView view, String url) {
         return serveLocal(Uri.parse(url));
+      }
+
+      /**
+       * شهادة TLS غير موثوقة = إلغاء الطلب دائمًا. عدم تجاوز المعالج هنا كان
+       * يعتمد على السلوك الافتراضي فقط؛ التجاوز الصريح يمنع أي تراجع مستقبلي
+       * ويمنع اعتراض الاتصال بشهادة مزروعة.
+       */
+      @Override
+      public void onReceivedSslError(WebView view, android.webkit.SslErrorHandler handler,
+          android.net.http.SslError error) {
+        handler.cancel();
+        String host = error != null && error.getUrl() != null ? Uri.parse(error.getUrl()).getHost() : "?";
+        LaunchLog.add(WebFallbackActivity.this, "رُفض اتصال غير آمن (شهادة TLS): " + host);
       }
 
       @Override

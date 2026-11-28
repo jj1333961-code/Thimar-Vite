@@ -185,3 +185,110 @@ test("asset upload reports missing storage", async () => {
   );
   assert.equal(response.status, 501);
 });
+
+test("every site response carries the hardening headers", async () => {
+  const response = await worker.fetch(
+    new Request("https://thimar.test/updates/android.json"),
+    { ASSETS: assets },
+  );
+  const csp = response.headers.get("content-security-policy") || "";
+  assert.ok(csp.includes("default-src 'self'"), "CSP default-src missing");
+  assert.ok(csp.includes("frame-ancestors 'none'"), "CSP frame-ancestors missing");
+  assert.ok(csp.includes("object-src 'none'"), "CSP object-src missing");
+  assert.equal(response.headers.get("x-frame-options"), "DENY");
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.ok((response.headers.get("strict-transport-security") || "").includes("max-age="));
+  assert.ok((response.headers.get("permissions-policy") || "").includes("payment=()"));
+  assert.equal(response.headers.get("referrer-policy"), "strict-origin-when-cross-origin");
+});
+
+test("R2 asset responses are hardened too", async () => {
+  const bucket = fakeBucket({
+    "quran/search-index.json": { bytes: bytes, contentType: "application/json" },
+  });
+  const response = await worker.fetch(
+    new Request("https://thimar.test/quran/search-index.json"),
+    { ASSETS: assets, FILES: bucket },
+  );
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("x-frame-options"), "DENY");
+  assert.ok(response.headers.get("content-security-policy"));
+});
+
+test("AI proxy requires an authenticated session and exposes no wildcard CORS", async () => {
+  const response = await worker.fetch(
+    new Request("https://thimar.test/api/ai/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+    }),
+    { ASSETS: assets, AI_API_KEY: "test-key" },
+  );
+  assert.equal(response.status, 401);
+  assert.equal((await response.json()).error, "AUTH_REQUIRED");
+  assert.equal(response.headers.get("access-control-allow-origin"), null);
+});
+
+test("AI proxy rejects an invalid bearer token", async () => {
+  const response = await worker.fetch(
+    new Request("https://thimar.test/api/ai/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: "Bearer not-a-real-token" },
+      body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+    }),
+    { ASSETS: assets, AI_API_KEY: "test-key", VITE_SUPABASE_URL: "https://example.invalid", VITE_SUPABASE_ANON_KEY: "anon" },
+  );
+  assert.equal(response.status, 401);
+});
+
+test("AI proxy rejects a structurally valid but unissued session token", async () => {
+  const payload = Buffer.from(JSON.stringify({ sub: "acct_test", jti: "jti_test", iat: 1, exp: 9999999999, scope: "session" })).toString("base64url");
+  const token = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.${payload}.forgedsignature`;
+  const response = await worker.fetch(
+    new Request("https://thimar.test/api/ai/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+    }),
+    { ASSETS: assets, AI_API_KEY: "test-key", VITE_SUPABASE_URL: "https://example.invalid", VITE_SUPABASE_ANON_KEY: "anon" },
+  );
+  assert.equal(response.status, 401);
+});
+
+test("AI proxy admits a session the identity server confirms", async () => {
+  const realFetch = globalThis.fetch;
+  const seen = [];
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    seen.push(url);
+    if (url.includes("/functions/v1/thimar-calls")) {
+      return new Response(JSON.stringify({ call: null }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.includes("/chat/completions")) {
+      return new Response(JSON.stringify({ choices: [{ message: { content: "تم" } }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return realFetch(input, init);
+  };
+  try {
+    const payload = Buffer.from(
+      JSON.stringify({ sub: "acct_live", jti: "jti_live", iat: 1, exp: Math.floor(Date.now() / 1000) + 600, scope: "session" }),
+    ).toString("base64url");
+    const token = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.${payload}.sig`;
+    const response = await worker.fetch(
+      new Request("https://thimar.test/api/ai/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+      }),
+      { ASSETS: assets, AI_API_KEY: "test-key", VITE_SUPABASE_URL: "https://supabase.test", VITE_SUPABASE_ANON_KEY: "anon" },
+    );
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).content, "تم");
+    assert.ok(seen.some((url) => url.includes("/functions/v1/thimar-calls")), "identity check must run before the provider call");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

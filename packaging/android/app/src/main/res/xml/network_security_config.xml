@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  حماية اتصالات ثمار:
+  - cleartextTrafficPermitted=false: لا HTTP نصّي إطلاقًا، كل شيء عبر TLS.
+  - trust-anchors = system فقط: لا تُقبل شهادات المستخدم المضافة يدويًا، فلا
+    يستطيع بروفايل/شهادة مثبّتة على الجهاز اعتراض اتصالات التطبيق (MITM).
+  - لا استثناء لأي نطاق: لا يمكن إضافة نطاق ضعيف لاحقًا بلا تعديل ظاهر هنا.
+-->
+<network-security-config>
+  <base-config cleartextTrafficPermitted="false">
+    <trust-anchors>
+      <certificates src="system" />
+    </trust-anchors>
+  </base-config>
+</network-security-config>

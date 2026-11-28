@@ -354,6 +354,19 @@ export default function UpdatePrompt() {
           return;
         }
         const nativeUpdater = (window as any).ThimarUpdater;
+        /*
+         * المسار المعتمد: التطبيق لا ينزّل APK ولا يشغّل مُثبّتًا (لا إذن
+         * «تثبيت تطبيقات غير معروفة»)، بل يفتح رابط الإصدار الرسمي في متصفح
+         * النظام. المتصفح ينزّل الملف، ونظام أندرويد يفرض تطابق توقيع الحزمة.
+         */
+        if (nativeUpdater && typeof nativeUpdater.openUpdatePage === "function") {
+          setStatus(
+            "جارٍ فتح صفحة التحديث في المتصفح. نزّل الملف من هناك ثم اضغط «تثبيت» — سيحافظ النظام على بياناتك.",
+          );
+          nativeUpdater.openUpdatePage(androidMetadataUrl());
+          setBusy(false);
+          return;
+        }
         if (nativeUpdater && typeof nativeUpdater.downloadUpdate === "function") {
           /* تثبيت APK خارج المتجر يحتاج إذن «تثبيت تطبيقات غير معروفة»؛
              بدون فتحه للمستخدم تفشل كل محاولة تحديث بلا سبب واضح. */

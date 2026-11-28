@@ -1,3 +1,4 @@
+import { ensureSessionToken } from "./sessionStore";
 import type { Account } from "./auth";
 import type { RecitationComparison } from "./recitation";
 
@@ -91,11 +92,21 @@ async function callProxy(
   options: ChatOptions,
 ): Promise<string | null> {
   let response: Response;
+  /* رمز جلسة ثمار مطلوب: المسار يرفض أي طلب بلا هوية صالحة. */
+  let token: string | null = null;
+  try {
+    token = await ensureSessionToken();
+  } catch {
+    token = null;
+  }
   try {
     response = await fetch("/api/ai/chat", {
       method: "POST",
       signal: AbortSignal.timeout(25000),
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({
         messages,
         temperature: options.temperature ?? 0.4,
