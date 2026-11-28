@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { notifyIncomingCall } from "../_shared/callPush.ts";
 
 /*
  * هوية المتصل لا تُقرأ من جسم الطلب: تُستخرج من رمز جلسة موقّع (HMAC-SHA256)
@@ -154,7 +155,7 @@ Deno.serve(async (request) => {
       /* الطرفان يجب أن يكونا حسابين قائمين ونشطَين — لا اتصال بحساب محظور أو وهمي. */
       const { data: participants } = await supabase
         .from("thimar_accounts")
-        .select("id,status,banned")
+        .select("id,status,banned,full_name")
         .in("id", [callerId, calleeId]);
       const accountOk = (id: string) => {
         const row = (participants ?? []).find((item) => item.id === id);
@@ -240,6 +241,22 @@ Deno.serve(async (request) => {
       if (error || !inserted) {
         return new Response(JSON.stringify({ error: error?.message ?? "INSERT_FAILED" }), { status: 500, headers });
       }
+      /*
+       * إشعار الرنين لجهاز المستقبِل: بدونه لا يعلم التطبيق المغلق أو في
+       * الخلفية أن هناك مكالمة (Realtime لا يحتفظ بالرسائل ولا يصل إليه وهو
+       * نائم). الإرسال أفضل-جهد بمهلة قصيرة: تعذّره لا يُلغي مكالمة قائمة.
+       */
+      const callerName = String(
+        (participants ?? []).find((item) => item.id === callerId)?.full_name ?? "",
+      );
+      await notifyIncomingCall({
+        supabaseUrl,
+        secret: (Deno.env.get("THIMAR_PUSH_SECRET") ?? "").trim(),
+        calleeId,
+        callId: String(inserted.id),
+        callerName,
+        mode,
+      });
       return new Response(
         JSON.stringify({ callId: inserted.id, expiresAt: inserted.expires_at, state: "ringing" }),
         { status: 200, headers },
