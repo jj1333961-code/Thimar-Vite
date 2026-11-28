@@ -1077,7 +1077,7 @@ var worker_default = {
     if (R2_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) {
       const asset = await serveFromR2(request, env, url);
       if (asset) return asset;
-      if (looksLikeStaticFile(url.pathname)) return notFoundAsset(url.pathname);
+      /* fall through to site assets when the R2 object is missing */
     }
     if (looksLikeStaticFile(url.pathname)) {
       const asset = await env.ASSETS.fetch(request);

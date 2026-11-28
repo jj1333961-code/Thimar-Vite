@@ -313,7 +313,8 @@ export default {
     if (R2_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) {
       const asset = await serveFromR2(request, env, url);
       if (asset) return asset;
-      if (looksLikeStaticFile(url.pathname)) return notFoundAsset(url.pathname);
+      /* الأصل غير موجود في R2: نُجرّب أصول الموقع (قد لا يزال الملف مضمَّنًا
+         في الحزمة) قبل إرجاع 404؛ يمنع هذا الرجوع SPA fallback HTML. */
     }
 
     if (looksLikeStaticFile(url.pathname)) {
