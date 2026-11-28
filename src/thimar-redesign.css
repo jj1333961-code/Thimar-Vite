@@ -93,20 +93,158 @@ body {
   box-shadow:0 6px 14px color-mix(in srgb,var(--primary) 10%,transparent);
 }
 .hub-tile strong { color:var(--text); font-weight:800; }
+/* ============ شريط التنقل السفلي: كبسولة عائمة عريضة ============ */
+:root {
+  --nav-h: calc(74px + env(safe-area-inset-bottom));
+  --nav-gold-1: #f6e0a8;
+  --nav-gold-2: #d9a83a;
+  --nav-gold-3: #b07d0c;
+}
+
 .bottom-nav {
-  min-height:68px; height:auto; padding:7px max(8px,env(safe-area-inset-left)) calc(7px + env(safe-area-inset-bottom));
-  border-top:1px solid color-mix(in srgb,var(--accent) 32%,var(--border));
-  box-shadow:0 -8px 28px rgba(24,35,28,.08);
-  background:color-mix(in srgb,var(--card) 94%,transparent);
+  position: fixed;
+  inset-inline: 0;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  width: min(calc(100% - 24px), 620px);
+  min-height: 0;
+  height: 62px;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 2px;
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card) 93%, transparent);
+  box-shadow:
+    0 12px 30px rgba(45, 30, 10, 0.16),
+    0 2px 6px rgba(45, 30, 10, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  z-index: 30;
+  overflow: visible;
 }
-.nav-item { max-width:110px; min-height:52px; justify-content:center; gap:4px; font-size:11px; }
-.nav-item svg { width:21px; height:21px; }
-.nav-item.active {
-  color:var(--primary); background:color-mix(in srgb,var(--primary) 11%,transparent);
+
+.nav-item {
+  position: relative;
+  flex: none;
+  max-width: none;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 2px 1px;
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--text) 62%, var(--card));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.22s ease;
 }
-.nav-item.active::before {
-  content:""; position:absolute; top:-7px; width:22px; height:3px; border-radius:9px;
-  background:var(--accent); box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 40%,transparent);
+
+.nav-item .nav-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: transparent;
+  transition:
+    background 0.25s ease,
+    box-shadow 0.25s ease,
+    transform 0.25s ease,
+    color 0.25s ease;
+}
+
+.nav-item svg { width: 21px; height: 21px; }
+
+.nav-item .nav-label {
+  font-size: clamp(9px, 2.45vw, 10.5px);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
+}
+
+/* خلفية العنصر النشط القديمة (أخضر شفاف) تُلغى: المؤشر الآن مربع ذهبي خلف الأيقونة. */
+.nav-item.active { color: var(--nav-gold-3); background: transparent; }
+
+.nav-item.active .nav-icon {
+  background: linear-gradient(155deg, var(--nav-gold-1) 0%, var(--nav-gold-2) 52%, var(--nav-gold-3) 100%);
+  color: #2a1d05;
+  box-shadow:
+    0 6px 16px rgba(212, 160, 23, 0.45),
+    0 1px 3px rgba(120, 82, 6, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  transform: translateY(-1px);
+}
+
+.nav-item.active .nav-label { color: var(--nav-gold-3); }
+
+/* إزالة المؤشر القديم أعلى العنصر */
+.nav-item.active::before { content: none; display: none; }
+
+.nav-item:active .nav-icon { transform: scale(0.94); }
+
+.nav-badge {
+  position: absolute;
+  top: 1px;
+  inset-inline-end: 50%;
+  transform: translateX(50%);
+  margin-inline-start: 16px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 15px;
+  text-align: center;
+}
+
+/* الوضع الليلي: خلفية فحمية داكنة وحدود ذهبية خفيفة */
+[data-theme="dark"] .bottom-nav {
+  background: color-mix(in srgb, #1e1c18 90%, transparent);
+  border-color: rgba(212, 160, 23, 0.34);
+  box-shadow:
+    0 16px 38px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+[data-theme="dark"] .nav-item { color: rgba(255, 255, 255, 0.72); }
+[data-theme="dark"] .nav-item.active { color: var(--nav-gold-1); }
+[data-theme="dark"] .nav-item.active .nav-label { color: var(--nav-gold-1); }
+
+/* الوضع النهاري: عاجي دافئ بظل بيج */
+[data-theme="light"] .bottom-nav,
+html:not([data-theme="dark"]) .bottom-nav {
+  background: color-mix(in srgb, #fffaf2 94%, transparent);
+  border-color: color-mix(in srgb, #d9b978 42%, #e3d9c6);
+}
+
+@media (min-width: 900px) {
+  .bottom-nav { height: 66px; width: min(calc(100% - 48px), 680px); }
+  .nav-item .nav-icon { width: 36px; height: 36px; }
+  .nav-item .nav-label { font-size: 11px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-item, .nav-item .nav-icon { transition: none; }
 }
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible {
   outline:2px solid color-mix(in srgb,var(--primary) 55%,transparent); outline-offset:2px;
@@ -132,4 +270,77 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 }
 @media (prefers-reduced-motion:reduce) {
   *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; }
+}
+
+/* ============ إعدادات الأذان: خانات تتبع عرض الشاشة ============ */
+.settings-page { width: 100%; }
+
+.settings-page .section-card.settings-sounds-card {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 10px 12px;
+  align-items: start;
+}
+
+.settings-page .section-card.settings-sounds-card > .section-head,
+.settings-page .section-card.settings-sounds-card > .settings-grid,
+.settings-page .section-card.settings-sounds-card > .settings-notify,
+.settings-page .section-card.settings-sounds-card > .settings-inline-action,
+.settings-page .section-card.settings-sounds-card > .adhan-preview,
+.settings-page .section-card.settings-sounds-card > .settings-log-row,
+.settings-page .section-card.settings-sounds-card > p,
+.settings-page .section-card.settings-sounds-card > small {
+  grid-column: 1 / -1;
+}
+
+.settings-page .section-card.settings-sounds-card > label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: calc(13px * var(--app-font-scale, 1));
+  font-weight: 600;
+  color: var(--text);
+}
+
+.settings-page .section-card.settings-sounds-card > label > span.muted { font-weight: 700; }
+
+.settings-page .section-card.settings-sounds-card > label > select,
+.settings-page .section-card.settings-sounds-card > label > input[type="range"] {
+  width: 100%;
+  min-width: 0;
+}
+
+.settings-page .section-card.settings-sounds-card > label > select {
+  min-height: 42px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
+  font-size: calc(14px * var(--app-font-scale, 1));
+}
+
+@media (max-width: 420px) {
+  .settings-page .section-card.settings-sounds-card { grid-template-columns: 1fr; }
+}
+
+/* ============ صفحة المصحف: عمود مركزي بعرض نصف الشاشة على الأجهزة العريضة ============ */
+.qp-reader-stage { padding: 4px clamp(4px, 2vw, 12px); }
+
+.qp-page {
+  width: 100%;
+  margin-inline: auto;
+}
+
+@media (min-width: 820px) {
+  /*
+   * عرض الصفحة يُشتق من ارتفاع الشاشة بنسبة صفحة المصحف (≈0.72)، وبسقف
+   * نصف عرض الشاشة حتى تبقى الصفحة في المنتصف كاملة بلا تمرير.
+   */
+  .qp-page { max-width: min(50vw, calc((100dvh - 120px) * 0.72)); }
+}
+
+@media (min-width: 1600px) {
+  .qp-page { max-width: min(46vw, calc((100dvh - 140px) * 0.72)); }
 }

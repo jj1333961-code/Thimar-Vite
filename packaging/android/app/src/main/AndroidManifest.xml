@@ -14,9 +14,12 @@
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
   <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-  <!-- «العرض فوق التطبيقات»: يسمح بفتح شاشة الأذان تلقائيًا فوق أي تطبيق آخر. -->
-  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-  <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+  <!--
+    لا SYSTEM_ALERT_WINDOW ولا USE_FULL_SCREEN_INTENT:
+    شاشة الأذان تُفتح من إشعار وقت الصلاة عالي الأهمية (بصورة الصلاة وزر «عرض شاشة
+    الصلاة»)، وهذا يبقي تجربة شاشة القفل كاملة بلا أذونات خاصة تُصنّف التطبيق
+    ضمن تطبيقات «العرض فوق التطبيقات» التي يحجبها Google Play Protect.
+  -->
   <uses-feature android:name="android.hardware.camera" android:required="false" />
   <application
     android:allowBackup="false"

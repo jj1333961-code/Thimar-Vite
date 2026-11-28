@@ -89,13 +89,6 @@ export default function AdhanPermissionsCard({ imageUrls, audioUrls, defaultAudi
       ok: permissions.notifications === true,
     },
     {
-      key: "overlay",
-      title: "العرض فوق التطبيقات",
-      why: "بعد السماح تُفتح شاشة الأذان تلقائيًا فوق أي تطبيق آخر عند دخول الوقت، وتُضيء شاشة الهاتف. بدونه يظهر إشعار فقط.",
-      ok: permissions.overlay === true,
-      optional: true,
-    },
-    {
       key: "exactAlarms",
       title: "المنبهات الدقيقة",
       why: "يضبط الأذان في وقته بالدقيقة بدل التأخير. بدونه قد يتأخر الإشعار دقائق.",

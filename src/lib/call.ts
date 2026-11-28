@@ -1,6 +1,7 @@
 import { cloud, SUPABASE_URL, SUPABASE_ANON_KEY } from "./cloud";
 import { CALL_SIGNALING_BASE, CALL_TURN_BASE } from "./callConfig";
 import { RoomSignaling, readSessionToken, type CallSignalingHandle } from "./callSignaling";
+import { BroadcastSignaling, type BroadcastChannelLike } from "./broadcastSignaling";
 import { ensureSessionToken } from "./sessionStore";
 import type { CallMode, CallSignal, CallSignalHandler, SignalingState } from "./callTypes";
 
@@ -41,9 +42,10 @@ function hasTurnCredentials(servers: RTCIceServer[]): boolean {
 }
 
 type TurnCredentials = { servers: RTCIceServer[]; ttl: number; provider: string };
+type TurnFetch = TurnCredentials | { unauthorized: true } | null;
 
 /** يجلب بيانات اعتماد TURN قصيرة الأجل من نقطة النهاية. */
-async function fetchTurnCredentials(endpoint: string, token: string): Promise<TurnCredentials | null> {
+async function fetchTurnCredentials(endpoint: string, token: string): Promise<TurnFetch> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 6000);
   try {
@@ -56,6 +58,9 @@ async function fetchTurnCredentials(endpoint: string, token: string): Promise<Tu
       cache: "no-store",
       signal: controller.signal,
     });
+    /* 401 يعني رمز جلسة منتهٍ/موقوف: نجدّده ونعيد المحاولة بدل السقوط إلى STUN
+       وحده، وهو سبب فشل الاتصال في الشبكات المقيدة. */
+    if (response.status === 401 || response.status === 403) return { unauthorized: true };
     if (!response.ok) return null;
     const data = await response.json();
     const servers = Array.isArray(data?.iceServers) ? (data.iceServers as RTCIceServer[]) : [];
@@ -86,15 +91,22 @@ export async function getIceConfig(): Promise<IceConfig> {
   if (iceRequest) return iceRequest;
 
   const request = (async (): Promise<IceConfig> => {
-    const token = await ensureSessionToken();
+    let token = await ensureSessionToken({ minValidityMs: 10 * 60_000 });
     if (token) {
       const endpoints = [
         CALL_TURN_BASE ? `${CALL_TURN_BASE}/api/turn` : "",
         `${SUPABASE_URL}/functions/v1/thimar-turn`,
       ].filter(Boolean);
       for (const endpoint of endpoints) {
-        const credentials = await fetchTurnCredentials(endpoint, token);
-        if (!credentials) continue;
+        let result = await fetchTurnCredentials(endpoint, token);
+        if (result && "unauthorized" in result) {
+          /* الرمز رُفض من الخادم: نجدّد مرة واحدة ثم نعيد المحاولة. */
+          const renewed = await ensureSessionToken({ force: true });
+          result = renewed ? await fetchTurnCredentials(endpoint, renewed) : null;
+          if (renewed) token = renewed;
+        }
+        if (!result || "unauthorized" in result) continue;
+        const credentials = result;
         const config: IceConfig = {
           iceServers: [...ICE_SERVERS, ...credentials.servers],
           relay: true,
@@ -165,6 +177,24 @@ export function createChannel(name: string, selfId: string, onSignal: (signal: C
   return channel;
 }
 
+/** قناة خام: يترك تسجيل المعالجات لناقل الإشارات نفسه. */
+export function createRawChannel(name: string): BroadcastChannelLike {
+  const channel = cloud.channel(name, { config: { broadcast: { self: false } } });
+  /* مُهايئ رقيق حتى لا يعتمد ناقل الإشارات على أنواع عميل Supabase. */
+  return {
+    on: (type, filter, callback) => {
+      channel.on(type as never, filter as never, callback as never);
+      return channel;
+    },
+    subscribe: (callback) => {
+      channel.subscribe((status, error) => callback?.(String(status), error));
+      return channel;
+    },
+    send: (message) => channel.send(message as never),
+    unsubscribe: () => channel.unsubscribe(),
+  };
+}
+
 type RealtimeChannel = ReturnType<typeof createChannel>;
 
 export async function sendSignal(channel: RealtimeChannel, signal: CallSignal): Promise<void> {
@@ -208,15 +238,21 @@ export function openCallSignaling(
     };
   }
 
-  const channel = createChannel(callChannelName(roomId), selfId, onSignal);
-  void subscribeChannel(channel);
-  options.onState?.("connecting");
+  /* لا يوجد عامل إشارات مهيّأ: نستخدم Broadcast مع طابور إرسال وتمييز مكرّر
+     وإعادة اشتراك — النسخة السابقة كانت ترسل قبل الاشتراك فتُسقط أول عرض SDP. */
+  const bus = new BroadcastSignaling({
+    channelName: callChannelName(roomId),
+    selfId,
+    createChannel: createRawChannel,
+    onSignal,
+    onState: options.onState,
+    onPresence: options.onPresence,
+  });
+  bus.connect();
   return {
     kind: "supabase",
-    send: (signal: CallSignal) => { void sendSignal(channel, signal); },
-    close: () => {
-      try { channel.unsubscribe(); } catch { /* ignore */ }
-    },
+    send: (signal: CallSignal) => bus.send(signal),
+    close: () => bus.close(),
   };
 }
 

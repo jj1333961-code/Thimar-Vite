@@ -45,7 +45,9 @@ export default function AppShell({
             aria-label={item.label}
             title={item.label}
           >
-            <Icon name={item.icon} size={21} />
+            <span className="nav-icon">
+              <Icon name={item.icon} size={21} />
+            </span>
             <span className="nav-label">{item.label}</span>
             {item.badge ? <span className="nav-badge">{item.badge > 9 ? "9+" : item.badge}</span> : null}
           </button>

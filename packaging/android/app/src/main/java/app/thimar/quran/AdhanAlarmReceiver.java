@@ -119,29 +119,12 @@ public class AdhanAlarmReceiver extends BroadcastReceiver {
       builder.setStyle(new NotificationCompat.BigTextStyle().bigText(details));
     }
     if (screen) {
+      /*
+       * شاشة الصلاة تُفتح من الإشعار نفسه (setContentIntent + هذا الزر) الذي
+       * يظهر على شاشة القفل. لا نستخدم setFullScreenIntent ولا نبدأ Activity من
+       * الخلفية: كلاهما يتطلب أذونات خاصة تُصنّف التطبيق كخطر في Play Protect.
+       */
       builder.addAction(0, "عرض شاشة الصلاة", actionPi);
-      /* إشعار ملء الشاشة: يفتح شاشة الصلاة تلقائيًا حين يسمح النظام بذلك. */
-      try {
-        builder.setFullScreenIntent(screenPi, true);
-      } catch (Exception ignored) {
-        // يبقى الإشعار العادي قابلًا للضغط.
-      }
-    }
-
-    /*
-     * شاشة الأذان فوق التطبيقات الأخرى: إذن «العرض فوق التطبيقات» منحه المستخدم
-     * بنفسه من الإعدادات، وهو استثناء رسمي يسمح بتشغيل الشاشة من الخلفية.
-     * بلا الإذن يبقى إشعار وقت الصلاة هو الطريق إلى الشاشة.
-     */
-    if (screen && FloatingOverlayService.canDrawOverlays(context)) {
-      try {
-        context.startActivity(screenIntent);
-        LaunchLog.add(context, "شاشة الصلاة: فُتحت تلقائيًا فوق التطبيقات");
-      } catch (Exception error) {
-        LaunchLog.add(context, "تعذّر فتح شاشة الصلاة فوق التطبيقات: " + error.getMessage());
-      }
-    } else if (screen) {
-      LaunchLog.add(context, "شاشة الصلاة: إذن العرض فوق التطبيقات غير ممنوح — يُعرض إشعار");
     }
 
     boolean posted = false;

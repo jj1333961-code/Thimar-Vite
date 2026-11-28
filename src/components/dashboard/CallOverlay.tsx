@@ -67,6 +67,10 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
   const offerRef = useRef<RTCSessionDescriptionInit | null>(null);
   const localOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
   const localIceRef = useRef<RTCIceCandidateInit[]>([]);
+  const localAnswerRef = useRef<RTCSessionDescriptionInit | null>(null);
+  const remoteSdpRef = useRef("");
+  const iceResendTimerRef = useRef<number | null>(null);
+  const remoteTrackSeenRef = useRef(false);
   const offerRetryRef = useRef<number | null>(null);
   const endedRef = useRef(false);
   const answeredRef = useRef(false);
@@ -167,6 +171,11 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
     setNotice("");
     stopRingback();
     stopIncomingRing();
+    if (iceResendTimerRef.current !== null) window.clearTimeout(iceResendTimerRef.current);
+    iceResendTimerRef.current = null;
+    remoteStreamRef.current.getTracks().forEach((track) => {
+      try { track.stop(); } catch { /* ignore */ }
+    });
     screenStreamRef.current?.getTracks().forEach((track) => track.stop());
     screenStreamRef.current = null;
     closeCall(pcRef.current, localStreamRef.current);
@@ -188,7 +197,34 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
     if (!element || !stream.getTracks().length) return;
     if (element.srcObject !== stream) element.srcObject = stream;
     element.muted = false;
-    void element.play().catch(() => undefined);
+    element.autoplay = true;
+    element.setAttribute("playsinline", "");
+    const play = () => {
+      void element.play().catch(() => {
+        /* سياسة التشغيل التلقائي: نعيد المحاولة عند أول لمسة على شاشة المكالمة. */
+      });
+    };
+    element.oncanplay = play;
+    play();
+  };
+
+  /*
+   * إعادة إرسال مرشحاتنا المحلية بعد وصول وصف الطرف الآخر.
+   *
+   * Broadcast لا يضمن التسليم ولا يوجد إقرار (ack)، والمرشح الذي يضيع يترك
+   * الاتصال عالقًا في checking حتى انتهاء المهلة. إعادة الإرسال مجانية:
+   * addIceCandidate يتجاهل المكرّر بأمان على الطرف الآخر.
+   */
+  const resendLocalIce = (delayMs = 1200) => {
+    if (iceResendTimerRef.current !== null) window.clearTimeout(iceResendTimerRef.current);
+    iceResendTimerRef.current = window.setTimeout(() => {
+      iceResendTimerRef.current = null;
+      const transport = channelRef.current;
+      if (!transport || endedRef.current) return;
+      for (const candidate of localIceRef.current) {
+        transport.send({ kind: "ice", from: selfId, callId, candidate });
+      }
+    }, delayMs);
   };
 
   function clearReconnectTimer() {
@@ -276,6 +312,9 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
         readyState: event.track.readyState,
         muted: event.track.muted,
       });
+      /* المسار يصل غالبًا muted أولًا ثم يُفكّ عند وصول RTP: نعيد الربط حينها. */
+      remoteTrackSeenRef.current = true;
+      event.track.onunmute = () => attachRemoteMedia();
       // نُبقي الصوت والفيديو ومشاركة الشاشة داخل MediaStream واحد حتى عند وصول
       // مسار الشاشة بلا stream association في بعض المتصفحات.
       const remoteStream = remoteStreamRef.current;
@@ -288,9 +327,18 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
     pc.onicecandidate = (event) => {
       if (event.candidate && channelRef.current) {
         const candidate = event.candidate.toJSON();
+        const key = `${candidate.candidate ?? ""}|${candidate.sdpMid ?? ""}|${candidate.sdpMLineIndex ?? ""}`;
+        if (localIceRef.current.some((item) => `${item.candidate ?? ""}|${item.sdpMid ?? ""}|${item.sdpMLineIndex ?? ""}` === key)) return;
         localIceRef.current.push(candidate);
         channelRef.current.send({ kind: "ice", from: selfId, callId, candidate });
       }
+    };
+    pc.onicecandidateerror = (event) => {
+      console.warn("[call-diag] iceCandidateError", {
+        errorCode: (event as RTCPeerConnectionIceErrorEvent).errorCode,
+        errorText: (event as RTCPeerConnectionIceErrorEvent).errorText,
+        url: (event as RTCPeerConnectionIceErrorEvent).url,
+      });
     };
     pc.onicegatheringstatechange = () => {
       console.info("[call-diag] iceGatheringState", pc.iceGatheringState);
@@ -318,6 +366,12 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
         setError("");
         setStatus("active");
         attachRemoteMedia();
+        /* تشخيص صريح بدل إعلان نجاح صامت: اتصال بلا مسار صوتي ليس مكالمة. */
+        window.setTimeout(() => {
+          if (endedRef.current || remoteTrackSeenRef.current) return;
+          setNotice("الاتصال قائم لكن لم يصل صوت من الطرف الآخر بعد. تحقّق من إذن الميكروفون عنده.");
+          console.warn("[call-diag] connected without remote tracks");
+        }, 4000);
         return;
       }
       if (pc.connectionState === "failed" || pc.connectionState === "disconnected") scheduleReconnect();
@@ -357,6 +411,17 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
         return;
       }
       if (signal.kind === "offer") {
+        const sdp = String(signal.sdp?.sdp ?? "");
+        // عرض مكرّر (إعادة إرسال من المتصل بعد ضياع الإجابة): نُعيد الإجابة
+        // المحفوظة بدل إعادة التفاوض من الصفر.
+        if (sdp && sdp === remoteSdpRef.current && answeredRef.current) {
+          console.info("[call] duplicate offer — resending answer");
+          if (localAnswerRef.current) {
+            transport.send({ kind: "answer", from: selfId, callId, sdp: localAnswerRef.current });
+          }
+          resendLocalIce(300);
+          return;
+        }
         console.info("[call] offer received");
         offerRef.current = signal.sdp;
         const existing = pcRef.current;
@@ -365,7 +430,10 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
           await existing.setRemoteDescription(signal.sdp);
           const answer = await existing.createAnswer();
           await existing.setLocalDescription(answer);
+          remoteSdpRef.current = sdp;
+          localAnswerRef.current = answer;
           transport.send({ kind: "answer", from: selfId, callId, sdp: answer });
+          resendLocalIce();
           return;
         }
         setStatus("ringing");
@@ -392,6 +460,14 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
         }
         return;
       }
+      if (signal.kind === "request-offer" && !isCaller) {
+        /* إعادة إرسال الإجابة: قد تكون ضاعت في الشبكة بعد أن أنشأناها. */
+        if (localAnswerRef.current) {
+          transport.send({ kind: "answer", from: selfId, callId, sdp: localAnswerRef.current });
+          resendLocalIce(300);
+        }
+        return;
+      }
       if (signal.kind === "accept" && isCaller) {
         // نعيد إرسال العرض بعد القبول حتى لا يضيع قبل انضمام الطرف الآخر.
         if (localOfferRef.current) {
@@ -406,13 +482,19 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
       if (signal.kind === "answer" && isCaller) {
         console.info("[call] answer received");
         const pc = await ensurePeer();
-        if (pc.signalingState !== "have-local-offer") return;
+        if (pc.signalingState !== "have-local-offer") {
+          /* إجابة مكرّرة بعد اكتمال التفاوض: لا شيء نفعله سوى التأكد من المرشحات. */
+          if (pc.remoteDescription) resendLocalIce(300);
+          return;
+        }
         await pc.setRemoteDescription(signal.sdp);
+        remoteSdpRef.current = String(signal.sdp?.sdp ?? "");
         while (pendingIce.current.length) {
           const candidate = pendingIce.current.shift();
           if (candidate) await pc.addIceCandidate(candidate).catch(() => undefined);
         }
         setStatus("connecting");
+        resendLocalIce();
         return;
       }
       if (signal.kind === "ice") {
@@ -478,7 +560,9 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
           transport.send({ kind: "offer", from: selfId, callId, sdp: offer });
           if (!disposed) setStatus("ringing");
         } else {
-          setStatus("connecting");
+          /* المكالمة الواردة تُعرض فورًا مع أزرار القبول والرفض: كان الانتظار
+             مشروطًا بوصول عرض SDP، فتبقى المكالمة بلا أي زر إن تأخّر أو ضاع. */
+          setStatus("ringing");
         }
       } catch (err) {
         if (!disposed) {
@@ -495,6 +579,8 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
       offerRetryRef.current = null;
       if (reconnectTimerRef.current) window.clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
+      if (iceResendTimerRef.current !== null) window.clearTimeout(iceResendTimerRef.current);
+      iceResendTimerRef.current = null;
       closeCall(pcRef.current, localStreamRef.current);
       channelRef.current?.close();
     };
@@ -677,6 +763,9 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
     const timer = setTimeout(() => {
       if (endedRef.current) return;
       setError("تعذّر إكمال الاتصال. تحقّق من الشبكة أو أعد المحاولة.");
+      /* نُبلغ الطرف الآخر بسقوط المهلة بدل تركه في مكالمة معلّقة. */
+      void callServer("failed", { callerId: selfId, callId, reason: "connect_timeout" });
+      channelRef.current?.send({ kind: "hangup", from: selfId, callId });
       finish("انتهت مهلة الاتصال");
     }, 25000);
     return () => clearTimeout(timer);
@@ -686,9 +775,24 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
   /* الرد على مكالمة واردة */
   const acceptIncoming = async () => {
     const transport = channelRef.current;
-    const offer = offerRef.current;
-    if (!transport || !offer) {
-      setError("لم تصل بيانات المكالمة بعد. انتظر لحظة ثم أعد المحاولة.");
+    if (!transport) {
+      setError("تعذّر تجهيز قناة المكالمة. أغلق الشاشة ثم حاول مرة أخرى.");
+      return;
+    }
+    /* قد يصل القبول قبل العرض إن تأخّر البث: نطلبه وننتظره بدل إفشال الرد. */
+    let offer = offerRef.current;
+    if (!offer) {
+      transport.send({ kind: "request-offer", from: selfId, callId });
+      for (let attempt = 0; attempt < 10 && !offer; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        offer = offerRef.current;
+      }
+    }
+    if (!offer) {
+      setError("لم تصل بيانات المكالمة. تحقّق من الشبكة ثم اطلب من المتصل إعادة الاتصال.");
+      void callServer("failed", { callerId: selfId, callId, reason: "offer_missing" });
+      transport.send({ kind: "hangup", from: selfId, callId });
+      finish("لم يصل عرض المكالمة");
       return;
     }
     const serverResult = await callServer("accept", { callerId: selfId, callId });
@@ -710,14 +814,19 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
         }
       }
       else setError(`تعذّر قبول المكالمة: ${serverResult.error}`);
+      /* لا نترك المتصل في رنين حتى انتهاء مهلته بعد أن فشل القبول عندنا. */
+      void callServer("failed", { callerId: selfId, callId, reason: "accept_failed" });
+      transport.send({ kind: "hangup", from: selfId, callId });
       finish("فشل القبول");
       return;
     }
     try {
       const pc = await ensurePeer();
       await pc.setRemoteDescription(offer);
+      remoteSdpRef.current = String(offer.sdp ?? "");
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
+      localAnswerRef.current = answer;
       answeredRef.current = true;
       while (pendingIce.current.length) {
         const candidate = pendingIce.current.shift();
@@ -726,9 +835,12 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
       transport.send({ kind: "accept", from: selfId, callId });
       transport.send({ kind: "answer", from: selfId, callId, sdp: answer });
       setStatus("connecting");
+      resendLocalIce();
     } catch (err) {
       setError(err instanceof Error ? err.message : "تعذّر الرد على المكالمة.");
       setStatus("error");
+      void callServer("failed", { callerId: selfId, callId, reason: "media_failed" });
+      channelRef.current?.send({ kind: "hangup", from: selfId, callId });
     }
   };
 
@@ -921,7 +1033,7 @@ export default function CallOverlay({ selfId, selfName, peerId, peerName, mode, 
   const qualityLabel = quality === "good" ? "شبكة ممتازة" : quality === "fair" ? "شبكة متوسطة" : quality === "poor" ? "شبكة ضعيفة" : "جارٍ قياس الشبكة…";
 
   return (
-    <div className="call-overlay">
+    <div className="call-overlay" onPointerDown={() => attachRemoteMedia()}>
       <div className="call-stage" ref={stageRef}>
         <video
           ref={remoteVideoRef}

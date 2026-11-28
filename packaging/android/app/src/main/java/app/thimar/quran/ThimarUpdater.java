@@ -30,15 +30,53 @@ public class ThimarUpdater {
   private static final String TAG = "ThimarUpdater";
   private static final String PREFS = "thimar_resumable_update";
   private static final String META_URL = "https://thimar.freebuff.page/updates/android.json";
+  private static final String META_PATH = "/updates/android.json";
+  private static final String SITE_ORIGIN = "https://thimar.freebuff.page";
   private final Activity activity;
   private volatile boolean running = false;
 
   public ThimarUpdater(Activity activity) { this.activity = activity; }
 
+  /**
+   * يقبل العنوان المطلق الرسمي والمسار النسبي نفسه فقط. الويب يمرّر عنوانًا
+   * مطلقًا، لكن الإصدارات القديمة تمرّر "/updates/android.json"، وقد كان ذلك
+   * يُرفض فتظهر للمستخدم رسالة فشل التحديث بلا سبب واضح.
+   */
+  private static boolean isTrustedMetadataSource(String metadataUrl) {
+    if (metadataUrl == null) return false;
+    String value = metadataUrl.trim();
+    if (META_URL.equals(value) || META_PATH.equals(value)) return true;
+    return value.startsWith(SITE_ORIGIN + META_PATH);
+  }
+
+  /** هل يسمح النظام لثمار بتثبيت تحديث APK؟ (Android 8+) */
+  @JavascriptInterface
+  public boolean canInstallPackages() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return true;
+    try { return activity.getPackageManager().canRequestPackageInstalls(); }
+    catch (Exception e) { return false; }
+  }
+
+  /** فتح شاشة «تثبيت تطبيقات غير معروفة» لهذا التطبيق. */
+  @JavascriptInterface
+  public void openInstallPermissionSettings() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+    try {
+      Intent intent = new Intent(
+          android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+          Uri.parse("package:" + activity.getPackageName()));
+      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+      activity.startActivity(intent);
+    } catch (Exception e) {
+      Log.e(TAG, "Cannot open unknown-sources settings", e);
+      showToast("افتح إعدادات الهاتف ثم «تثبيت تطبيقات غير معروفة» واسمح لثمار.");
+    }
+  }
+
   @JavascriptInterface
   public synchronized void downloadUpdate(final String metadataUrl) {
     if (running) { showToast("التنزيل جارٍ بالفعل."); return; }
-    if (!META_URL.equals(metadataUrl)) { showToast("مصدر بيانات التحديث غير موثوق."); return; }
+    if (!isTrustedMetadataSource(metadataUrl)) { showToast("مصدر بيانات التحديث غير موثوق."); return; }
     running = true;
     new Thread(() -> {
       try { downloadAndInstall(); }
@@ -186,6 +224,11 @@ public class ThimarUpdater {
   }
 
   private void installApk(File apk) {
+    if (!canInstallPackages()) {
+      showToast("ثبّت الملف: يجب السماح لثمار بتثبيت التحديث من إعدادات الهاتف.");
+      openInstallPermissionSettings();
+      return;
+    }
     try {
       Uri uri = FileProvider.getUriForFile(activity, activity.getPackageName() + ".fileprovider", apk);
       Intent intent = new Intent(Intent.ACTION_VIEW);

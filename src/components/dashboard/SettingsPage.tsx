@@ -939,7 +939,7 @@ export default function SettingsPage({
       )}
 
       {activeGroup === "sounds" && (
-      <SectionCard title="القرآن والصلاة">
+      <SectionCard title="القرآن والصلاة" className="settings-sounds-card">
         <div className="settings-grid">
           <label>
             <span>الموقع (مدينة مواقيت الصلاة)</span>

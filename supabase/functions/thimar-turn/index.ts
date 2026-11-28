@@ -1,225 +1,62 @@
 // Supabase Edge Function: thimar-turn
-// Issues short-lived (or static, if configured) TURN credentials to authenticated
-// clients. Secrets stay in Supabase function secrets; they are never committed.
+//
+// يمنح بيانات اعتماد TURN قصيرة العمر لمستخدم مُتحقّق فقط.
+//
+// المشكلة التي حُلّت هنا: النسخة السابقة كانت تقبل أي `apikey` (بما فيه المفتاح
+// العام anon الموجود في حزمة المتصفح) وتُعيد بيانات اعتماد TURN دائمة من نوع
+// static. أي شخص يستطيع قراءة المفتاح العام كان يستطيع سحب بيانات المُرحّل
+// الدائمة واستهلاك حصتها. الآن:
+//   - الهوية تُستخرج من رمز جلسة موقّع (HMAC-SHA256) صادر عن thimar-session.
+//   - بيانات الاعتماد تُولَّد بمفتاح مشترك (TURN REST API) وتنتهي خلال TTL قصير
+//     ومرتبطة بهوية المستخدم؛ المفتاح المشترك لا يغادر الخادم أبدًا.
+//   - بلا مفتاح مشترك تُرفض الطلب صراحة (503) بدل الرجوع لبيانات دائمة.
+//
+// الأسرار تبقى في أسرار الدالة على Supabase ولا تُرفع إلى المستودع.
+
+import { bearerToken, verifySessionToken } from "../_shared/session.ts";
+import { clampTtl, mintTurnCredentials } from "../_shared/turn.ts";
+
 const ALLOWED_ORIGINS = new Set([
   "https://thimar.freebuff.page",
   "http://localhost:3000",
   "http://localhost:5173",
 ]);
 
-type Json = Record<string, unknown>;
+const DEFAULT_TURN_URLS = [
+  "turn:relay1.expressturn.com:3478?transport=udp",
+  "turn:relay1.expressturn.com:3478?transport=tcp",
+  "turns:relay1.expressturn.com:443?transport=tcp",
+];
 
-function cors(request: Request) {
+const DEFAULT_STUN_URLS = ["stun:stun.expressturn.com:3478"];
+
+type EnvReader = (name: string) => string;
+
+function list(value: string, fallback: string[]): string[] {
+  const items = value.split(",").map((item) => item.trim()).filter(Boolean);
+  return items.length ? items : fallback;
+}
+
+function corsHeaders(request: Request): Record<string, string> {
   const origin = request.headers.get("Origin") ?? "";
-  return {
-    "Access-Control-Allow-Origin": ALLOWED_ORIGINS.has(origin) ? origin : "https://thimar.freebuff.page",
-    "Access-Control-Allow-Headers": "authorization, apikey, content-type",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "Cache-Control": "no-store",
     Vary: "Origin",
   };
+  // نعكس الأصل المسموح فقط؛ الأصل الأجنبي لا يحصل على ترويسة سماح.
+  if (ALLOWED_ORIGINS.has(origin)) headers["Access-Control-Allow-Origin"] = origin;
+  return headers;
 }
 
-function json(status: number, body: Json, headers: Record<string, string>) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...headers, "Content-Type": "application/json", "Cache-Control": "no-store" },
-  });
+function json(status: number, body: Record<string, unknown>, headers: Record<string, string>): Response {
+  return new Response(JSON.stringify(body), { status, headers });
 }
 
-function env(name: string): string {
-  return (Deno.env.get(name) ?? "").trim();
-}
-
-function num(name: string, fallback: number): number {
-  const value = Number(env(name));
-  return Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
-function list(value: string | undefined, fallback: string[]): string[] {
-  if (!value) return fallback;
-  return value.split(",").map((item) => item.trim()).filter(Boolean);
-}
-
-function dedupe(servers: RTCIceServer[]): RTCIceServer[] {
-  const seen = new Set<string>();
-  const result: RTCIceServer[] = [];
-  for (const server of servers) {
-    const key = JSON.stringify({ urls: server.urls, username: server.username ?? null });
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push(server);
-  }
-  return result;
-}
-
-/** ExpressTURN shared-secret credentials: HMAC-SHA1 over "<expiry>:<name>". */
-async function hmacSha1Base64(secret: string, message: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-1" },
-    false,
-    ["sign"],
-  );
-  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
-  return btoa(String.fromCharCode(...new Uint8Array(signature)));
-}
-
-type ProviderReport = {
-  name: string;
-  role: string;
-  status: "configured" | "not_configured" | "error";
-  mode: string;
-  message?: string;
-  bandwidth?: { provider: string; freeTierGb: number };
-};
-
-async function expressTurn(excluded: boolean): Promise<{ iceServers: RTCIceServer[]; report: ProviderReport }> {
-  const freeTierGb = num("EXPRESSTURN_MONTHLY_LIMIT_GB", 1024);
-  const secret = env("EXPRESSTURN_SECRET");
-  const username = env("EXPRESSTURN_USERNAME");
-  const credential = env("EXPRESSTURN_CREDENTIAL");
-  const turnUrls = list(env("EXPRESSTURN_URLS"), [
-    "turn:relay1.expressturn.com:3478?transport=udp",
-    "turn:relay1.expressturn.com:3478?transport=tcp",
-    "turns:relay1.expressturn.com:443?transport=tcp",
-  ]);
-  const stunUrls = list(env("EXPRESSTURN_STUN_URLS"), ["stun:stun.expressturn.com:3478"]);
-  const bandwidth = { provider: "expressturn", freeTierGb };
-
-  if (excluded) {
-    return {
-      iceServers: [],
-      report: { name: "expressturn", role: "primary-relay", status: "not_configured", mode: "excluded", bandwidth },
-    };
-  }
-  if (secret) {
-    try {
-      const ttl = Math.min(86400, Math.max(300, num("EXPRESSTURN_TTL_SECONDS", 3600)));
-      const expiry = Math.floor(Date.now() / 1000) + ttl;
-      const user = `${expiry}:thimar`;
-      const pass = await hmacSha1Base64(secret, user);
-      return {
-        iceServers: [
-          ...stunUrls.map((urls) => ({ urls })),
-          { urls: turnUrls, username: user, credential: pass },
-        ],
-        report: { name: "expressturn", role: "primary-relay", status: "configured", mode: "shared-secret", bandwidth },
-      };
-    } catch (error) {
-      return {
-        iceServers: [],
-        report: {
-          name: "expressturn",
-          role: "primary-relay",
-          status: "error",
-          mode: "shared-secret",
-          message: String((error as Error)?.message ?? error),
-          bandwidth,
-        },
-      };
-    }
-  }
-  if (username && credential) {
-    return {
-      iceServers: [
-        ...stunUrls.map((urls) => ({ urls })),
-        { urls: turnUrls, username, credential },
-      ],
-      report: { name: "expressturn", role: "primary-relay", status: "configured", mode: "static", bandwidth },
-    };
-  }
-  return {
-    iceServers: [],
-    report: { name: "expressturn", role: "primary-relay", status: "not_configured", mode: "none", bandwidth },
-  };
-}
-
-async function metered(excluded: boolean): Promise<{ iceServers: RTCIceServer[]; report: ProviderReport }> {
-  const appName = env("METERED_OPENRELAY_APP_NAME") || "thimarvoice";
-  const apiKey = env("METERED_OPENRELAY_API_KEY");
-  const username = env("METERED_OPENRELAY_USERNAME");
-  const credential = env("METERED_OPENRELAY_CREDENTIAL");
-  const urls = list(env("METERED_OPENRELAY_URLS"), []);
-  const bandwidth = { provider: "metered-openrelay", freeTierGb: 20 };
-
-  if (excluded) {
-    return {
-      iceServers: [],
-      report: { name: "metered-openrelay", role: "secondary-relay", status: "not_configured", mode: "excluded", bandwidth },
-    };
-  }
-  if (appName && apiKey) {
-    try {
-      const response = await fetch(
-        `https://${appName}.metered.live/api/v1/turn/credentials?apiKey=${encodeURIComponent(apiKey)}`,
-        { headers: { Accept: "application/json" } },
-      );
-      if (!response.ok) throw new Error(`METERED_${response.status}`);
-      const payload = await response.json();
-      const servers: RTCIceServer[] = Array.isArray(payload)
-        ? payload
-        : Array.isArray(payload?.iceServers)
-          ? payload.iceServers
-          : [];
-      if (!servers.length) throw new Error("EMPTY");
-      return {
-        iceServers: servers,
-        report: { name: "metered-openrelay", role: "secondary-relay", status: "configured", mode: "rest-api", bandwidth },
-      };
-    } catch (error) {
-      return {
-        iceServers: [],
-        report: {
-          name: "metered-openrelay",
-          role: "secondary-relay",
-          status: "error",
-          mode: "rest-api",
-          message: String((error as Error)?.message ?? error),
-          bandwidth,
-        },
-      };
-    }
-  }
-  if (username && credential) {
-    if (!urls.length) {
-      return {
-        iceServers: [],
-        report: {
-          name: "metered-openrelay",
-          role: "secondary-relay",
-          status: "not_configured",
-          mode: "static",
-          message: "URLS_REQUIRED",
-          bandwidth,
-        },
-      };
-    }
-    const servers = urls.map((url) => (url.startsWith("stun:") ? { urls: url } : { urls: url, username, credential }));
-    return {
-      iceServers: servers,
-      report: { name: "metered-openrelay", role: "secondary-relay", status: "configured", mode: "static", bandwidth },
-    };
-  }
-  return {
-    iceServers: [],
-    report: { name: "metered-openrelay", role: "secondary-relay", status: "not_configured", mode: "none", bandwidth },
-  };
-}
-
+/* حدّ بسيط لكل مستخدم داخل سياق التشغيل نفسه. */
 const buckets = new Map<string, number[]>();
 
-function clientIp(request: Request): string {
-  return (
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    request.headers.get("cf-connecting-ip") ||
-    request.headers.get("x-real-ip") ||
-    "unknown"
-  );
-}
-
-function rateLimit(key: string, limit: number): { ok: boolean; retryAfter: number } {
-  const now = Date.now();
+export function rateLimit(key: string, limit: number, now = Date.now()): { ok: boolean; retryAfter: number } {
   const windowMs = 60_000;
   const hits = (buckets.get(key) ?? []).filter((time) => now - time < windowMs);
   if (hits.length >= limit) {
@@ -230,77 +67,74 @@ function rateLimit(key: string, limit: number): { ok: boolean; retryAfter: numbe
   return { ok: true, retryAfter: 0 };
 }
 
-Deno.serve(async (request) => {
-  const headers = cors(request);
-  if (request.method === "OPTIONS") return new Response("ok", { headers });
+/** يُستدعى من Deno.serve ومن الاختبارات بلا أي اعتماد على الشبكة. */
+export async function handleTurnRequest(request: Request, env: EnvReader): Promise<Response> {
+  const headers = corsHeaders(request);
 
-  const apiKey =
-    request.headers.get("apikey") ??
-    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
-    "";
-  if (!apiKey) return json(401, { error: "UNAUTHORIZED" }, headers);
-
-  const byIp = rateLimit(`ip:${clientIp(request)}`, 30);
-  if (!byIp.ok) {
-    return json(429, { error: "RATE_LIMITED", retryAfter: byIp.retryAfter }, {
-      ...headers,
-      "Retry-After": String(byIp.retryAfter),
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        ...headers,
+        "Access-Control-Allow-Headers": "authorization, apikey, content-type",
+        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+        "Access-Control-Max-Age": "86400",
+      },
     });
   }
 
-  let userKey = "anon";
-  try {
-    const payload = apiKey.split(".")[1];
-    if (payload) {
-      const claims = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
-      if (typeof claims?.sub === "string" && claims.sub) userKey = claims.sub;
-    }
-  } catch { /* anon key */ }
+  if (request.method !== "GET" && request.method !== "POST") {
+    return json(405, { error: "METHOD_NOT_ALLOWED" }, headers);
+  }
 
-  const byUser = rateLimit(`user:${userKey}`, 60);
-  if (!byUser.ok) {
-    return json(429, { error: "RATE_LIMITED", retryAfter: byUser.retryAfter }, {
-      ...headers,
-      "Retry-After": String(byUser.retryAfter),
+  const sessionSecret = (env("SESSION_SIGNING_SECRET") ?? "").trim();
+  if (!sessionSecret) return json(503, { error: "SESSION_NOT_CONFIGURED" }, headers);
+
+  const token = bearerToken(request);
+  if (!token) return json(401, { error: "AUTH_REQUIRED" }, headers);
+
+  const claims = await verifySessionToken(token, sessionSecret);
+  if (!claims) return json(401, { error: "INVALID_SESSION" }, headers);
+
+  const limited = rateLimit(`turn:${claims.sub}`, 60);
+  if (!limited.ok) {
+    return new Response(JSON.stringify({ error: "RATE_LIMITED", retryAfter: limited.retryAfter }), {
+      status: 429,
+      headers: { ...headers, "Retry-After": String(limited.retryAfter) },
     });
   }
 
-  const url = new URL(request.url);
-  const excluded = new Set(
-    (url.searchParams.get("exclude") ?? "")
-      .split(",")
-      .map((value) => value.trim().toLowerCase())
-      .filter(Boolean),
-  );
+  // بلا مفتاح مشترك لا يوجد مسار آمن: لا نُعيد بيانات اعتماد دائمة أبدًا.
+  const turnSecret = (env("EXPRESSTURN_SECRET") ?? "").trim();
+  if (!turnSecret) return json(503, { error: "TURN_NOT_CONFIGURED" }, headers);
 
-  const stun: RTCIceServer[] = [
-    { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
-    { urls: "stun:stun.cloudflare.com:3478" },
-  ];
-  const [express, meteredRelay] = await Promise.all([
-    expressTurn(excluded.has("expressturn")),
-    metered(excluded.has("metered-openrelay")),
-  ]);
+  const ttl = clampTtl(env("EXPRESSTURN_TTL_SECONDS"));
+  const { username, credential, expiresAt } = await mintTurnCredentials({
+    secret: turnSecret,
+    userId: claims.sub,
+    ttlSeconds: ttl,
+  });
+
+  const turnUrls = list(env("EXPRESSTURN_URLS") ?? "", DEFAULT_TURN_URLS);
+  const stunUrls = list(env("EXPRESSTURN_STUN_URLS") ?? "", DEFAULT_STUN_URLS);
 
   return json(
     200,
     {
-      iceServers: dedupe([...stun, ...express.iceServers, ...meteredRelay.iceServers]),
-      iceTransportPolicy: "all",
-      ttl: 3600,
-      providers: [
-        {
-          name: "stun",
-          role: "direct-p2p",
-          status: "available",
-          urls: stun.map((server) => server.urls),
-        },
-        express.report,
-        meteredRelay.report,
+      iceServers: [
+        ...stunUrls.map((urls) => ({ urls })),
+        { urls: turnUrls, username, credential },
       ],
-      excludedProviders: [...excluded],
+      iceTransportPolicy: "all",
+      ttl,
+      expiresAt: new Date(expiresAt * 1000).toISOString(),
+      providers: ["stun", "expressturn"],
       generatedAt: new Date().toISOString(),
     },
     headers,
   );
-});
+}
+
+/* التشغيل على Supabase فقط؛ يُتجاوز عند استيراد الملف في اختبارات Node. */
+const deno = (globalThis as { Deno?: { env: { get(name: string): string | undefined }; serve(handler: (request: Request) => Promise<Response>): unknown } }).Deno;
+if (deno) deno.serve((request) => handleTurnRequest(request, (name) => deno.env.get(name) ?? ""));

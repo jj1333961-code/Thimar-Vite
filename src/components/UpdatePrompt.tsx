@@ -35,6 +35,19 @@ const METADATA_URL = ANDROID_UPDATE_METADATA_URL;
 const RELEASE_NOTES_URL =
   (import.meta as any).env?.VITE_RELEASE_NOTES_URL || "/updates/release-notes.json";
 
+/**
+ * العنوان المطلق لبيانات التحديث. الجسر الأصلي (ThimarUpdater) لا يقبل إلا
+ * مسار /updates/android.json على نطاق ثمار الرسمي، وكان تمرير المسار النسبي
+ * يجعل كل محاولة تحديث تُرفض برسالة «مصدر بيانات التحديث غير موثوق».
+ */
+export function androidMetadataUrl(): string {
+  try {
+    return new URL(METADATA_URL, window.location.origin).href;
+  } catch {
+    return METADATA_URL;
+  }
+}
+
 type Platform = "ios" | "android" | "electron" | "web";
 
 type AndroidMetadata = {
@@ -342,8 +355,32 @@ export default function UpdatePrompt() {
         }
         const nativeUpdater = (window as any).ThimarUpdater;
         if (nativeUpdater && typeof nativeUpdater.downloadUpdate === "function") {
+          /* تثبيت APK خارج المتجر يحتاج إذن «تثبيت تطبيقات غير معروفة»؛
+             بدون فتحه للمستخدم تفشل كل محاولة تحديث بلا سبب واضح. */
+          let allowedToInstall = true;
+          try {
+            if (typeof nativeUpdater.canInstallPackages === "function") {
+              allowedToInstall = nativeUpdater.canInstallPackages() !== false;
+            }
+          } catch {
+            allowedToInstall = true;
+          }
+          if (!allowedToInstall) {
+            setStatus(
+              "يحتاج تطبيق ثمار إلى إذن تثبيت التحديث: فعّل «السماح من هذا المصدر» لثمار ثم اضغط «تحديث الآن» مرة أخرى.",
+            );
+            try {
+              if (typeof nativeUpdater.openInstallPermissionSettings === "function") {
+                nativeUpdater.openInstallPermissionSettings();
+              }
+            } catch {
+              /* الإعدادات قد تكون محظورة على بعض الأجهزة */
+            }
+            setBusy(false);
+            return;
+          }
           setStatus("بدأ تنزيل التحديث داخل ثمار. عند انقطاع الإنترنت سيُحفظ التقدم ويُستكمل تلقائيًا عند عودة الاتصال.");
-          nativeUpdater.downloadUpdate(METADATA_URL);
+          nativeUpdater.downloadUpdate(androidMetadataUrl());
           setBusy(false);
           return;
         }
@@ -416,6 +453,10 @@ export default function UpdatePrompt() {
       <div className="modal">
         <h3>هناك تحديث جديد — Thimar</h3>
         <p className="muted">يتوفر إصدار جديد من تطبيق ثمار. يمكنك تنزيله الآن أو تأجيله.</p>
+        <p className="muted" style={{ fontSize: 13 }}>
+          التحديث تراكمي: ملف واحد كامل يتضمّن جميع التحديثات والإصلاحات التي صدرت بعد إصدارك
+          الحالي، فلا حاجة إلى تثبيتها واحدة واحدة.
+        </p>
         {availableVersion ? (
           <p className="muted">
             <strong>{availableVersion}</strong>
